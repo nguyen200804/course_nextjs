@@ -41,7 +41,11 @@ function decodeHTMLEntities(str?: string): string {
         .replace(/&quot;/g, '"')
         .replace(/&#039;/g, "'")
         .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
+        .replace(/&gt;/g, '>')
+        .replace(/&#8211;/g, '–')
+        .replace(/&#8212;/g, '—')
+        .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 export default function FeaturedCourses() {

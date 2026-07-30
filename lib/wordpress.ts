@@ -514,7 +514,7 @@ export async function getWooCommercePaymentGateways() {
  */
 export async function getLearnDashUserProgress(userId: string | number, courseId: string | number) {
   const wpUrl = process.env.WORDPRESS_URL;
-  if (!wpUrl) return { completed_lessons: [], completed_topics: [] };
+  if (!wpUrl) return { completed_lessons: [], completed_topics: [], passing_grade: 80, user_course_status: "enrolled" };
 
   try {
     // Gọi Custom API lấy dữ liệu tiến trình học tập
@@ -533,13 +533,15 @@ export async function getLearnDashUserProgress(userId: string | number, courseId
         completed_topics: Array.isArray(data?.completed_topics)
           ? data.completed_topics.map((id: any) => Number(id))
           : [],
+        passing_grade: data?.passing_grade ? Number(data.passing_grade) : 80,
+        user_course_status: data?.user_course_status || "enrolled",
       };
     }
   } catch (error) {
     console.error("Lỗi khi lấy tiến trình học tập của người dùng:", error);
   }
 
-  return { completed_lessons: [], completed_topics: [] };
+  return { completed_lessons: [], completed_topics: [], passing_grade: 80, user_course_status: "enrolled" };
 }
 
 /**

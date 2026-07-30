@@ -500,6 +500,124 @@ add_action( 'rest_api_init', function() {
         'schema'          => null,
     ) );
 
+    // Helper: Lấy chi tiết đánh giá số sao (5,4,3,2,1 sao) và danh sách nhận xét của khóa học
+    if ( ! function_exists( 'get_lp_course_rating_details' ) ) {
+        function get_lp_course_rating_details( $course_id ) {
+            global $wpdb;
+            $course_id = intval( $course_id );
+            if ( ! $course_id ) {
+                return array(
+                    'average'  => 0,
+                    'total'    => 0,
+                    'stars'    => array( '5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0 ),
+                    'percents' => array( '5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0 ),
+                    'reviews'  => array(),
+                );
+            }
+
+            // 1. Lấy điểm trung bình từ postmeta nếu có
+            $average_meta = get_post_meta( $course_id, '_lp_course_rating_average', true );
+            if ( ! $average_meta ) {
+                $average_meta = get_post_meta( $course_id, '_lp_rating', true );
+            }
+
+            // 2. Truy vấn tất cả đánh giá (reviews / comments) từ WordPress Database
+            $comments = $wpdb->get_results( $wpdb->prepare( "
+                SELECT comment_ID, comment_author, comment_author_email, comment_content, comment_date, user_id
+                FROM {$wpdb->comments}
+                WHERE comment_post_ID = %d AND comment_approved = '1'
+                ORDER BY comment_date DESC
+            ", $course_id ) );
+
+            $stars_count = array( '5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0 );
+            $reviews = array();
+            $total_stars_sum = 0;
+
+            foreach ( $comments as $cm ) {
+                $cm_id = intval( $cm->comment_ID );
+
+                // Lấy số sao đánh giá (1..5) từ commentmeta (_rating hoặc _review_rating)
+                $rating = $wpdb->get_var( $wpdb->prepare( "
+                    SELECT meta_value FROM {$wpdb->commentmeta}
+                    WHERE comment_id = %d AND (meta_key = '_rating' OR meta_key = '_review_rating' OR meta_key = '_rating_val')
+                    LIMIT 1
+                ", $cm_id ) );
+
+                $rating = intval( $rating );
+                if ( $rating < 1 || $rating > 5 ) {
+                    $rating = 5;
+                }
+
+                $stars_key = strval( $rating );
+                if ( isset( $stars_count[ $stars_key ] ) ) {
+                    $stars_count[ $stars_key ]++;
+                }
+
+                $total_stars_sum += $rating;
+
+                // Lấy tiêu đề đánh giá nếu có
+                $title = $wpdb->get_var( $wpdb->prepare( "
+                    SELECT meta_value FROM {$wpdb->commentmeta}
+                    WHERE comment_id = %d AND (meta_key = '_rating_title' OR meta_key = '_review_title' OR meta_key = '_title')
+                    LIMIT 1
+                ", $cm_id ) );
+
+                $avatar_url = get_avatar_url( $cm->comment_author_email, array( 'size' => 96 ) );
+
+                $reviews[] = array(
+                    'id'            => $cm_id,
+                    'author_name'   => esc_html( $cm->comment_author ),
+                    'author_avatar' => $avatar_url ? $avatar_url : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
+                    'rating'        => $rating,
+                    'title'         => $title ? esc_html( $title ) : '',
+                    'content'       => wp_strip_all_tags( $cm->comment_content ),
+                    'date'          => $cm->comment_date,
+                );
+            }
+
+            $total_reviews = count( $reviews );
+            $calculated_avg = $total_reviews > 0 ? round( $total_stars_sum / $total_reviews, 1 ) : 0;
+            $final_avg = $average_meta ? floatval( $average_meta ) : $calculated_avg;
+
+            $percents = array( '5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0 );
+            if ( $total_reviews > 0 ) {
+                foreach ( $stars_count as $star => $count ) {
+                    $percents[ $star ] = round( ( $count / $total_reviews ) * 100, 1 );
+                }
+            }
+
+            return array(
+                'average'  => $final_avg,
+                'total'    => $total_reviews,
+                'stars'    => $stars_count,
+                'percents' => $percents,
+                'reviews'  => $reviews,
+            );
+        }
+    }
+
+    // Đăng ký trường rating_details cho REST API bài viết lp_course
+    register_rest_field( 'lp_course', 'rating_details', array(
+        'get_callback' => function( $object ) {
+            return get_lp_course_rating_details( $object['id'] );
+        },
+        'update_callback' => null,
+        'schema'          => null,
+    ) );
+
+    // REST API Custom Endpoint: Lấy thông tin đánh giá khóa học theo ID
+    register_rest_route( 'custom/v1', '/course-reviews', array(
+        'methods'  => 'GET',
+        'callback' => function ( WP_REST_Request $request ) {
+            $course_id = intval( $request->get_param( 'course_id' ) );
+            if ( ! $course_id ) {
+                return new WP_Error( 'missing_course_id', 'Thiếu tham số course_id.', array( 'status' => 400 ) );
+            }
+            return get_lp_course_rating_details( $course_id );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     // Đăng ký thêm các thuộc tính bài học preview, duration, graduation, status, locked cho lp_lesson và lp_quiz
     $item_fields = array(
         'preview'    => '_lp_preview',
@@ -854,11 +972,33 @@ add_action( 'rest_api_init', function() {
         'methods'  => 'GET',
         'callback' => function ( WP_REST_Request $request ) {
             global $wpdb;
-            $user_id   = intval( $request->get_param( 'user_id' ) );
-            $course_id = intval( $request->get_param( 'course_id' ) );
+            $raw_user   = $request->get_param( 'user_id' );
+            $raw_course = $request->get_param( 'course_id' );
 
-            if ( ! $user_id ) {
-                return array( 'completed_lessons' => array(), 'completed_topics' => array() );
+            $user_id   = intval( $raw_user );
+            $course_id = intval( $raw_course );
+
+            if ( ! $course_id && ! empty( $raw_course ) ) {
+                $course_id = intval( $wpdb->get_var( $wpdb->prepare( "
+                    SELECT ID FROM {$wpdb->posts}
+                    WHERE post_name = %s AND post_type = 'lp_course'
+                    LIMIT 1
+                ", $raw_course ) ) );
+            }
+
+            $passing_condition = $course_id > 0 ? get_post_meta( $course_id, '_lp_passing_condition', true ) : 80;
+            $passing_grade     = ( ! empty( $passing_condition ) && intval( $passing_condition ) > 0 ) ? intval( $passing_condition ) : 80;
+
+            $course_status = 'enrolled';
+            if ( $course_id > 0 ) {
+                $status_db = $wpdb->get_var( $wpdb->prepare( "
+                    SELECT status FROM {$wpdb->prefix}learnpress_user_items
+                    WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+                    ORDER BY user_item_id DESC LIMIT 1
+                ", $user_id, $course_id ) );
+                if ( $status_db ) {
+                    $course_status = $status_db;
+                }
             }
 
             if ( $course_id > 0 ) {
@@ -871,24 +1011,28 @@ add_action( 'rest_api_init', function() {
                 if ( $parent_item_id ) {
                     $completed = $wpdb->get_col( $wpdb->prepare( "
                         SELECT item_id FROM {$wpdb->prefix}learnpress_user_items
-                        WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type = 'lp_lesson'
+                        WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
                     ", $user_id, $parent_item_id ) );
 
                     return array(
-                        'completed_lessons' => array_map( 'intval', $completed ),
-                        'completed_topics'  => array(),
+                        'completed_lessons'  => array_map( 'intval', $completed ),
+                        'completed_topics'   => array(),
+                        'passing_grade'      => $passing_grade,
+                        'user_course_status' => $course_status,
                     );
                 }
             }
 
             $completed = $wpdb->get_col( $wpdb->prepare( "
                 SELECT item_id FROM {$wpdb->prefix}learnpress_user_items
-                WHERE user_id = %d AND status = 'completed' AND item_type = 'lp_lesson'
+                WHERE user_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
             ", $user_id ) );
 
             return array(
-                'completed_lessons' => array_map( 'intval', $completed ),
-                'completed_topics'  => array(),
+                'completed_lessons'  => array_map( 'intval', $completed ),
+                'completed_topics'   => array(),
+                'passing_grade'      => $passing_grade,
+                'user_course_status' => $course_status,
             );
         },
         'permission_callback' => '__return_true',
@@ -899,15 +1043,50 @@ add_action( 'rest_api_init', function() {
         'methods'  => 'POST',
         'callback' => function ( WP_REST_Request $request ) {
             global $wpdb;
-            $user_id   = intval( $request->get_param( 'user_id' ) );
-            $course_id = intval( $request->get_param( 'course_id' ) );
-            $lesson_id = intval( $request->get_param( 'post_id' ) ? $request->get_param( 'post_id' ) : $request->get_param( 'lesson_id' ) );
+            $raw_user   = $request->get_param( 'user_id' );
+            $raw_course = $request->get_param( 'course_id' );
+            $raw_lesson = $request->get_param( 'post_id' ) ? $request->get_param( 'post_id' ) : $request->get_param( 'lesson_id' );
 
-            if ( ! $user_id || ! $lesson_id ) {
-                return new WP_Error( 'missing_params', 'Thiếu user_id hoặc lesson_id.', array( 'status' => 400 ) );
+            $user_id   = intval( $raw_user );
+            $course_id = intval( $raw_course );
+            $lesson_id = intval( $raw_lesson );
+
+            // Resolving course_id slug -> ID
+            if ( ! $course_id && ! empty( $raw_course ) ) {
+                $course_id = intval( $wpdb->get_var( $wpdb->prepare( "
+                    SELECT ID FROM {$wpdb->posts}
+                    WHERE post_name = %s AND post_type = 'lp_course'
+                    LIMIT 1
+                ", $raw_course ) ) );
             }
 
-            // Lấy parent_id (user_item_id của khóa học)
+            // Resolving lesson_id slug -> ID
+            if ( ! $lesson_id && ! empty( $raw_lesson ) ) {
+                $lesson_id = intval( $wpdb->get_var( $wpdb->prepare( "
+                    SELECT ID FROM {$wpdb->posts}
+                    WHERE post_name = %s AND post_type IN ('lp_lesson', 'lp_quiz')
+                    LIMIT 1
+                ", $raw_lesson ) ) );
+            }
+
+            if ( ! $user_id || ! $lesson_id ) {
+                return new WP_Error( 'missing_params', 'Thiếu user_id hoặc lesson_id hợp lệ.', array( 'status' => 400 ) );
+            }
+
+            // Lấy item_type (lp_lesson hoặc lp_quiz)
+            $item_type = get_post_type( $lesson_id );
+            if ( ! in_array( $item_type, array( 'lp_lesson', 'lp_quiz' ) ) ) {
+                $item_type = 'lp_lesson';
+            }
+
+            // Gọi hàm ghi nhận hoàn thành chính thức của LearnPress nếu plugin active
+            if ( function_exists( 'learn_press_user_complete_item' ) && $course_id > 0 ) {
+                try {
+                    learn_press_user_complete_item( $user_id, $lesson_id, $course_id );
+                } catch ( Exception $e ) {}
+            }
+
+            // Lấy parent_id (user_item_id của khóa học trong wp_learnpress_user_items)
             $parent_item_id = 0;
             if ( $course_id > 0 ) {
                 $parent_item_id = intval( $wpdb->get_var( $wpdb->prepare( "
@@ -917,12 +1096,12 @@ add_action( 'rest_api_init', function() {
                 ", $user_id, $course_id ) ) );
             }
 
-            // Kiểm tra dòng bài học hiện tại trong user_items
+            // Kiểm tra dòng bài học hiện tại trong wp_learnpress_user_items
             $existing_id = $wpdb->get_var( $wpdb->prepare( "
                 SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
-                WHERE user_id = %d AND item_id = %d AND item_type = 'lp_lesson'
+                WHERE user_id = %d AND item_id = %d AND item_type = %s
                 ORDER BY user_item_id DESC LIMIT 1
-            ", $user_id, $lesson_id ) );
+            ", $user_id, $lesson_id, $item_type ) );
 
             $now = current_time( 'mysql' );
 
@@ -930,9 +1109,10 @@ add_action( 'rest_api_init', function() {
                 $wpdb->update(
                     $wpdb->prefix . 'learnpress_user_items',
                     array(
-                        'status'    => 'completed',
-                        'end_time'  => $now,
-                        'parent_id' => $parent_item_id ? $parent_item_id : 0,
+                        'status'     => 'completed',
+                        'graduation' => 'passed',
+                        'end_time'   => $now,
+                        'parent_id'  => $parent_item_id ? $parent_item_id : 0,
                     ),
                     array( 'user_item_id' => $existing_id )
                 );
@@ -944,7 +1124,7 @@ add_action( 'rest_api_init', function() {
                         'item_id'     => $lesson_id,
                         'start_time'  => $now,
                         'end_time'    => $now,
-                        'item_type'   => 'lp_lesson',
+                        'item_type'   => $item_type,
                         'status'      => 'completed',
                         'graduation'  => 'passed',
                         'parent_id'   => $parent_item_id ? $parent_item_id : 0,
@@ -954,10 +1134,328 @@ add_action( 'rest_api_init', function() {
 
             return array(
                 'success' => true,
-                'message' => 'Đã đánh dấu hoàn thành bài học.',
+                'message' => 'Đã đồng bộ bài học hoàn thành vào WordPress LearnPress.',
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // REST API: Đăng ký / Ghi danh khóa học LearnPress (Đồng bộ vào wp_learnpress_user_items)
+    register_rest_route( 'custom/v1', '/enroll', array(
+        'methods'  => 'POST',
+        'callback' => function ( WP_REST_Request $request ) {
+            global $wpdb;
+            $user_id   = intval( $request->get_param( 'user_id' ) );
+            $course_id = intval( $request->get_param( 'course_id' ) );
+
+            if ( ! $user_id || ! $course_id ) {
+                return new WP_Error( 'missing_params', 'Thiếu user_id hoặc course_id.', array( 'status' => 400 ) );
+            }
+
+            // Gọi hàm ghi danh chính thức của LearnPress nếu plugin active
+            if ( function_exists( 'learn_press_user_enroll_course' ) ) {
+                try {
+                    $res = learn_press_user_enroll_course( $course_id, $user_id );
+                    if ( $res ) {
+                        return array( 'success' => true, 'isEnrolled' => true, 'message' => 'Đã đăng ký khóa học thành công.' );
+                    }
+                } catch ( Exception $e ) {
+                    // Tiếp tục fallback bên dưới nếu hàm báo lỗi
+                }
+            }
+
+            // Kiểm tra xem người dùng đã có ghi danh trong bảng wp_learnpress_user_items chưa
+            $existing_id = $wpdb->get_var( $wpdb->prepare( "
+                SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
+                WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+                ORDER BY user_item_id DESC LIMIT 1
+            ", $user_id, $course_id ) );
+
+            $now = current_time( 'mysql' );
+
+            if ( ! $existing_id ) {
+                $wpdb->insert(
+                    $wpdb->prefix . 'learnpress_user_items',
+                    array(
+                        'user_id'     => $user_id,
+                        'item_id'     => $course_id,
+                        'start_time'  => $now,
+                        'end_time'    => '0000-00-00 00:00:00',
+                        'item_type'   => 'lp_course',
+                        'status'      => 'enrolled',
+                        'graduation'  => 'in-progress',
+                        'parent_id'   => 0,
+                    )
+                );
+            } else {
+                $wpdb->update(
+                    $wpdb->prefix . 'learnpress_user_items',
+                    array(
+                        'status'     => 'enrolled',
+                        'graduation' => 'in-progress',
+                    ),
+                    array( 'user_item_id' => $existing_id )
+                );
+            }
+
+            return array(
+                'success'    => true,
+                'isEnrolled' => true,
+                'message'    => 'Đã đồng bộ ghi danh khóa học vào WordPress LearnPress.',
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // REST API: Xác nhận hoàn thành toàn bộ khóa học (Finish Course - LearnPress)
+    register_rest_route( 'custom/v1', '/finish-course', array(
+        'methods'  => 'POST',
+        'callback' => function ( WP_REST_Request $request ) {
+            global $wpdb;
+            $raw_user   = $request->get_param( 'user_id' );
+            $raw_course = $request->get_param( 'course_id' );
+
+            $user_id   = intval( $raw_user );
+            $course_id = intval( $raw_course );
+
+            if ( ! $course_id && ! empty( $raw_course ) ) {
+                $course_id = intval( $wpdb->get_var( $wpdb->prepare( "
+                    SELECT ID FROM {$wpdb->posts}
+                    WHERE post_name = %s AND post_type = 'lp_course'
+                    LIMIT 1
+                ", $raw_course ) ) );
+            }
+
+            if ( ! $user_id || ! $course_id ) {
+                return new WP_Error( 'missing_params', 'Thiếu user_id hoặc course_id hợp lệ.', array( 'status' => 400 ) );
+            }
+
+            // Lấy điểm passing condition từ post_meta (_lp_passing_condition)
+            $passing_condition = get_post_meta( $course_id, '_lp_passing_condition', true );
+            $passing_grade     = ( ! empty( $passing_condition ) && intval( $passing_condition ) > 0 ) ? intval( $passing_condition ) : 80;
+
+            // Đếm tổng số bài học và số bài đã hoàn thành
+            $total_lessons = $wpdb->get_var( $wpdb->prepare( "
+                SELECT COUNT( DISTINCT si.item_id )
+                FROM {$wpdb->prefix}learnpress_section_items si
+                INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
+                WHERE si.section_id IN (
+                    SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
+                ) AND p.post_type IN ('lp_lesson', 'lp_quiz')
+            ", $course_id ) );
+
+            $user_item_id = $wpdb->get_var( $wpdb->prepare( "
+                SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
+                WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+                ORDER BY user_item_id DESC LIMIT 1
+            ", $user_id, $course_id ) );
+
+            $completed_lessons = 0;
+            if ( $user_item_id ) {
+                $completed_lessons = $wpdb->get_var( $wpdb->prepare( "
+                    SELECT COUNT( DISTINCT item_id )
+                    FROM {$wpdb->prefix}learnpress_user_items
+                    WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
+                ", $user_id, $user_item_id ) );
+            }
+
+            $current_percent = ( $total_lessons > 0 ) ? round( ( $completed_lessons / $total_lessons ) * 100, 2 ) : 100;
+
+            if ( $current_percent < $passing_grade ) {
+                return new WP_Error( 'not_passed', sprintf( 'Bạn cần đạt tối thiểu %d%% để hoàn thành khóa học. Tiến trình hiện tại: %s%%.', $passing_grade, $current_percent ), array( 'status' => 400 ) );
+            }
+
+            // Gọi hàm chính thức của LearnPress nếu active
+            if ( function_exists( 'learn_press_user_finish_course' ) ) {
+                try {
+                    learn_press_user_finish_course( $course_id, $user_id );
+                } catch ( Exception $e ) {}
+            }
+
+            $now = current_time( 'mysql' );
+
+            if ( $user_item_id ) {
+                $wpdb->update(
+                    $wpdb->prefix . 'learnpress_user_items',
+                    array(
+                        'status'     => 'finished',
+                        'graduation' => 'passed',
+                        'end_time'   => $now,
+                    ),
+                    array( 'user_item_id' => $user_item_id )
+                );
+            } else {
+                $wpdb->insert(
+                    $wpdb->prefix . 'learnpress_user_items',
+                    array(
+                        'user_id'     => $user_id,
+                        'item_id'     => $course_id,
+                        'start_time'  => $now,
+                        'end_time'    => $now,
+                        'item_type'   => 'lp_course',
+                        'status'      => 'finished',
+                        'graduation'  => 'passed',
+                        'parent_id'   => 0,
+                    )
+                );
+            }
+
+            return array(
+                'success'         => true,
+                'status'          => 'finished',
+                'graduation'      => 'passed',
+                'progressPercent' => $current_percent,
+                'message'         => 'Chúc mừng! Bạn đã hoàn thành xuất sắc khóa học.',
             );
         },
         'permission_callback' => '__return_true',
     ) );
 } );
+
+// Shortcode kiểm tra tất cả Meta Keys của Bài viết / Post Type: [inspect_post_meta]
+add_shortcode( 'inspect_post_meta', function( $atts ) {
+    if ( ! current_user_can( 'manage_options' ) && ! is_admin() ) {
+        return '<div style="padding: 12px 16px; background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px; font-family: sans-serif;">⚠️ Bạn cần đăng nhập tài khoản Quản trị (Admin) để sử dụng công cụ này.</div>';
+    }
+
+    $atts = shortcode_atts( array(
+        'post_id' => 0,
+    ), $atts );
+
+    $selected_post_id = intval( $atts['post_id'] );
+    if ( isset( $_GET['inspect_post_id'] ) && intval( $_GET['inspect_post_id'] ) > 0 ) {
+        $selected_post_id = intval( $_GET['inspect_post_id'] );
+    }
+
+    $selected_post_type = isset( $_GET['inspect_post_type'] ) ? sanitize_text_field( $_GET['inspect_post_type'] ) : 'lp_course';
+
+    // Lấy danh sách tất cả Post Types công khai và Custom Post Types
+    $post_types = get_post_types( array( 'public' => true ), 'objects' );
+
+    // Lấy danh sách bài viết theo post_type được chọn
+    $posts = get_posts( array(
+        'post_type'      => $selected_post_type,
+        'posts_per_page' => 150,
+        'post_status'    => array( 'publish', 'draft', 'pending', 'private' ),
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+    ) );
+
+    ob_start();
+    ?>
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #0f172a; font-size: 20px; font-weight: 700; border-bottom: 2px solid #2563eb; padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+            🔍 Công cụ kiểm tra Meta Key bài viết (Post Meta Inspector)
+        </h3>
+
+        <!-- Form Chọn Post Type và Bài viết -->
+        <form method="GET" action="" style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; background: #f8fafc; padding: 16px; border-radius: 8px; align-items: flex-end;">
+            <?php foreach ( $_GET as $k => $v ) : ?>
+                <?php if ( ! in_array( $k, array( 'inspect_post_type', 'inspect_post_id' ), true ) && is_string( $v ) ) : ?>
+                    <input type="hidden" name="<?php echo esc_attr( $k ); ?>" value="<?php echo esc_attr( $v ); ?>" />
+                <?php endif; ?>
+            <?php endforeach; ?>
+
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px;">1. Chọn Loại bài viết (Post Type):</label>
+                <select name="inspect_post_type" onchange="this.form.submit()" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font-size: 14px; color: #0f172a;">
+                    <?php foreach ( $post_types as $pt_slug => $pt_obj ) : ?>
+                        <option value="<?php echo esc_attr( $pt_slug ); ?>" <?php selected( $selected_post_type, $pt_slug ); ?>>
+                            <?php echo esc_html( $pt_obj->labels->singular_name . ' (' . $pt_slug . ')' ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div style="flex: 2; min-width: 280px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px;">2. Chọn Bài viết cụ thể:</label>
+                <select name="inspect_post_id" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font-size: 14px; color: #0f172a;">
+                    <option value="">-- Chọn bài viết --</option>
+                    <?php foreach ( $posts as $p ) : ?>
+                        <option value="<?php echo intval( $p->ID ); ?>" <?php selected( $selected_post_id, $p->ID ); ?>>
+                            [ID: <?php echo $p->ID; ?>] <?php echo esc_html( $p->post_title ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div>
+                <button type="submit" style="background: #2563eb; color: #ffffff; padding: 9px 20px; border: none; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.2s;">
+                    🚀 Xem Meta Keys
+                </button>
+            </div>
+        </form>
+
+        <!-- Kết quả hiển thị Meta Keys -->
+        <?php if ( $selected_post_id > 0 ) : ?>
+            <?php
+            $target_post = get_post( $selected_post_id );
+            $meta_data   = get_post_meta( $selected_post_id );
+            ?>
+            <?php if ( $target_post ) : ?>
+                <div style="margin-bottom: 16px; padding: 14px 18px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 6px;">
+                    <h4 style="margin: 0 0 6px 0; color: #1e3a8a; font-size: 16px; font-weight: 700;">
+                        📌 Bài viết: <?php echo esc_html( $target_post->post_title ); ?>
+                    </h4>
+                    <span style="font-size: 13px; color: #1d4ed8;">
+                        ID: <strong><?php echo $target_post->ID; ?></strong> | Slug: <code><?php echo esc_html( $target_post->post_name ); ?></code> | Post Type: <code><?php echo esc_html( $target_post->post_type ); ?></code> | Tổng số Meta Keys: <strong><?php echo count( $meta_data ); ?></strong>
+                    </span>
+                </div>
+
+                <?php if ( ! empty( $meta_data ) ) : ?>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                            <thead>
+                                <tr style="background: #f1f5f9; color: #334155; border-bottom: 2px solid #cbd5e1;">
+                                    <th style="padding: 10px; width: 50px;">STT</th>
+                                    <th style="padding: 10px; width: 280px;">Meta Key (Tên trường)</th>
+                                    <th style="padding: 10px;">Meta Value (Giá trị)</th>
+                                    <th style="padding: 10px; width: 110px;">Kiểu dữ liệu</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $idx = 1; foreach ( $meta_data as $key => $values ) : ?>
+                                    <?php
+                                    $raw_value = count( $values ) === 1 ? $values[0] : $values;
+                                    $unserialized = @maybe_unserialize( $raw_value );
+                                    $type_label = gettype( $unserialized );
+
+                                    if ( is_array( $unserialized ) ) {
+                                        $display_value = '<pre style="margin: 0; padding: 10px; background: #0f172a; color: #38bdf8; border-radius: 6px; max-height: 220px; overflow: auto; font-size: 12px;">' . esc_html( print_r( $unserialized, true ) ) . '</pre>';
+                                        $type_label = 'Array (' . count( $unserialized ) . ')';
+                                    } elseif ( is_object( $unserialized ) ) {
+                                        $display_value = '<pre style="margin: 0; padding: 10px; background: #0f172a; color: #38bdf8; border-radius: 6px; max-height: 220px; overflow: auto; font-size: 12px;">' . esc_html( print_r( $unserialized, true ) ) . '</pre>';
+                                        $type_label = 'Object';
+                                    } else {
+                                        $display_value = '<code style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; color: #0f172a; word-break: break-all;">' . esc_html( strval( $raw_value ) ) . '</code>';
+                                    }
+                                    ?>
+                                    <tr style="border-bottom: 1px solid #e2e8f0; background: <?php echo $idx % 2 === 0 ? '#fafafa' : '#ffffff'; ?>;">
+                                        <td style="padding: 10px; color: #94a3b8; font-weight: bold;"><?php echo $idx++; ?></td>
+                                        <td style="padding: 10px; font-weight: 600; color: #0f172a;">
+                                            <span style="color: <?php echo strpos( $key, '_' ) === 0 ? '#475569' : '#0284c7'; ?>;">
+                                                <?php echo esc_html( $key ); ?>
+                                            </span>
+                                        </td>
+                                        <td style="padding: 10px;"><?php echo $display_value; ?></td>
+                                        <td style="padding: 10px;"><span style="background: #e0f2fe; color: #0369a1; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block;"><?php echo esc_html( $type_label ); ?></span></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else : ?>
+                    <p style="color: #64748b;">Bài viết này chưa có dữ liệu Meta key nào.</p>
+                <?php endif; ?>
+            <?php else : ?>
+                <p style="color: #ef4444;">Không tìm thấy bài viết ID: <?php echo $selected_post_id; ?></p>
+            <?php endif; ?>
+        <?php else : ?>
+            <p style="color: #64748b; font-style: italic; margin: 0;">Vui lòng chọn <strong>Loại bài viết</strong> và <strong>Bài viết cụ thể</strong> ở danh sách trên, sau đó bấm <strong>Xem Meta Keys</strong>.</p>
+        <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+} );
+
 

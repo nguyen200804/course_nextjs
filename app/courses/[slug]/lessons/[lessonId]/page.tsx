@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { fetchWPCourseBySlug } from "@/lib/api/courses";
-import { checkUserCourseEnrollment } from "@/lib/wordpress";
+import { checkUserCourseEnrollment, getLearnDashUserProgress } from "@/lib/wordpress";
 import LessonViewWrapper from "./LessonViewWrapper";
 
 interface PageProps {
@@ -14,6 +14,7 @@ export default async function LessonDetailPage({ params }: PageProps) {
   
   let course: any = null;
   let activeLesson: any = null;
+  let foundSectionItem: any = null;
   let lessons: any[] = [];
   let sections: any[] = [];
   let displayOptions: any = null;
@@ -38,46 +39,109 @@ export default async function LessonDetailPage({ params }: PageProps) {
 
     course = courseData;
     courseId = course.id.toString();
+    sections = course.sections || [];
 
     const wpUrl = process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
+    const isNumericId = /^\d+$/.test(lessonId);
 
-    // 2. Tải bài học hiện tại từ WordPress REST API (/wp/v2/lp_lesson/{lessonId})
-    try {
-      const lessonRes = await fetch(`${wpUrl}/wp-json/wp/v2/lp_lesson/${lessonId}?_embed=true`, {
-        next: { revalidate: 60 }
-      });
-      if (lessonRes.ok) {
-        activeLesson = await lessonRes.json();
-      } else {
-        activeLesson = {
-          id: lessonId,
-          title: { rendered: `Bài học #${lessonId}` },
-          content: { rendered: `<p>Nội dung bài học đang được cập nhật...</p>` }
-        };
+    // 2. Tìm bài học trực tiếp từ course.sections trước nếu có
+    if (Array.isArray(sections)) {
+      for (const sec of sections) {
+        if (sec.items && Array.isArray(sec.items)) {
+          const match = sec.items.find(
+            (it: any) =>
+              (it.item_id && it.item_id.toString() === lessonId) ||
+              (it.slug && it.slug === lessonId) ||
+              (it.id && it.id.toString() === lessonId)
+          );
+          if (match) {
+            foundSectionItem = match;
+            break;
+          }
+        }
       }
-    } catch {
+    }
+
+    // 3. Tải thông tin chi tiết bài học từ REST API theo ID hoặc Slug
+    try {
+      let lessonEndpoint = isNumericId
+        ? `${wpUrl}/wp-json/wp/v2/lp_lesson/${lessonId}?_embed=true`
+        : `${wpUrl}/wp-json/wp/v2/lp_lesson?slug=${lessonId}&_embed=true`;
+
+      let lessonRes = await fetch(lessonEndpoint, { next: { revalidate: 60 } });
+
+      if (lessonRes.ok) {
+        const lessonData = await lessonRes.json();
+        const itemObj = Array.isArray(lessonData) ? lessonData[0] : lessonData;
+        if (itemObj) {
+          activeLesson = {
+            ...itemObj,
+            item_type: 'lp_lesson',
+          };
+        }
+      }
+
+      if (!activeLesson || !activeLesson.content?.rendered) {
+        let quizEndpoint = isNumericId
+          ? `${wpUrl}/wp-json/wp/v2/lp_quiz/${lessonId}?_embed=true`
+          : `${wpUrl}/wp-json/wp/v2/lp_quiz?slug=${lessonId}&_embed=true`;
+
+        let quizRes = await fetch(quizEndpoint, { next: { revalidate: 60 } });
+        if (quizRes.ok) {
+          const quizData = await quizRes.json();
+          const quizObj = Array.isArray(quizData) ? quizData[0] : quizData;
+          if (quizObj) {
+            activeLesson = {
+              ...quizObj,
+              item_type: 'lp_quiz',
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching lesson from REST API:", e);
+    }
+
+    // Fallback nếu REST API không trả về nội dung nhưng tìm thấy trong section
+    if (!activeLesson && foundSectionItem) {
       activeLesson = {
-        id: lessonId,
-        title: { rendered: `Bài học #${lessonId}` },
-        content: { rendered: `<p>Nội dung bài học đang được cập nhật...</p>` }
+        id: foundSectionItem.item_id || foundSectionItem.id || lessonId,
+        slug: foundSectionItem.slug || lessonId,
+        item_type: foundSectionItem.item_type || foundSectionItem.type || 'lp_lesson',
+        title: { rendered: foundSectionItem.title || foundSectionItem.name || foundSectionItem.post_title || `Bài học` },
+        content: { rendered: foundSectionItem.post_content || foundSectionItem.content || foundSectionItem.description || '<p>Nội dung bài học đang được cập nhật...</p>' },
+        duration: foundSectionItem.duration || '',
       };
     }
 
-    // 3. Tải danh sách sections và bài học thuộc khóa học LearnPress
-    sections = course.sections || [];
-    const allLessonsList: any[] = [];
+    // Nếu vẫn chưa có activeLesson, tạo fallback tối thiểu
+    if (!activeLesson) {
+      activeLesson = {
+        id: lessonId,
+        slug: lessonId,
+        item_type: 'lp_lesson',
+        title: { rendered: `Bài học` },
+        content: { rendered: `<p>Nội dung bài học đang được cập nhật...</p>` },
+      };
+    }
 
+    // 4. Xây dựng danh sách bài học phẳng
+    const allLessonsList: any[] = [];
     if (Array.isArray(sections)) {
       sections.forEach((sec: any) => {
         if (sec.items && Array.isArray(sec.items)) {
           sec.items.forEach((item: any) => {
+            const itemId = (item.item_id || item.id).toString();
+            const itemSlug = item.slug || itemId;
             allLessonsList.push({
-              id: item.item_id || item.id,
-              item_id: item.item_id || item.id,
-              title: item.title || item.name || `Bài học #${item.item_id || item.id}`,
+              id: itemId,
+              item_id: itemId,
+              slug: itemSlug,
+              title: item.title || item.name || `Bài học #${itemId}`,
               post_title: item.title || item.name,
-              slug: item.slug || `lesson-${item.item_id || item.id}`,
-              type: item.type || 'lp_lesson',
+              type: item.item_type || item.type || 'lp_lesson',
+              content: item.post_content || item.content || item.description || '',
+              duration: item.duration || '',
             });
           });
         }
@@ -86,24 +150,35 @@ export default async function LessonDetailPage({ params }: PageProps) {
 
     lessons = allLessonsList;
 
-    // 4. Kiểm tra trạng thái đã đăng ký (enrollment)
+    // 5. Kiểm tra trạng thái đã đăng ký (enrollment) và tiến trình học tập
     if (user) {
       isUserPurchased = await checkUserCourseEnrollment(user.id.toString(), courseId);
+      progress = await getLearnDashUserProgress(user.id.toString(), courseId);
+      completedLessons = progress?.completed_lessons || [];
+      if (course && progress) {
+        course.passingGrade = progress.passing_grade || 80;
+        course.user_course_status = progress.user_course_status || "enrolled";
+      }
     }
   } catch (err: any) {
     error = err.message || "Không thể tải chi tiết bài học này.";
   }
 
-  // Xác định vị trí bài học hiện tại trong danh sách bài học
-  const activeIndex = lessons.findIndex((l: any) => l.id?.toString() === lessonId || l.item_id?.toString() === lessonId);
-  const previousLesson = activeIndex > 0 ? lessons[activeIndex - 1] : null;
-
   // Quyền truy cập bài học LearnPress
-  const canAccess = activeLesson?.is_sample || isUserPurchased || true;
+  const isPreviewLesson =
+    activeLesson?.preview === true ||
+    activeLesson?.preview === "yes" ||
+    activeLesson?.preview === "1" ||
+    activeLesson?.is_sample === true ||
+    foundSectionItem?.preview === true ||
+    foundSectionItem?.preview === "yes" ||
+    foundSectionItem?.preview === "1";
+
+  const canAccess = isUserPurchased || isPreviewLesson;
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6 font-sans">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl">
           <div className="h-12 w-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mb-6 mx-auto text-xl">
             ⚠️
@@ -122,38 +197,19 @@ export default async function LessonDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased">
-      {/* Header học tập */}
-      <header className="border-b border-slate-800/80 bg-slate-950/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href={`/courses/${slug}`} className="flex items-center gap-2 group text-slate-400 hover:text-white transition-colors">
-            <span className="group-hover:-translate-x-1 transition-transform">←</span>
-            <span className="text-sm font-semibold truncate max-w-[300px]" dangerouslySetInnerHTML={{ __html: course?.title?.rendered || "" }} />
-          </Link>
-          <div className="text-xs font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
-            Bài học LearnPress
-          </div>
-        </div>
-      </header>
-
-      {/* Giao diện học tập */}
-      <main className="max-w-7xl mx-auto px-4 py-10">
-        <LessonViewWrapper
-          displayOptions={displayOptions}
-          activeLesson={activeLesson}
-          courseId={courseId}
-          lessonId={lessonId}
-          completedLessons={completedLessons}
-          user={user}
-          slug={slug}
-          lessons={lessons}
-          sections={sections}
-          canAccess={canAccess}
-          isLockedByProgression={false}
-          previousLesson={previousLesson}
-          progress={progress}
-        />
-      </main>
-    </div>
+    <LessonViewWrapper
+      displayOptions={displayOptions}
+      activeLesson={activeLesson}
+      course={course}
+      courseId={courseId}
+      lessonId={lessonId}
+      completedLessons={completedLessons}
+      user={user}
+      slug={slug}
+      lessons={lessons}
+      sections={sections}
+      canAccess={canAccess}
+      progress={progress}
+    />
   );
 }

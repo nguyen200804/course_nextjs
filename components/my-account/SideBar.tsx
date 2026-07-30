@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserRound, Gauge, LibraryBig, Award, RotateCcwIcon, LogOut } from 'lucide-react';
+import { UserRound, Gauge, LibraryBig, Award, RotateCcwIcon, LogOut, Heart } from 'lucide-react';
 import styles from '@/styles/my-account/SideBar.module.css';
 
 export default function SideBar({ handleLogout }: { handleLogout: () => void }) {

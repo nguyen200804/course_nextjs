@@ -1,3 +1,31 @@
+export interface RatingDetails {
+    average: number;
+    total: number;
+    stars: {
+        '5': number;
+        '4': number;
+        '3': number;
+        '2': number;
+        '1': number;
+    };
+    percents: {
+        '5': number;
+        '4': number;
+        '3': number;
+        '2': number;
+        '1': number;
+    };
+    reviews: Array<{
+        id: number;
+        author_name: string;
+        author_avatar: string;
+        rating: number;
+        title: string;
+        content: string;
+        date: string;
+    }>;
+}
+
 export interface WPLPCourseItem {
     id: number;
     title: {
@@ -10,6 +38,7 @@ export interface WPLPCourseItem {
     };
     featured_media: number;
     sections?: any[];
+    rating_details?: RatingDetails;
     meta?: {
         _lp_duration?: string;
         _lp_level?: string;

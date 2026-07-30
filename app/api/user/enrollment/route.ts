@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Đăng ký (Enroll) vào khóa học miễn phí (Start Now)
+// POST: Đăng ký (Enroll) vào khóa học (Start Now) - Đồng bộ dữ liệu sang WordPress LearnPress
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -60,31 +60,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Thiếu ID khóa học." }, { status: 400 });
     }
 
-    const wpUrl = process.env.WORDPRESS_URL;
-    const username = process.env.WORDPRESS_API_USERNAME;
-    const password = process.env.WORDPRESS_API_APPLICATION_PASSWORD;
+    const wpUrl = process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
 
-    if (wpUrl && username && password && sessionUser?.id) {
-      const credentials = Buffer.from(`${username}:${password}`).toString("base64");
-      // Gọi REST API LearnDash enroll user: POST /ldlms/v1/users/<id>/courses
+    if (wpUrl && sessionUser?.id) {
       try {
-        await fetch(`${wpUrl}/wp-json/ldlms/v1/users/${sessionUser.id}/courses`, {
+        // Gọi Custom REST API trên WordPress để ghi dữ liệu đăng ký vào wp_learnpress_user_items
+        const res = await fetch(`${wpUrl}/wp-json/custom/v1/enroll`, {
           method: "POST",
           headers: {
-            Authorization: `Basic ${credentials}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ course_ids: [course_id] }),
+          body: JSON.stringify({
+            user_id: sessionUser.id,
+            course_id: course_id,
+          }),
           cache: "no-store",
         });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error("WordPress LearnPress Enroll API response:", errText);
+        }
       } catch (err) {
-        console.error("Lỗi gọi enroll LearnDash API:", err);
+        console.error("Lỗi gọi enroll LearnPress API:", err);
       }
     }
 
     return NextResponse.json({ success: true, isEnrolled: true });
   } catch (error) {
-    console.error("Lỗi đăng ký khóa học miễn phí:", error);
+    console.error("Lỗi đăng ký khóa học:", error);
     return NextResponse.json({ error: "Đã xảy ra lỗi khi đăng ký khóa học." }, { status: 500 });
   }
 }

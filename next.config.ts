@@ -7,6 +7,18 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'demo.edublink.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'test4.questx.com.vn',
+      },
+      {
+        protocol: 'http',
+        hostname: 'test4.questx.com.vn',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
 };

@@ -178,7 +178,10 @@ function CoursesContent() {
                         image: featuredImg || `https://demo.edublink.co/wp-content/uploads/2023/03/course-0${(index % 5) + 1}-590x430.jpg`,
                         level: levelMeta || categoryName || 'Beginner',
                         duration: durationMeta || `${10 + (index % 5) * 2} weeks`,
-                        ratings: ratingMeta ? `(${ratingMeta}/ 5 Ratings)` : `(5.0/ ${(index % 4) + 2} Ratings)`,
+                        ratings: item.rating_details
+                            ? `(${item.rating_details.average}/ ${item.rating_details.total} Ratings)`
+                            : (ratingMeta ? `(${ratingMeta}/ 5 Ratings)` : `(5.0/ 0 Ratings)`),
+                        rating_details: item.rating_details,
                         price: displayPrice,
                         originPrice: displayOriginPrice,
                         lessons: displayLessonsText,

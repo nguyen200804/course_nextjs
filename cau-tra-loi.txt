@@ -1,0 +1,165 @@
+Để tích hợp tính năng **Wishlist (Danh sách yêu thích)** của LearnPress giữa **WordPress (Backend)** và **Next.js (Frontend)**, bạn sẽ tương tác qua **REST API** được cung cấp bởi plugin *LearnPress – Course Wishlist*.
+
+Dưới đây là hướng dẫn chi tiết từ REST API endpoints đến cách viết code Custom Hook trong Next.js.
+
+---
+
+## 1. Hệ thống REST API của LearnPress Wishlist
+
+LearnPress cung cấp các Endpoint REST API chính cho Wishlist:
+
+### A. Lấy danh sách khóa học Wishlist của User
+
+* **Method:** `GET`
+* **Endpoint:** `[https://your-domain.com/wp-json/learnpress/v1/wishlist](https://your-domain.com/wp-json/learnpress/v1/wishlist)` (hoặc `/wp-json/lp/v1/courses/wishlist`)
+* **Headers:**
+* `Authorization: Bearer <your_jwt_token>` (nếu dùng JWT Authentication)
+
+
+
+### B. Thêm hoặc Xóa khóa học khỏi Wishlist (Toggle)
+
+* **Method:** `POST`
+* **Endpoint:** `[https://your-domain.com/wp-json/learnpress/v1/wishlist/toggle](https://your-domain.com/wp-json/learnpress/v1/wishlist/toggle)`
+* **Headers:**
+* `Authorization: Bearer <your_jwt_token>`
+* `Content-Type: application/json`
+
+
+* **Body (JSON):**
+```json
+{
+  "course_id": 123
+}
+
+```
+
+
+
+---
+
+## 2. Cách viết Custom Hook trong Next.js (`useWishlist`)
+
+Bạn có thể tạo một Custom Hook bằng **React / Next.js** để quản lý trạng thái Wishlist (lấy dữ liệu, thêm/xóa khóa học) một cách linh hoạt:
+
+```typescript
+// hooks/useWishlist.ts
+import { useState, useEffect } from 'react';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_WORDPRESS_URL; // VD: https://your-domain.com
+
+export function useWishlist(token?: string) {
+  const [wishlist, setWishlist] = useState<number[]>([]); // Lưu danh sách ID khóa học
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // 1. Fetch danh sách Wishlist
+  const fetchWishlist = async () => {
+    if (!token) return;
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/wp-json/learnpress/v1/wishlist`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      
+      // Giả sử API trả về mảng ID hoặc object chứa mảng khóa học
+      if (Array.isArray(data)) {
+        setWishlist(data.map((course: any) => course.id));
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải Wishlist:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Thêm hoặc Xóa (Toggle) khóa học khỏi Wishlist
+  const toggleWishlist = async (courseId: number) => {
+    if (!token) {
+      alert('Vui lòng đăng nhập để thực hiện!');
+      return;
+    }
+
+    // Optimistic Update (Cập nhật UI ngay lập tức trước khi gọi API)
+    const isExist = wishlist.includes(courseId);
+    setWishlist((prev) =>
+      isExist ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    );
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/wp-json/learnpress/v1/wishlist/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId }),
+      });
+
+      if (!res.ok) {
+        // Rollback lại UI nếu API thất bại
+        setWishlist((prev) =>
+          isExist ? [...prev, courseId] : prev.filter((id) => id !== courseId)
+        );
+      }
+    } catch (error) {
+      console.error('Lỗi khi cập nhật Wishlist:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchWishlist();
+  }, [token]);
+
+  return { wishlist, toggleWishlist, loading, isWishlisted: (id: number) => wishlist.includes(id) };
+}
+
+```
+
+---
+
+## 3. Sử dụng Hook trong Component Next.js
+
+Dưới đây là cách đưa Hook vừa tạo vào Nút Bookmark/Wishlist ở trang danh sách hoặc trang chi tiết khóa học:
+
+```tsx
+// components/CourseCard.tsx
+'use client';
+
+import { useWishlist } from '@/hooks/useWishlist';
+
+interface CourseCardProps {
+  course: {
+    id: number;
+    title: string;
+    image: string;
+  };
+  userToken: string; // Token JWT từ người dùng đã đăng nhập
+}
+
+export default function CourseCard({ course, userToken }: CourseCardProps) {
+  const { isWishlisted, toggleWishlist } = useWishlist(userToken);
+  const active = isWishlisted(course.id);
+
+  return (
+    <div className="course-card border p-4 rounded-lg">
+      <img src={course.image} alt={course.title} className="w-full h-40 object-cover" />
+      <h3 className="font-bold my-2">{course.title}</h3>
+
+      {/* Nút Toggle Wishlist */}
+      <button
+        onClick={() => toggleWishlist(course.id)}
+        className={`px-4 py-2 rounded text-sm ${
+          active ? 'bg-red-500 text-white' : 'bg-gray-200 text-black'
+        }`}
+      >
+        {active ? '♥ Đã lưu vào Yêu thích' : '♡ Thêm vào Yêu thích'}
+      </button>
+    </div>
+  );
+}
+
+```

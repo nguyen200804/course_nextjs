@@ -21,6 +21,7 @@ export interface CourseCardProps {
 
     // LearnPress Meta: _lp_rating
     _lp_rating?: string | number;
+    rating_details?: any;
     ratings?: string;
 
     // LearnPress Meta: _lp_price, _lp_regular_price, _lp_sale_price
@@ -58,7 +59,11 @@ const decodeHTMLEntities = (text?: string) => {
         .replace(/&quot;/g, '"')
         .replace(/&#039;/g, "'")
         .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
+        .replace(/&gt;/g, '>')
+        .replace(/&#8211;/g, '–')
+        .replace(/&#8212;/g, '—')
+        .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 };
 
 export default function CourseCard({
@@ -71,6 +76,7 @@ export default function CourseCard({
     _lp_level,
     level,
     _lp_rating,
+    rating_details,
     ratings,
     _lp_price,
     _lp_regular_price,
@@ -117,8 +123,15 @@ export default function CourseCard({
     // Determine Level from _lp_level or level
     const displayLevel = _lp_level || level || 'Beginner';
 
-    // Determine Rating from _lp_rating or ratings
-    const displayRatings = _lp_rating !== undefined ? `(${_lp_rating}/ 5 Ratings)` : ratings || '(5.0/ 3 Ratings)';
+    // Determine Rating from rating_details, _lp_rating or ratings
+    let displayRatings = ratings || '(5.0/ 0 Ratings)';
+    if (rating_details) {
+        const avg = rating_details.average !== undefined ? rating_details.average : 5;
+        const total = rating_details.total !== undefined ? rating_details.total : 0;
+        displayRatings = `(${avg}/ ${total} Ratings)`;
+    } else if (_lp_rating !== undefined) {
+        displayRatings = `(${_lp_rating}/ 5 Ratings)`;
+    }
 
     // Determine Price
     let finalPrice: string | number | undefined = price || '$30';

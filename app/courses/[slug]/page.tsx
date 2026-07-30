@@ -26,7 +26,11 @@ const decodeHTMLEntities = (text?: string) => {
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'")
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .replace(/&#8211;/g, '–')
+    .replace(/&#8212;/g, '—')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 };
 
 export default function CourseDetailsPage() {
@@ -42,6 +46,7 @@ export default function CourseDetailsPage() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [activeTab, setActiveTab] = useState<'overview' | 'curriculum' | 'instructor' | 'reviews'>('overview');
   const [openSections, setOpenSections] = useState<string[]>([]);
+  const [user, setUser] = useState<{ id: number; username: string } | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -139,9 +144,9 @@ export default function CourseDetailsPage() {
   // Calculate dynamic lessons count from curriculum sections (excluding lp_quiz)
   const calculatedLessonsCount = (course as any)?.sections && Array.isArray((course as any).sections)
     ? (course as any).sections.reduce((acc: number, sec: any) => {
-        const lessonItemsOnly = sec.items ? sec.items.filter((it: any) => it.item_type !== 'lp_quiz') : [];
-        return acc + lessonItemsOnly.length;
-      }, 0)
+      const lessonItemsOnly = sec.items ? sec.items.filter((it: any) => it.item_type !== 'lp_quiz') : [];
+      return acc + lessonItemsOnly.length;
+    }, 0)
     : undefined;
 
   const lessonsDisplay = (calculatedLessonsCount !== undefined && calculatedLessonsCount > 0)
@@ -210,118 +215,50 @@ export default function CourseDetailsPage() {
                   </li>
                   <li className={`${styles.hn_course_header_meta_item} ${styles.hn_course_header_meta_item_rating}`}>
                     <div className={styles.hn_course_header_review_wrapper}>
-                      <div className={styles.hn_course_header_review_stars} title="3 out of 5 stars" style={{ display: 'flex', position: 'relative' }}>
-                        {/* Star 1 */}
-                        <div className={styles.hn_course_header_review_star}>
-                          <span className={styles.hn_course_header_star_far}>
-                            <svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                          <span className={styles.hn_course_header_star_fas} style={{ width: '100%' }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 L8.5 0 10.9285714 6.15384615 L17 6.15384615 L11.5357143 9.84615385 L13.9642857 16"></polygon>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                        </div>
+                      {(() => {
+                        const headerRatingDetails = (course as any)?.rating_details;
+                        const headerAverage = headerRatingDetails?.average ?? 5;
+                        const headerTotalReviews = headerRatingDetails?.total ?? 0;
 
-                        {/* Star 2 */}
-                        <div className={styles.hn_course_header_review_star}>
-                          <span className={styles.hn_course_header_star_far}>
-                            <svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                          <span className={styles.hn_course_header_star_fas} style={{ width: '100%' }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 L8.5 0 10.9285714 6.15384615 L17 6.15384615 L11.5357143 9.84615385 L13.9642857 16"></polygon>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                        </div>
+                        return (
+                          <>
+                            <div className={styles.hn_course_header_review_stars} title={`${headerAverage} out of 5 stars`} style={{ display: 'flex', position: 'relative' }}>
+                              {[1, 2, 3, 4, 5].map((starIndex) => {
+                                let fillPercent = '0%';
+                                if (headerAverage >= starIndex) {
+                                  fillPercent = '100%';
+                                } else if (headerAverage > starIndex - 1) {
+                                  fillPercent = `${Math.round((headerAverage - (starIndex - 1)) * 100)}%`;
+                                }
 
-                        {/* Star 3 */}
-                        <div className={styles.hn_course_header_review_star}>
-                          <span className={styles.hn_course_header_star_far}>
-                            <svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                          <span className={styles.hn_course_header_star_fas} style={{ width: '100%' }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 L8.5 0 10.9285714 6.15384615 L17 6.15384615 L11.5357143 9.84615385 L13.9642857 16"></polygon>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                        </div>
-
-                        {/* Star 4 */}
-                        <div className={styles.hn_course_header_review_star}>
-                          <span className={styles.hn_course_header_star_far}>
-                            <svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                          <span className={styles.hn_course_header_star_fas} style={{ width: '0%' }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 L8.5 0 10.9285714 6.15384615 L17 6.15384615 L11.5357143 9.84615385 L13.9642857 16"></polygon>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                        </div>
-
-                        {/* Star 5 */}
-                        <div className={styles.hn_course_header_review_star}>
-                          <span className={styles.hn_course_header_star_far}>
-                            <svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                          <span className={styles.hn_course_header_star_fas} style={{ width: '0%' }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16" className={styles.hn_course_header_star_svg}>
-                              <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-                                <g fill="#FFB606" fillRule="nonzero">
-                                  <polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 L8.5 0 10.9285714 6.15384615 L17 6.15384615 L11.5357143 9.84615385 L13.9642857 16"></polygon>
-                                </g>
-                              </g>
-                            </svg>
-                          </span>
-                        </div>
-                      </div>
-                      <span className={styles.hn_course_header_review_count}>(2 Reviews)</span>
+                                return (
+                                  <div key={starIndex} className={styles.hn_course_header_review_star}>
+                                    <span className={styles.hn_course_header_star_far}>
+                                      <svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg" className={styles.hn_course_header_star_svg}>
+                                        <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
+                                          <g fill="#FFB606" fillRule="nonzero">
+                                            <path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+                                          </g>
+                                        </g>
+                                      </svg>
+                                    </span>
+                                    <span className={styles.hn_course_header_star_fas} style={{ width: fillPercent }}>
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16" className={styles.hn_course_header_star_svg}>
+                                        <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
+                                          <g fill="#FFB606" fillRule="nonzero">
+                                            <polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 L8.5 0 10.9285714 6.15384615 L17 6.15384615 L11.5357143 9.84615385 L13.9642857 16"></polygon>
+                                          </g>
+                                        </g>
+                                      </svg>
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <span className={styles.hn_course_header_review_count}>({headerTotalReviews} {headerTotalReviews === 1 ? 'Review' : 'Reviews'})</span>
+                          </>
+                        );
+                      })()}
                     </div>
                   </li>
                 </ul>
@@ -559,8 +496,8 @@ export default function CourseDetailsPage() {
                                               const itemTitle = decodeHTMLEntities(item.title || item.name || item.post_title);
                                               const isPreview = item.preview === true || item.preview === 'yes' || item.preview === '1';
                                               const durationText = item.duration || '10 minutes';
-                                              const lessonSlug = itemTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-                                              const itemLink = `/courses/${slug}/lessons/${item.item_id || lessonSlug}/`;
+                                              const itemSlug = item.slug || itemTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+                                              const itemLink = `/courses/${slug}/lessons/${itemSlug}`;
 
                                               const isQuiz = item.item_type === 'lp_quiz';
                                               const itemTypeClass = isQuiz ? styles.hn_course_details_course_item_quiz : styles.hn_course_details_course_item_lesson;
@@ -639,107 +576,111 @@ export default function CourseDetailsPage() {
                         <div className={styles.hn_course_details_review_box} data-id="12768">
                           <div className={styles.hn_course_details_rating_reviews}>
                             <div className={styles.hn_course_details_course_rate}>
-                              <div className={styles.hn_course_details_rate_summary}>
-                                <div className={styles.hn_course_details_rate_value}>3</div>
-                                <div className={styles.hn_course_details_rate_summary_stars}>
-                                  <i className="icon-23"></i>
-                                  <i className="icon-23"></i>
-                                  <i className="icon-23"></i>
-                                  <i className="icon-23"></i>
-                                  <i className="icon-23"></i>
-                                </div>
-                                <div className={styles.hn_course_details_rate_summary_text}>
-                                  <span>2</span> ratings
-                                </div>
-                              </div>
-                              <div className={styles.hn_course_details_rate_details}>
-                                {/* Rating Rows 5, 4, 3, 2, 1 */}
-                                <div className={styles.hn_course_details_rate_row}>
-                                  <span className={styles.hn_course_details_rate_row_star}>
-                                    5 <i className="fas" style={{ color: '#ffb60a' }}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-star-fill" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path></svg></i>
-                                  </span>
-                                  <div className={styles.hn_course_details_rate_row_value}>
-                                    <div className={styles.hn_course_details_rate_bar_gray}></div>
-                                    <div className={styles.hn_course_details_rate_bar_fill} style={{ width: '0%' }} title="0%"></div>
-                                  </div>
-                                  <span className={styles.hn_course_details_rate_count}>0</span>
-                                </div>
-                                <div className={styles.hn_course_details_rate_row}>
-                                  <span className={styles.hn_course_details_rate_row_star}>
-                                    4 <i className="fas" style={{ color: '#ffb60a' }}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-star-fill" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path></svg></i>
-                                  </span>
-                                  <div className={styles.hn_course_details_rate_row_value}>
-                                    <div className={styles.hn_course_details_rate_bar_gray}></div>
-                                    <div className={styles.hn_course_details_rate_bar_fill} style={{ width: '50%' }} title="50%"></div>
-                                  </div>
-                                  <span className={styles.hn_course_details_rate_count}>1</span>
-                                </div>
-                                <div className={styles.hn_course_details_rate_row}>
-                                  <span className={styles.hn_course_details_rate_row_star}>
-                                    3 <i className="fas" style={{ color: '#ffb60a' }}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-star-fill" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path></svg></i>
-                                  </span>
-                                  <div className={styles.hn_course_details_rate_row_value}>
-                                    <div className={styles.hn_course_details_rate_bar_gray}></div>
-                                    <div className={styles.hn_course_details_rate_bar_fill} style={{ width: '50%' }} title="50%"></div>
-                                  </div>
-                                  <span className={styles.hn_course_details_rate_count}>1</span>
-                                </div>
-                                <div className={styles.hn_course_details_rate_row}>
-                                  <span className={styles.hn_course_details_rate_row_star}>
-                                    2 <i className="fas" style={{ color: '#ffb60a' }}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-star-fill" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path></svg></i>
-                                  </span>
-                                  <div className={styles.hn_course_details_rate_row_value}>
-                                    <div className={styles.hn_course_details_rate_bar_gray}></div>
-                                    <div className={styles.hn_course_details_rate_bar_fill} style={{ width: '0%' }} title="0%"></div>
-                                  </div>
-                                  <span className={styles.hn_course_details_rate_count}>0</span>
-                                </div>
-                                <div className={styles.hn_course_details_rate_row}>
-                                  <span className={styles.hn_course_details_rate_row_star}>
-                                    1 <i className="fas" style={{ color: '#ffb60a' }}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-star-fill" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path></svg></i>
-                                  </span>
-                                  <div className={styles.hn_course_details_rate_row_value}>
-                                    <div className={styles.hn_course_details_rate_bar_gray}></div>
-                                    <div className={styles.hn_course_details_rate_bar_fill} style={{ width: '0%' }} title="0%"></div>
-                                  </div>
-                                  <span className={styles.hn_course_details_rate_count}>0</span>
-                                </div>
-                              </div>
+                              {(() => {
+                                const ratingDetails = (course as any)?.rating_details;
+                                const averageRating = ratingDetails?.average ?? 5;
+                                const totalRatings = ratingDetails?.total ?? 0;
+                                const starsBreakdown = ratingDetails?.stars || { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 };
+                                const percentsBreakdown = ratingDetails?.percents || { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 };
+                                const reviewsList = ratingDetails?.reviews || [];
+
+                                return (
+                                  <>
+                                    <div className={styles.hn_course_details_rate_summary}>
+                                      <div className={styles.hn_course_details_rate_value}>{averageRating}</div>
+                                      <div className={styles.hn_course_details_rate_summary_stars}>
+                                        {[1, 2, 3, 4, 5].map((starIdx) => (
+                                          <i
+                                            key={starIdx}
+                                            className="icon-23"
+                                            style={{ color: starIdx <= Math.round(averageRating) ? '#ffb60a' : '#d1d5db' }}
+                                          ></i>
+                                        ))}
+                                      </div>
+                                      <div className={styles.hn_course_details_rate_summary_text}>
+                                        <span>{totalRatings}</span> ratings
+                                      </div>
+                                    </div>
+                                    <div className={styles.hn_course_details_rate_details}>
+                                      {/* Rating Rows 5, 4, 3, 2, 1 */}
+                                      {[5, 4, 3, 2, 1].map((s) => {
+                                        const starKey = String(s) as '5' | '4' | '3' | '2' | '1';
+                                        const count = starsBreakdown[starKey] || 0;
+                                        const percent = percentsBreakdown[starKey] || 0;
+                                        return (
+                                          <div key={s} className={styles.hn_course_details_rate_row}>
+                                            <span className={styles.hn_course_details_rate_row_star}>
+                                              {s} <i className="fas" style={{ color: '#ffb60a' }}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-star-fill" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path></svg></i>
+                                            </span>
+                                            <div className={styles.hn_course_details_rate_row_value}>
+                                              <div className={styles.hn_course_details_rate_bar_gray}></div>
+                                              <div className={styles.hn_course_details_rate_bar_fill} style={{ width: `${percent}%` }} title={`${percent}%`}></div>
+                                            </div>
+                                            <span className={styles.hn_course_details_rate_count}>{count}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
 
                             <div className={styles.hn_course_details_reviews_list_wrapper} id="course-reviews">
                               <h3 className={styles.hn_course_details_reviews_head}>Reviews</h3>
-                              <ul className={styles.hn_course_details_reviews_list}>
-                                <li className={styles.hn_course_details_review_item}>
-                                  <div className={styles.hn_course_details_review_author_thumb}>
-                                    <Image
-                                      width={100}
-                                      height={100}
-                                      src="https://demo.edublink.co/wp-content/uploads/2023/06/team-02-96x96.webp"
-                                      alt="Edward Norton"
-                                      className={styles.hn_course_details_review_author_img}
-                                    />
-                                  </div>
-                                  <div className={styles.hn_course_details_review_author_info}>
-                                    <div className={styles.hn_course_details_review_stars}>
-                                      <i className="icon-23"></i>
-                                      <i className="icon-23"></i>
-                                      <i className="icon-23"></i>
-                                      <i className="icon-23"></i>
-                                      <i className="icon-23"></i>
-                                    </div>
-                                    <div className={styles.hn_course_details_review_top}>
-                                      <h4 className={styles.hn_course_details_user_name}>Edward Norton</h4>
-                                    </div>
-                                    <p className={styles.hn_course_details_review_title}>Outstanding Course with great support</p>
-                                    <div className={styles.hn_course_details_review_text}>
-                                      <div className={styles.hn_course_details_review_content}>
-                                        Lorem ipsum dolor sit amet, consectetur adipisicing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-                                      </div>
-                                    </div>
-                                  </div>
-                                </li>
-                              </ul>
+                              {(() => {
+                                const reviewsList = (course as any)?.rating_details?.reviews || [];
+                                if (reviewsList.length === 0) {
+                                  return (
+                                    <p style={{ color: '#64748b', fontStyle: 'italic', padding: '16px 0' }}>
+                                      Chưa có nhận xét nào cho khóa học này.
+                                    </p>
+                                  );
+                                }
+                                return (
+                                  <ul className={styles.hn_course_details_reviews_list}>
+                                    {reviewsList.map((rev: any) => (
+                                      <li key={rev.id} className={styles.hn_course_details_review_item}>
+                                        <div className={styles.hn_course_details_review_author_thumb}>
+                                          <Image
+                                            width={96}
+                                            height={96}
+                                            unoptimized
+                                            src={rev.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200'}
+                                            alt={rev.author_name}
+                                            className={styles.hn_course_details_review_author_img}
+                                          />
+                                        </div>
+                                        <div className={styles.hn_course_details_review_author_info}>
+                                          <div className={styles.hn_course_details_review_stars}>
+                                            {[1, 2, 3, 4, 5].map((starIdx) => (
+                                              <i
+                                                key={starIdx}
+                                                className="icon-23"
+                                                style={{ color: starIdx <= rev.rating ? '#ffb60a' : '#d1d5db' }}
+                                              ></i>
+                                            ))}
+                                          </div>
+                                          <div className={styles.hn_course_details_review_top}>
+                                            <h4 className={styles.hn_course_details_user_name}>{rev.author_name}</h4>
+                                            {rev.date && (
+                                              <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '10px' }}>
+                                                {new Date(rev.date).toLocaleDateString('vi-VN')}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {rev.title && <p className={styles.hn_course_details_review_title}>{rev.title}</p>}
+                                          <div className={styles.hn_course_details_review_text}>
+                                            <div className={styles.hn_course_details_review_content}>
+                                              {rev.content}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -827,8 +768,9 @@ export default function CourseDetailsPage() {
 
                     {(() => {
                       const isFree = priceDisplay === 'Free' || priceDisplay === 'Miễn phí' || priceDisplay === '$0' || priceDisplay === '$0.00' || parseFloat(String(lpPrice || lpRegPrice || 0)) === 0;
-                      const firstLessonId = (course as any)?.sections?.[0]?.items?.[0]?.item_id || '1';
-                      const lessonUrl = `/courses/${slug}/lessons/${firstLessonId}`;
+                      const firstLessonItem = (course as any)?.sections?.[0]?.items?.[0];
+                      const firstLessonSlug = firstLessonItem?.slug || firstLessonItem?.item_id || '1';
+                      const lessonUrl = `/courses/${slug}/lessons/${firstLessonSlug}`;
                       const checkoutUrl = `/checkout?course_id=${course?.id || ''}`;
 
                       const handleAction = async (e: React.FormEvent) => {
@@ -877,6 +819,8 @@ export default function CourseDetailsPage() {
                         </div>
                       );
                     })()}
+
+
 
 
                     <div className={styles.hn_course_details_social_share}>
@@ -934,10 +878,16 @@ export default function CourseDetailsPage() {
 
                 const durationMeta = (relCourse as any)._lp_duration || relCourse.meta?._lp_duration || '15 weeks';
                 const levelMeta = (relCourse as any)._lp_level || relCourse.meta?._lp_level || 'Beginner';
+                const ratingDetailsMeta = (relCourse as any).rating_details;
+                const ratingMeta = (relCourse as any)._lp_rating || relCourse.meta?._lp_rating;
                 const salePriceMeta = (relCourse as any)._lp_sale_price || relCourse.meta?._lp_sale_price;
                 const regPriceMeta = (relCourse as any)._lp_regular_price || (relCourse as any)._lp_price || relCourse.meta?._lp_regular_price || relCourse.meta?._lp_price;
                 const studentsMeta = (relCourse as any)._lp_students || relCourse.meta?._lp_students || '0';
                 const lessonsMeta = (relCourse as any)._lp_lessons || relCourse.meta?._lp_lessons || ((relCourse as any).sections ? (relCourse as any).sections.reduce((acc: number, s: any) => acc + (s.items?.filter((it: any) => it.item_type !== 'lp_quiz').length || 0), 0) : '7');
+
+                const relRatingsDisplay = ratingDetailsMeta
+                  ? `(${ratingDetailsMeta.average}/ ${ratingDetailsMeta.total} Ratings)`
+                  : (ratingMeta ? `(${ratingMeta}/ 5 Ratings)` : `(5.0/ 0 Ratings)`);
 
                 let relPriceDisplay = 'Free';
                 let relOriginPriceDisplay: string | undefined = undefined;
@@ -961,7 +911,8 @@ export default function CourseDetailsPage() {
                       link={`/courses/${relCourse.slug}`}
                       duration={durationMeta}
                       level={levelMeta}
-                      ratings="(5.0/ 3 Ratings)"
+                      rating_details={ratingDetailsMeta}
+                      ratings={relRatingsDisplay}
                       price={relPriceDisplay}
                       originPrice={relOriginPriceDisplay}
                       lessons={`${lessonsMeta} Lessons`}
