@@ -1,0 +1,317 @@
+/* Root Section & Container */
+.hn_accordion {
+    padding: 130px 0 105px;
+    background-color: #ffffff;
+    position: relative;
+    overflow: hidden;
+}
+
+.hn_accordion__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0px;
+}
+
+/* Left Column - Image Gallery Grid */
+.hn_accordion__column_left {
+    width: 50%;
+    position: relative;
+    background-color: transparent;
+}
+
+.hn_accordion__widget_wrap {
+    background-color: #0000;
+    flex-direction: column;
+    gap: 0px;
+    display: flex;
+    position: relative;
+    padding: 15px;
+    z-index: 0;
+}
+
+.hn_accordion__column_right .hn_accordion__widget_wrap {
+    margin-left: 30px;
+}
+
+/* Inner Sections (Rows) */
+.hn_accordion__inner_section_1,
+.hn_accordion__inner_section_2 {
+    background-color: transparent;
+}
+
+.hn_accordion__inner_container_1,
+.hn_accordion__inner_container_2 {
+    display: flex;
+    background-color: transparent;
+}
+
+.hn_accordion__inner_column_left_1,
+.hn_accordion__inner_column_right_1,
+.hn_accordion__inner_column_left_2,
+.hn_accordion__inner_column_right_2 {
+    flex: 1;
+    position: relative;
+    background-color: transparent;
+}
+
+.hn_accordion__inner_widget_wrap_1,
+.hn_accordion__inner_widget_wrap_2,
+.hn_accordion__inner_widget_wrap_3,
+.hn_accordion__inner_widget_wrap_4 {
+    position: relative;
+    background-color: transparent;
+    display: flex;
+    z-index: 0;
+}
+
+.hn_accordion__inner_widget_wrap_1 {
+    justify-content: flex-end;
+    align-items: end;
+    margin-right: 30px;
+}
+
+.hn_accordion__inner_widget_wrap_2 {
+    margin-top: 70px;
+}
+
+.hn_accordion__inner_widget_wrap_3 {
+    justify-content: end;
+    margin-right: 30px;
+    height: 100%;
+}
+
+.hn_accordion__inner_widget_wrap_4 {
+    margin-top: 30px;
+}
+
+/* Images & Rounded Shapes */
+.hn_accordion__image_widget_1,
+.hn_accordion__image_widget_2,
+.hn_accordion__image_widget_3,
+.hn_accordion__image_widget_4 {
+    background-color: transparent;
+}
+
+.hn_accordion__widget_container {
+    background-color: transparent;
+}
+
+.hn_accordion__image_1 {
+    border-radius: 120px 120px 0px 120px;
+}
+
+.hn_accordion__image_2 {
+    border-radius: 60px 0px 100px 0px;
+}
+
+.hn_accordion__image_3 {
+    border-radius: 60px 0px 100px 0px;
+}
+
+.hn_accordion__image_4 {
+    border-radius: 0px 50px 120px 120px;
+}
+
+/* Floating Shapes */
+.hn_accordion__shape_widget_1,
+.hn_accordion__shape_widget_2,
+.hn_accordion__shape_widget_3,
+.hn_accordion__shape_widget_4,
+.hn_accordion__shape_widget_5,
+.hn_accordion__shape_widget_color {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    background-color: transparent;
+}
+
+.hn_accordion__shape_widget_1 {
+    top: -40px;
+    right: 20px;
+    z-index: -1;
+}
+
+.hn_accordion__shape_widget_2 {
+    top: -145px;
+    left: -50px;
+}
+
+.hn_accordion__shape_widget_3 {
+    bottom: -15px;
+    left: -5px;
+}
+
+.hn_accordion__shape_widget_4 {
+    bottom: -45px;
+    left: -45px;
+    z-index: -1;
+}
+
+.hn_accordion__shape_widget_5 {
+    right: -110px;
+    bottom: -50px;
+    z-index: -1;
+}
+
+.hn_accordion__shape_widget_color {
+    right: -130px;
+    bottom: -40px;
+}
+
+.hn_accordion__animation_widget {
+    background-color: transparent;
+}
+
+.hn_accordion__animation_span {
+    display: block;
+    background-color: transparent;
+}
+
+.hn_accordion__animation_color {
+    display: block;
+    height: 101px;
+    width: 101px;
+    border-style: solid;
+    border-width: 15px 15px 15px 15px;
+    border-color: #EE4A62;
+    border-radius: 50% 50% 50% 50%;
+}
+
+/* Right Column - Accordion & Heading */
+.hn_accordion__column_right {
+    width: 50%;
+    background-color: transparent;
+}
+
+.hn_accordion__heading_widget {
+    margin-bottom: 40px;
+    background-color: transparent;
+}
+
+.hn_accordion__section_heading {
+    background-color: transparent;
+}
+
+.hn_accordion__pre_heading {
+    font-family: var(--font-poppins);
+    color: gray;
+    font-size: 15px;
+    font-weight: 500;
+    display: inline-block;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    letter-spacing: 1px;
+}
+
+.hn_accordion__heading {
+    font-family: var(--font-spartan);
+    color: #181818;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.39em;
+}
+
+.hn_accordion__mark {
+    background-color: transparent;
+    color: #EE4A62;
+}
+
+.hn_accordion__title_shape {
+    color: #1ab69d;
+    background-color: #0000;
+    margin-top: 5px;
+    font-size: 15px;
+}
+
+/* Accordion Widget Items */
+.hn_accordion__accordion_widget {
+    background-color: transparent;
+}
+
+.hn_accordion__eb_accordion {
+    display: flex;
+    flex-direction: column;
+    background-color: transparent;
+}
+
+.hn_accordion__item {
+    border: none;
+    background-color: var(--edublink-color-white);
+    border-radius: 10px;
+    margin-bottom: 30px;
+    overflow: hidden;
+    box-shadow: 0 10px 50px 0 rgba(26, 46, 85, .1);
+}
+
+.item_active {
+    /* box-shadow: 0 10px 30px rgba(26, 182, 157, 0.1); */
+}
+
+.hn_accordion__header {
+    font-family: var(--font-spartan);
+    color: #181818;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    background-color: #fff;
+    border-radius: 10px 10px 0 0;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0;
+    padding: 17px 45px 17px 30px;
+    font-size: 18px;
+    font-weight: 600;
+    transition: all 0.3s linear;
+    display: flex;
+    line-height: 1.45em;
+}
+
+.hn_accordion__header::after {
+    content: '▲';
+    font-size: 12px;
+    transition: transform 0.3s linear;
+}
+
+.hn_accordion__header:not(.header_active)::after {
+    content: '▼';
+}
+
+.header_active {
+    background-color: #1AB69D;
+    color: #ffffff;
+}
+
+.hn_accordion__content {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s linear;
+}
+
+.content_open {
+    grid-template-rows: 1fr;
+}
+
+.hn_accordion__body {
+    overflow: hidden;
+    padding: 0 41px 0 30px;
+    opacity: 0;
+    background-color: #fff;
+    border-radius: 0 0 10px 10px;
+    transition: opacity 0.3s linear, padding 0.3s linear;
+}
+
+.content_open .hn_accordion__body {
+    padding: 24px 41px 28px 30px;
+    opacity: 1;
+}
+
+.hn_accordion__text {
+    font-family: var(--font-poppins);
+    font-size: 15px;
+    color: #666666;
+    line-height: 1.7;
+    margin: 0;
+}

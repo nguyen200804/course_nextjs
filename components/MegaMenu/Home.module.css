@@ -1,0 +1,101 @@
+.megaMenuContainer {
+  display: flex;
+  padding: 55px 40px 55px 60px;
+  background-color: #fff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .08);
+}
+
+.column {
+  flex: 3;
+  padding: 15px;
+}
+
+
+
+.menuList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alignCenter {
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.lineRight {
+  border-style: solid;
+  border-width: 0px 1px 0px 0px;
+  border-color: #E5E5E5;
+}
+
+.menuList li {
+  margin-bottom: 12px;
+  font-family: var(--font-spartan);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+
+}
+
+.menuList a {
+  color: #181818;
+  text-decoration: none;
+  font-size: 15px;
+  transition: color 0.2s ease;
+}
+
+.menuList .badge {
+  font-size: 0.55em;
+  line-height: 1em;
+  font-weight: 700;
+  margin-left: 0.5em;
+  color: #fff;
+  padding: 0.4em 0.6em 0.25em;
+  border-radius: 0.4em;
+}
+
+.menuList .badge.new {
+  background-color: #1AB69D;
+}
+
+.menuList .badge.hot {
+  background-color: #EE4A62;
+}
+
+.menuList a:hover {
+  color: #10b981;
+}
+
+.promoColumn {
+  flex: 4;
+  padding: 15px;
+
+}
+
+.promoCard img {
+  margin: 0 auto;
+}
+
+.promoText {
+  color: #f8fafc;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.promoBtn {
+  display: inline-block;
+  padding: 6px 14px;
+  background-color: #10b981;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+
+.promoBtn:hover {
+  background-color: #059669;
+}

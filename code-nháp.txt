@@ -1,0 +1,40 @@
+<section class="edublink-main-content-inner error-page-area">
+		<div class="edublink-container">
+			<div class="edu-error">
+				<div class="thumbnail">
+					<img src="https://demo.edublink.co/wp-content/themes/edublink/assets/images/error/404.png" alt="404 Error">
+					<ul class="shape-group">
+						<li class="shape-1 shape-image eb-mouse-animation" style="transform: translate3d(0px, 0px, 0px) rotate(0.0001deg); transform-style: preserve-3d; backface-visibility: hidden; pointer-events: none;">
+							<span data-depth="2" style="transform: translate3d(-1.1px, 31.1px, 0px); transform-style: preserve-3d; backface-visibility: hidden; position: relative; display: block; left: 0px; top: 0px;">
+								<img src="https://demo.edublink.co/wp-content/themes/edublink/assets/images/error/shape-25.png" alt="Shape">
+							</span>
+						</li>
+						<li class="shape-2 shape-image eb-mouse-animation" style="transform: translate3d(0px, 0px, 0px) rotate(0.0001deg); transform-style: preserve-3d; backface-visibility: hidden; pointer-events: none;">
+							<span data-depth="-2" style="transform: translate3d(0.6px, -6.5px, 0px); transform-style: preserve-3d; backface-visibility: hidden; position: relative; display: block; left: 0px; top: 0px;">
+								<img src="https://demo.edublink.co/wp-content/themes/edublink/assets/images/error/shape-15.png" alt="Shape">
+							</span>
+						</li>
+						<li class="shape-3 shape-image eb-mouse-animation" style="transform: translate3d(0px, 0px, 0px) rotate(0.0001deg); transform-style: preserve-3d; backface-visibility: hidden; pointer-events: none;">
+							<span data-depth="2" style="transform: translate3d(-1.1px, 31.1px, 0px); transform-style: preserve-3d; backface-visibility: hidden; position: relative; display: block; left: 0px; top: 0px;">
+								<img src="https://demo.edublink.co/wp-content/themes/edublink/assets/images/error/shape-13.png" alt="Shape">
+							</span>
+						</li>
+						<li class="shape-4 shape-image eb-mouse-animation" style="transform: translate3d(0px, 0px, 0px) rotate(0.0001deg); transform-style: preserve-3d; backface-visibility: hidden; pointer-events: none;">
+							<span data-depth="-2" style="transform: translate3d(0.9px, -29.2px, 0px); transform-style: preserve-3d; backface-visibility: hidden; position: relative; display: block; left: 0px; top: 0px;">
+								<img src="https://demo.edublink.co/wp-content/themes/edublink/assets/images/error/shape-02.png" alt="Shape">
+							</span>
+						</li>
+					</ul>
+				</div>
+
+				<div class="content">
+					<h2 class="title">404 - Page Not Found</h2><h4 class="subtitle">The page you are looking for does not exist.</h4>					<a href="https://demo.edublink.co" class="edu-btn"><i class="icon-west"></i>Back to Homepage</a>
+				</div>
+			</div>
+		</div>
+		<ul class="shape-group">
+			<li class="shape-1">
+				<img src="https://demo.edublink.co/wp-content/themes/edublink/assets/images/error/map-shape-2.png" alt="Shape">
+			</li>
+		</ul>
+		</section>

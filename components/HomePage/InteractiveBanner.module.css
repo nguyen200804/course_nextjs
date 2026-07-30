@@ -1,0 +1,233 @@
+/* Root Section & Layout */
+.hn_interactive_banner {
+    margin-top: -290px;
+    position: relative;
+    z-index: 1;
+}
+
+.hn_interactive_banner__container {
+    max-width: 890px;
+    margin: 0 auto;
+}
+
+.hn_interactive_banner__column {
+    background-color: transparent;
+}
+
+.hn_interactive_banner__widget_wrap {
+    position: relative;
+    padding: 15px;
+}
+
+/* Shapes 1, 2, 3 */
+.hn_interactive_banner__shape_1,
+.hn_interactive_banner__shape_2,
+.hn_interactive_banner__shape_3 {
+    position: absolute;
+    z-index: 1;
+}
+
+.hn_interactive_banner__shape_1 {
+    top: -55px;
+    right: -55px;
+}
+
+.hn_interactive_banner__shape_2 {
+    top: -80px;
+    right: 15px;
+    z-index: 10;
+}
+
+.hn_interactive_banner__shape_3 {
+    bottom: -15px;
+    left: -120px;
+}
+
+.hn_interactive_banner__widget_container {
+    background-color: transparent;
+}
+
+.hn_interactive_banner__animation_widget {
+    background-color: transparent;
+}
+
+.hn_interactive_banner__shape_span {
+    display: block;
+}
+
+/* Video Popup Widget & Image Wrapper */
+.hn_interactive_banner__video_widget {
+    position: relative;
+    z-index: 2;
+}
+
+.hn_interactive_banner__video_widget_container {
+    background-color: transparent;
+}
+
+.hn_interactive_banner__video_wrapper {
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+    height: 495px;
+    border-radius: 0px 80px 0px 120px;
+}
+
+.hn_interactive_banner__video_thumb {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+/* Play Button Overlay */
+.hn_interactive_banner__video_content {
+    background-color: #0000004D;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* Animated Play Icon Button */
+.hn_interactive_banner__video_icon {
+    background-color: var(--edublink-color-secondary, #ee4a62);
+    color: #fff;
+    cursor: pointer;
+    z-index: 5;
+    border: none;
+    border-radius: 50%;
+    justify-content: center;
+    align-items: center;
+    width: 80px;
+    height: 80px;
+    padding-left: 4px;
+    font-size: 24px;
+    transition: transform .3s, background-color .3s;
+    display: flex;
+    position: relative;
+}
+
+
+
+.hn_interactive_banner__video_icon i {
+    font-family: 'icomoon';
+    font-style: normal;
+    font-size: 24px;
+    color: #ffffff;
+}
+
+.hn_interactive_banner__video_icon i::before {
+    content: "\e911";
+}
+
+.hn_interactive_banner__video_icon::before,
+.hn_interactive_banner__video_icon::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 50%;
+    border: 1px solid #FFFFFF4D;
+    animation: video-ripple 2s infinite linear;
+    pointer-events: none;
+}
+
+.hn_interactive_banner__video_icon::after {
+    animation-delay: 1s;
+}
+
+@keyframes video-ripple {
+    0% {
+        -webkit-transform: scale(1);
+        transform: scale(1);
+    }
+
+    75% {
+        -webkit-transform: scale(1.75);
+        transform: scale(1.75);
+        opacity: 1;
+    }
+
+    100% {
+        -webkit-transform: scale(2);
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+/* Video Modal Overlay & Popup */
+.hn_interactive_banner__modal_overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+.hn_interactive_banner__modal_container {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    background-color: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+}
+
+.hn_interactive_banner__modal_close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 36px;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 10000;
+    transition: color 0.2s ease;
+}
+
+
+
+.hn_interactive_banner__iframe_wrapper {
+    position: relative;
+    padding-bottom: 56.25%;
+    /* 16:9 Aspect Ratio */
+    height: 0;
+    overflow: hidden;
+}
+
+.hn_interactive_banner__iframe_wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

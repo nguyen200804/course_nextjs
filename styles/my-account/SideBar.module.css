@@ -1,0 +1,61 @@
+.sidebar {
+    background: #fff;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    padding: 20px 15px;
+    box-shadow: 0 2px 8px #00000005;
+}
+
+.navList {}
+
+.navItem {
+    margin: 0;
+}
+
+.navItem+.navItem {
+    margin-top: 10px;
+}
+
+.navLink {
+    color: #475569;
+    border-radius: 5px;
+    align-items: center;
+    gap: 10px;
+    padding: 0px 16px;
+    height: 50px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all .2s;
+    display: flex;
+}
+
+.navLink:hover {
+    background-color: #f8fafc;
+    color: #1e2445;
+}
+
+.active {
+    background-color: #1ab69c11 !important;
+    color: #1ab69d !important;
+    font-weight: 600 !important;
+}
+
+.btn {
+    width: 100%;
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0px 16px;
+    height: 50px;
+    border-radius: 5px;
+    background-color: #fef2f2;
+    color: #ef4444;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    background-color: #fee2e2;
+}

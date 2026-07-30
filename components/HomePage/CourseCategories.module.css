@@ -1,0 +1,256 @@
+.section {
+    padding: 100px 0 0;
+    background-color: #ffffff;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 15px;
+}
+
+/* --- Section Header --- */
+.sectionHeader {
+    text-align: center;
+    margin: 0 auto 40px;
+}
+
+.preTitle {
+    font-family: var(--font-poppins);
+    font-size: 15px;
+    font-weight: 500;
+    color: #ee4a62;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 14px;
+}
+
+.heading {
+    font-family: var(--font-spartan);
+    color: #181818;
+    margin-bottom: 10px;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.3em;
+}
+
+.highlightText {
+    color: #1ab69d;
+}
+
+.titleShape {
+    justify-content: center;
+    margin-bottom: 16px;
+    display: flex;
+    color: #1ab69d;
+}
+
+
+.underlineShape {
+    object-fit: contain;
+    height: 12px;
+}
+
+.subHeading {
+    font-family: var(--font-poppins);
+    font-size: 16px;
+    color: #808080;
+    margin: 0;
+}
+
+/* --- Category Cards Grid --- */
+.categoryGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 0 -15px;
+}
+
+/* --- Card Base Styles --- */
+.categoryCardWrapper {
+    padding: 0 15px;
+}
+
+.categoryCard {
+    text-align: center;
+    border-radius: 5px;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 30px;
+    transition: all .35s;
+    display: flex;
+}
+
+/* Tự động đổi màu chữ và icon sang trắng khi Hover */
+.categoryCard:hover {
+    color: #ffffff !important;
+}
+
+.categoryCard:hover .cardTitle a {
+    color: #ffffff !important;
+}
+
+.categoryCard:hover .iconBox {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    color: #ffffff !important;
+}
+
+.categoryCard:hover .courseBadge {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    color: #ffffff !important;
+}
+
+/* Icon Container */
+.iconBox {
+    border-radius: 50%;
+    justify-content: center;
+    align-items: center;
+    width: 80px;
+    height: 80px;
+    margin-bottom: 28px;
+    transition: all .35s;
+    display: flex;
+}
+
+.iconFont {
+    font-size: 32px;
+    line-height: 1;
+}
+
+/* Content */
+.cardTitle {
+    font-family: var(--font-spartan);
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.4em;
+}
+
+.cardTitle a {
+    text-decoration: none;
+    color: inherit;
+    transition: color 0.35s ease;
+}
+
+.cardDescription {
+    font-family: var(--font-poppins);
+    color: inherit;
+    opacity: .85;
+    margin-bottom: 25px;
+    font-size: 15px;
+    line-height: 1.73333333333333333em;
+}
+
+/* Course Count Badge */
+.courseBadge {
+    font-family: var(--font-poppins);
+    border-radius: 5px;
+    padding: 0.3em 1em;
+    font-size: 15px;
+    font-weight: 500;
+    transition: all .35s;
+    display: inline-block;
+}
+
+/* --- Card Themes & Hover Colors Chuẩn Mừng Từng Thẻ --- */
+
+/* 1. Thẻ Teal (Xanh ngọc): Hover đổi thành Nền Xanh Ngọc đậm (#1ab69d) */
+.cardTeal {
+    background-color: #f0f8f6;
+    color: #181818;
+}
+
+.cardTeal .iconBox {
+    background-color: #d8f0ea;
+    color: #1ab69d;
+}
+
+.cardTeal .courseBadge {
+    background-color: #e2f4f0;
+    color: #1ab69d;
+}
+
+.cardTeal:hover {
+    background-color: #1ab69d !important;
+    box-shadow: 0 20px 40px rgba(26, 182, 157, 0.3);
+}
+
+/* 2. Thẻ Red (Đỏ Hồng): Hover đổi thành Nền Đỏ Hồng đậm (#ee4a62) */
+.cardRed {
+    background-color: #fdf0f2;
+    color: #181818;
+}
+
+.cardRed .iconBox {
+    background-color: #fbdce1;
+    color: #ee4a62;
+}
+
+.cardRed .courseBadge {
+    background-color: #f9dbe0;
+    color: #ee4a62;
+}
+
+.cardRed:hover {
+    background-color: #ee4a62 !important;
+    box-shadow: 0 20px 40px rgba(238, 74, 98, 0.3);
+}
+
+/* 3. Thẻ Blue (Xanh Lam): Hover đổi thành Nền Xanh Lam đậm (#4664e4) */
+.cardBlue {
+    background-color: #f2f3f9;
+    color: #181818;
+}
+
+.cardBlue .iconBox {
+    background-color: #e0e4f5;
+    color: #4664e4;
+}
+
+.cardBlue .courseBadge {
+    background-color: #e4e7f8;
+    color: #4664e4;
+}
+
+.cardBlue:hover {
+    background-color: #4664e4 !important;
+    box-shadow: 0 20px 40px rgba(70, 100, 228, 0.3);
+}
+
+/* 4. Thẻ Yellow (Vàng Cam): Hover đổi thành Nền Vàng Cam đậm (#f8b81f) */
+.cardYellow {
+    background-color: #fcf8f0;
+    color: #181818;
+}
+
+.cardYellow .iconBox {
+    background-color: #f7ebd7;
+    color: #f8b81f;
+}
+
+.cardYellow .courseBadge {
+    background-color: #f9f0e0;
+    color: #f8b81f;
+}
+
+.cardYellow:hover {
+    background-color: #f8b81f !important;
+    box-shadow: 0 20px 40px rgba(248, 184, 31, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 991px) {
+    .categoryGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 575px) {
+    .categoryGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .heading {
+        font-size: 28px;
+    }
+}

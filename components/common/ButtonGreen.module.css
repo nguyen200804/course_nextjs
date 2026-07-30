@@ -1,0 +1,35 @@
+.buttonGreen {
+  display: inline-flex;
+  align-items: center;
+  background-color: #1AB69D;
+  color: #fff;
+  justify-content: center;
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  gap: 0.5em;
+  cursor: pointer;
+}
+
+.buttonGreen svg {
+  width: 1em;
+  height: 1em;
+}
+
+.buttonGreen::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 0;
+  bottom: 0;
+  left: 100%;
+  z-index: -1;
+  background-image: linear-gradient(to right, #1AB69D 0%, #31B978 100%);
+  transition: all .3s ease;
+}
+
+.buttonGreen:hover::after {
+  width: 100%;
+  left: 0;
+  transition: width .3s ease;
+}

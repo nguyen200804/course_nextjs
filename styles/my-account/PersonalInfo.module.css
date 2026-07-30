@@ -1,0 +1,132 @@
+.container {
+    max-width: 850px;
+    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+    color: #181818;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2b2b2b;
+}
+
+.required {
+    color: #ee4a63;
+    margin-left: 2px;
+}
+
+.fieldHint {
+    font-size: 13px;
+    font-style: italic;
+    color: #666666;
+    margin-top: 4px;
+}
+
+.input {
+    width: 100%;
+    height: 48px;
+    border-radius: 4px;
+    border: 1px solid #d1d5db;
+    padding: 0 14px;
+    font-size: 14px;
+    color: #181818;
+    background-color: #ffffff;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input:focus {
+    border-color: #1ab69d;
+    box-shadow: 0 0 0 2px rgba(26, 182, 157, 0.15);
+}
+
+/* Password Change Fieldset */
+.fieldset {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 24px;
+    margin: 0;
+}
+
+.legend {
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    padding: 0 8px;
+}
+
+.passwordWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.eyeBtn {
+    position: absolute;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    outline: none;
+    transition: color 0.2s ease;
+}
+
+.eyeBtn:hover {
+    color: #1ab69d;
+}
+
+/* Save changes Button */
+.saveChangesBtn {
+    background-color: #e5e7eb;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    border-radius: 4px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.saveChangesBtn:hover {
+    background-color: #1ab69d;
+    border-color: #1ab69d;
+    color: #ffffff;
+}
+
+.saveChangesBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    .formGrid {
+        grid-template-columns: 1fr;
+    }
+}

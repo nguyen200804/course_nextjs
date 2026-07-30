@@ -1,0 +1,200 @@
+.footer {
+  font-size: 15px;
+}
+
+.footerBgImage {
+  background-color: rgb(240, 244, 245);
+  position: relative;
+  z-index: 0;
+  padding: 85px 0px 55px 0px;
+}
+
+.backgroundImage {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  ;
+}
+
+.mainGrid {
+  display: grid !important;
+  grid-template-columns: 25% 25% 16.67% 33.23%;
+}
+
+.mainGrid>div {
+  padding: 15px;
+}
+
+.brandCol {}
+
+.logo {
+  margin-bottom: 20px;
+}
+
+.description {
+  font-family: var(--font-poppins);
+  margin-bottom: 20px;
+  font-weight: 400;
+  line-height: 1.7333333333333333333em;
+  color: #272727;
+}
+
+.contactList {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-poppins);
+
+}
+
+.contactList li {
+  line-height: 1.733333333333333em;
+}
+
+.contactList a {
+  transition: color .3s ease;
+}
+
+.contactList a:hover {
+  color: #1AB69D;
+}
+
+.contactList span {
+  font-weight: 500;
+}
+
+.navCol {
+  display: flex;
+  flex-direction: column;
+}
+
+.navColOnlinePlatform {
+  margin-left: 65px;
+}
+
+.colTitle {
+  font-size: 20px;
+  font-family: var(--font-spartan);
+  font-weight: 700;
+  line-height: 1em;
+  margin-bottom: 30px;
+}
+
+.navList {
+  font-weight: 400;
+  color: #272727;
+
+}
+
+.navList li {
+  margin: 10px auto;
+}
+
+.navList a {
+  font-weight: 400;
+  font-family: var(--font-poppins);
+  line-height: 1.73333333333333em;
+  display: inline-block;
+  transition: color .3s ease;
+}
+
+.navList a:hover {
+  color: #1AB69D;
+}
+
+.newsletterCol {}
+
+.newsletterNotice {
+  font-family: var(--font-poppins);
+  color: #272727;
+  margin-bottom: 20px;
+  font-weight: 400;
+  line-height: 1.73333em;
+  padding-top: 10px;
+}
+
+.newsletterForm {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.newsletterInput {
+  line-height: 50px;
+  background-color: #fff;
+  border-radius: 6px;
+  padding: 0 1em 0 2em;
+  flex: 1;
+  font-family: var(--font-poppins);
+}
+
+.newsletterInput::placeholder {}
+
+.newsletterInput:focus {}
+
+.newsletterBtn {
+  font-weight: 500;
+  font-family: var(--font-spartan);
+  line-height: 50px;
+  padding: 0 1em;
+  border-radius: 6px;
+  width: 143px;
+}
+
+
+.socialList {
+  display: flex;
+  margin-left: -9px;
+}
+
+.socialList>li {
+  width: 36px;
+  height: 36px;
+  padding: 9px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.socialList>li svg {
+  width: 18px;
+  height: 18px;
+}
+
+.socialLinkFB {}
+
+.socialLinkIN {}
+
+.socialLinkIG {}
+
+.socialLinkTW {}
+
+.socialLinkYT {}
+
+.bottomBar {
+  background-color: rgb(235, 239, 240);
+  font-size: 15px;
+  font-family: var(--font-poppins);
+
+  padding: 32px 0;
+}
+
+.copyrightText {
+  text-align: center;
+}
+
+.copyrightText a {
+
+  color: #1AB69D;
+  transition: color .3s ease;
+}
+
+.copyrightText a:hover {
+
+  color: rgb(25, 210, 180);
+}

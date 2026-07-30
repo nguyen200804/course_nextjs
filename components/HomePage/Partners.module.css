@@ -1,0 +1,107 @@
+/* Root Section */
+.hn_partners {
+    background-color: #F9F7F4;
+    padding: 70px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Container & Grid Layout */
+.hn_partners__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 2;
+    background-color: transparent;
+}
+
+/* Column Item */
+.hn_partners__column {
+    background-color: #0000;
+    border-right: 1px solid #0000000f;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    position: relative;
+    padding: 10px 20px;
+    width: 16.666666666666%;
+}
+
+.hn_partners__column:last-child {
+    border-right: none;
+}
+
+.hn_partners__widget_wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+    background-color: transparent;
+}
+
+
+
+/* Decorative Animation Shapes */
+.hn_partners__animation_widget {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    background-color: transparent;
+}
+
+.hn_partners__animation_widget_left {
+    top: 130px;
+    left: -215px;
+}
+
+.hn_partners__animation_widget_right {
+    top: -90px;
+    right: -370px;
+}
+
+.hn_partners__animation_container {
+    background-color: transparent;
+}
+
+.hn_partners__animation_inner {
+    background-color: transparent;
+}
+
+.hn_partners__animation_span {
+    display: block;
+    background-color: transparent;
+}
+
+.hn_partners__shape_image {
+    object-fit: contain;
+    background-color: transparent;
+}
+
+/* Brand Logo Image Widget */
+.hn_partners__image_widget {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+}
+
+.hn_partners__widget_container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+}
+
+.hn_partners__brand_logo {
+    max-width: 120px;
+    height: auto;
+    object-fit: contain;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 0.85;
+    cursor: pointer;
+}

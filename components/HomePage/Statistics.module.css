@@ -1,0 +1,150 @@
+/* Root Section & Layout */
+.hn_statistics {
+    padding: 105px 0 105px;
+}
+
+.hn_statistics__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+
+}
+
+
+
+/* Card Column */
+.hn_statistics__column {
+
+    border-radius: 12px;
+    padding: 38px 30px 38px 30px;
+    text-align: center;
+    width: 25%;
+    margin: 0 15px;
+}
+
+
+
+/* Color Themes */
+.theme_teal {
+    background-color: #1AB69D1A;
+    color: #1AB69D;
+}
+
+.theme_pink {
+    background-color: #FF5B5C1A;
+    color: #EE4A62;
+}
+
+.theme_purple {
+    background-color: #8E56FF1A;
+    color: #8E56FF;
+}
+
+.theme_orange {
+    background-color: #F896241A;
+    color: #EE983B;
+}
+
+.hn_statistics__widget_wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Counterup Widget */
+.hn_statistics__counter_widget {
+    margin-bottom: 14px;
+}
+
+.hn_statistics__widget_container {
+    display: block;
+}
+
+.hn_statistics__counter_item {
+    font-family: var(--font-spartan);
+    font-size: 36px;
+    font-weight: 800 !important;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.hn_statistics__odometer {
+    display: inline-flex;
+    align-items: center;
+}
+
+.hn_statistics__odometer :global(.odometer) {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    line-height: 1.2em;
+    height: 0.9em;
+}
+
+.hn_statistics__odometer_inside {
+    display: inline-flex;
+    align-items: center;
+}
+
+.hn_statistics__odometer_digit {
+    position: relative;
+    display: inline-block;
+}
+
+.hn_statistics__odometer_digit_spacer {
+    visibility: hidden;
+    opacity: 0;
+    display: inline-block;
+}
+
+.hn_statistics__odometer_digit_inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hn_statistics__odometer_ribbon {
+    display: block;
+}
+
+.hn_statistics__odometer_ribbon_inner {
+    display: block;
+}
+
+.hn_statistics__odometer_value {
+    display: block;
+}
+
+.hn_statistics__odometer_mark {
+    display: inline-block;
+    margin: 0 1px;
+}
+
+.hn_statistics__counter_suffix {
+    display: inline-block;
+    line-height: 1.2em;
+    height: 0.9em;
+}
+
+/* Heading Widget */
+.hn_statistics__heading_widget {
+    margin-top: 6px;
+}
+
+.hn_statistics__heading_title {
+    font-family: var(--font-spartan);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.62;
+    color: #181818;
+}

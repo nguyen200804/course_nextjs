@@ -1,15 +1,37 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
+import Header from "@/components/Header/Header";
+import Footer from "@/components/Footer/Footer";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const poppins = localFont({
+  src: [
+    { path: "../public/fonts/Poppins/Poppins-Thin.ttf", weight: "100", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-ExtraLight.ttf", weight: "200", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-Light.ttf", weight: "300", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-Medium.ttf", weight: "500", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-SemiBold.ttf", weight: "600", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-ExtraBold.ttf", weight: "800", style: "normal" },
+    { path: "../public/fonts/Poppins/Poppins-Black.ttf", weight: "900", style: "normal" },
+  ],
+  variable: "--font-poppins",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const spartan = localFont({
+  src: [
+    { path: "../public/fonts/Spartan/Spartan-Thin.ttf", weight: "100", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-ExtraLight.ttf", weight: "200", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-Light.ttf", weight: "300", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-Medium.ttf", weight: "500", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-SemiBold.ttf", weight: "600", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-ExtraBold.ttf", weight: "800", style: "normal" },
+    { path: "../public/fonts/Spartan/Spartan-Black.ttf", weight: "900", style: "normal" },
+  ],
+  variable: "--font-spartan",
 });
 
 export const metadata: Metadata = {
@@ -25,9 +47,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${poppins.variable} ${spartan.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
+        />
+      </head>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
+      </body>
     </html>
   );
 }

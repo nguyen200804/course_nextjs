@@ -1,0 +1,160 @@
+/* NotFoundContent.module.css - BEM naming pattern: .hn_not_found_tenPhanTu */
+
+.hn_not_found_section {
+    background-color: #fff;
+    width: 100%;
+    padding: 115px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.hn_not_found_container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+    position: relative;
+    z-index: 2;
+}
+
+.hn_not_found_error_box {
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hn_not_found_thumbnail {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 30px;
+}
+
+.hn_not_found_main_img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Shape Group Inside Thumbnail */
+.hn_not_found_shape_group_inner {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.hn_not_found_shape_item {
+    position: absolute;
+    pointer-events: none;
+}
+
+.hn_not_found_shape_span {
+    display: block;
+    position: relative;
+}
+
+.hn_not_found_shape_1 {
+    left: -46px;
+    top: -5px;
+    opacity: .4;
+}
+
+.hn_not_found_shape_2 {
+    left: 50px;
+    top: -15px;
+}
+
+.hn_not_found_shape_3 {
+    right: -46px;
+    top: -25px;
+    opacity: .4;
+    z-index: -1;
+}
+
+.hn_not_found_shape_4 {
+    right: -12px;
+    top: 40px;
+    z-index: 1;
+}
+
+
+
+.hn_not_found_content {
+    margin-top: 20px;
+}
+
+.hn_not_found_title {
+    font-family: var(--font-spartan), sans-serif;
+    color: var(--edublink-color-heading, #181818);
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+@media (max-width: 767px) {
+    .hn_not_found_title {
+        font-size: 28px;
+    }
+}
+
+.hn_not_found_subtitle {
+    margin-top: 0;
+    margin-bottom: 65px;
+    font-weight: 600;
+    font-size: var(--edublink-h4);
+    line-height: var(--edublink-h4-lineHeight);
+    word-break: break-word;
+    font-family: var(--edublink-font-secondary);
+    color: var(--edublink-color-heading);
+}
+
+.hn_not_found_btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 54px;
+    padding: 0 32px;
+    background-color: var(--edublink-color-primary, #1ab69d);
+    color: #ffffff;
+    border-radius: 5px;
+    font-family: var(--font-poppins), sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.hn_not_found_btn:hover {
+    background-color: #169d87;
+    color: #ffffff;
+}
+
+.hn_not_found_btn i {
+    font-size: 18px;
+    transition: transform 0.3s ease;
+}
+
+.hn_not_found_btn:hover i {
+    transform: translateX(-4px);
+}
+
+/* Background Map Shape Outer */
+.hn_not_found_shape_group_outer {}
+
+.hn_not_found_bg_shape {
+    text-align: center;
+    position: absolute;
+    bottom: -12px;
+    left: 50%;
+    -webkit-transform: translateX(-50%);
+    -ms-transform: translateX(-50%);
+    transform: translateX(-50%);
+    opacity: .3;
+}
+
+.hn_not_found_bg_shape img {
+    max-width: 100%;
+    height: auto;
+}

@@ -1,0 +1,208 @@
+/* Root Section */
+.hn_benefits_section {
+    position: relative;
+    background-color: #F7F5F2;
+    padding: 130px 0 0px;
+}
+
+/* Bottom Tilt Shape Divider (SVG) */
+.hn_benefits_section__shape_divider {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+    line-height: 0;
+    z-index: 1;
+}
+
+.hn_benefits_section__shape_divider svg {
+    width: calc(100% + 1.3px);
+    height: 60px;
+    display: block;
+    position: relative;
+    transform: rotateX(180deg);
+}
+
+.hn_benefits_section__shape_fill {
+    fill: #ffffff;
+}
+
+/* Container Wrapper */
+.hn_benefits_section__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+}
+
+/* Decorative Parallax Shapes */
+.hn_benefits_section__shape_1 {
+    position: absolute;
+    top: 30px;
+    left: 10%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.hn_benefits_section__shape_2 {
+    position: absolute;
+    top: 50px;
+    right: 8%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.hn_benefits_section__color_shape_1 {
+    position: absolute;
+    top: 80px;
+    left: 5%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.hn_benefits_section__color_shape_2 {
+    position: absolute;
+    bottom: 70px;
+    right: 6%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.hn_benefits_section__yellow_ring {
+    display: block;
+    width: 50px;
+    height: 50px;
+    border: 8px solid #f8b81f;
+    border-radius: 50%;
+}
+
+/* Section Header Widget */
+.hn_benefits_section__header {
+    text-align: center;
+    max-width: 600px;
+    margin: 0px auto 40px;
+}
+
+.hn_benefits_section__heading_widget {
+    display: block;
+}
+
+.hn_benefits_section__pre_heading {
+    font-family: var(--font-poppins), sans-serif;
+    color: gray;
+    font-size: 14px;
+    font-weight: 600;
+    font-weight: 500;
+    display: inline-block;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    letter-spacing: 1px;
+}
+
+.hn_benefits_section__heading {
+    font-family: var(--font-spartan), sans-serif;
+    color: #181818;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.39em;
+}
+
+.hn_benefits_section__mark {
+    background: transparent;
+    color: #ee4a62;
+}
+
+.hn_benefits_section__title_shape {
+    color: #1ab69d;
+    font-size: 16px;
+    margin-top: 4px;
+}
+
+/* Cards Grid */
+.hn_benefits_section__grid {
+    z-index: 3;
+    justify-content: space-between;
+    display: flex;
+    position: relative;
+    margin-bottom: -150px;
+}
+
+.hn_benefits_section__card {
+    flex: 1;
+    padding: 0 15px;
+    margin-bottom: -150px;
+}
+
+.hn_benefits_section__card_inner {
+    text-align: center;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    display: flex;
+    padding: 60px 50px 60px 50px;
+    background-color: #FFFFFF;
+    border-radius: 5px 5px 5px 5px;
+    box-shadow: 0px 10px 30px 0px rgba(0, 0, 0, 0.05);
+}
+
+
+
+/* Card Icons with distinct background circular badges */
+.hn_benefits_section__card_icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    margin-bottom: 25px;
+}
+
+.icon_badge_green {
+    background-color: #e8f9f6;
+    color: #1ab69d;
+}
+
+.icon_badge_pink {
+    background-color: #fdeef0;
+    color: #ee4a62;
+}
+
+.icon_badge_blue {
+    background-color: #eef2fe;
+    color: #5271ff;
+}
+
+.hn_benefits_section__card_title {
+    font-family: var(--font-spartan), sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #181818;
+    margin: 0 0 15px 0;
+}
+
+.hn_benefits_section__card_text {
+    font-family: var(--font-poppins), sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #666666;
+    margin: 0;
+}
+
+/* Responsive Tablet & Mobile */
+@media (max-width: 991px) {
+    .hn_benefits_section {
+        padding: 80px 0 120px;
+    }
+
+    .hn_benefits_section__grid {
+        flex-direction: column;
+        gap: 25px;
+    }
+
+    .hn_benefits_section__heading {
+        font-size: 30px;
+    }
+}

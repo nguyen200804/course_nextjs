@@ -1,8 +1,577 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'icomoon';
+  src: url('/fonts/icomoon.woff') format('woff'),
+    url('/fonts/icomoon.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+[class^="icon-"],
+[class*=" icon-"] {
+  font-family: 'icomoon' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: 400;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-add:before {
+  content: "\e95c"
+}
+
+.icon-remove:before {
+  content: "\e95d"
+}
+
+.icon-east:before {
+  content: "\e95a"
+}
+
+.icon-west:before {
+  content: "\e95b"
+}
+
+.icon-envelope:before {
+  content: "\f0e0"
+}
+
+.icon-angle-left:before {
+  content: "\f104"
+}
+
+.icon-angle-right:before {
+  content: "\f105"
+}
+
+.icon-share-alt:before {
+  content: "\f1e0"
+}
+
+.icon-1:before {
+  content: "\e900"
+}
+
+.icon-2:before {
+  content: "\e901"
+}
+
+.icon-3:before {
+  content: "\e902"
+}
+
+.icon-4:before {
+  content: "\e903"
+}
+
+.icon-5:before {
+  content: "\e904"
+}
+
+.icon-6:before {
+  content: "\e905"
+}
+
+.icon-7:before {
+  content: "\e906"
+}
+
+.icon-8:before {
+  content: "\e907"
+}
+
+.icon-9:before {
+  content: "\e908"
+}
+
+.icon-10:before {
+  content: "\e909"
+}
+
+.icon-11:before {
+  content: "\e90a"
+}
+
+.icon-12:before {
+  content: "\e90b"
+}
+
+.icon-13:before {
+  content: "\e90c"
+}
+
+.icon-14:before {
+  content: "\e90d"
+}
+
+.icon-15:before {
+  content: "\e90e"
+}
+
+.icon-16:before {
+  content: "\e90f"
+}
+
+.icon-17:before {
+  content: "\e910"
+}
+
+.icon-18:before {
+  content: "\e911"
+}
+
+.icon-19:before {
+  content: "\e912"
+}
+
+.icon-20:before {
+  content: "\e913"
+}
+
+.icon-21:before {
+  content: "\e914"
+}
+
+.icon-22:before {
+  content: "\e915"
+}
+
+.icon-23:before {
+  content: "\e916"
+}
+
+.icon-24:before {
+  content: "\e917"
+}
+
+.icon-25:before {
+  content: "\e918"
+}
+
+.icon-26:before {
+  content: "\e919"
+}
+
+.icon-27:before {
+  content: "\e91a"
+}
+
+.icon-28:before {
+  content: "\e91b"
+}
+
+.icon-29:before {
+  content: "\e91c"
+}
+
+.icon-30:before {
+  content: "\e91d"
+}
+
+.icon-31:before {
+  content: "\e91e"
+}
+
+.icon-32:before {
+  content: "\e91f"
+}
+
+.icon-33:before {
+  content: "\e920"
+}
+
+.icon-34:before {
+  content: "\e921"
+}
+
+.icon-35:before {
+  content: "\e922"
+}
+
+.icon-36:before {
+  content: "\e923"
+}
+
+.icon-37:before {
+  content: "\e924"
+}
+
+.icon-38:before {
+  content: "\e925"
+}
+
+.icon-39:before {
+  content: "\e926"
+}
+
+.icon-40:before {
+  content: "\e927"
+}
+
+.icon-41:before {
+  content: "\e928"
+}
+
+.icon-42:before {
+  content: "\e929"
+}
+
+.icon-43:before {
+  content: "\e92a"
+}
+
+.icon-44:before {
+  content: "\e92b"
+}
+
+.icon-45:before {
+  content: "\e92c"
+}
+
+.icon-46:before {
+  content: "\e92d"
+}
+
+.icon-47:before {
+  content: "\e92e"
+}
+
+.icon-48:before {
+  content: "\e92f"
+}
+
+.icon-49:before {
+  content: "\e930"
+}
+
+.icon-50:before {
+  content: "\e931"
+}
+
+.icon-51:before {
+  content: "\e932"
+}
+
+.icon-52:before {
+  content: "\e933"
+}
+
+.icon-53:before {
+  content: "\e934"
+}
+
+.icon-54:before {
+  content: "\e935"
+}
+
+.icon-55:before {
+  content: "\e936"
+}
+
+.icon-56:before {
+  content: "\e937"
+}
+
+.icon-57:before {
+  content: "\e938"
+}
+
+.icon-58:before {
+  content: "\e939"
+}
+
+.icon-59:before {
+  content: "\e93a"
+}
+
+.icon-60:before {
+  content: "\e93b"
+}
+
+.icon-61:before {
+  content: "\e93c"
+}
+
+.icon-62:before {
+  content: "\e93d"
+}
+
+.icon-63:before {
+  content: "\e93e"
+}
+
+.icon-64:before {
+  content: "\e93f"
+}
+
+.icon-65:before {
+  content: "\e940"
+}
+
+.icon-66:before {
+  content: "\e941"
+}
+
+.icon-67:before {
+  content: "\e942"
+}
+
+.icon-68:before {
+  content: "\e943"
+}
+
+.icon-69:before {
+  content: "\e944"
+}
+
+.icon-70:before {
+  content: "\e945"
+}
+
+.icon-71:before {
+  content: "\e946"
+}
+
+.icon-72:before {
+  content: "\e947"
+}
+
+.icon-73:before {
+  content: "\e948"
+}
+
+.icon-74:before {
+  content: "\e949"
+}
+
+.icon-75:before {
+  content: "\e94a"
+}
+
+.icon-76:before {
+  content: "\e94b"
+}
+
+.icon-77:before {
+  content: "\e94c"
+}
+
+.icon-78:before {
+  content: "\e94d"
+}
+
+.icon-79:before {
+  content: "\e94e"
+}
+
+.icon-80:before {
+  content: "\e94f"
+}
+
+.icon-81:before {
+  content: "\e950"
+}
+
+.icon-82:before {
+  content: "\e951"
+}
+
+.icon-83:before {
+  content: "\e952"
+}
+
+.icon-84:before {
+  content: "\e953"
+}
+
+.icon-85:before {
+  content: "\e954"
+}
+
+.icon-86:before {
+  content: "\e955"
+}
+
+.icon-87:before {
+  content: "\e956"
+}
+
+.icon-88:before {
+  content: "\e957"
+}
+
+.icon-89:before {
+  content: "\e958"
+}
+
+.icon-phone:before {
+  content: "\e959"
+}
+
+.icon-star-empty:before {
+  content: "\e9d7"
+}
+
+.icon-star-half:before {
+  content: "\e9d8"
+}
+
+.icon-star-full:before {
+  content: "\e9d9"
+}
+
+.icon-minus:before {
+  content: "\ea0b"
+}
+
+.icon-share2:before {
+  content: "\ea82"
+}
+
+.icon-facebook:before {
+  content: "\ea90"
+}
+
+.icon-instagram:before {
+  content: "\ea92"
+}
+
+.icon-twitter:before {
+  content: "\ea96"
+}
+
+.icon-youtube:before {
+  content: "\ea9d"
+}
+
+.icon-linkedin2:before {
+  content: "\eaca"
+}
+
+.icon-pinterest:before {
+  content: "\ead1"
+}
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #ffffff;
+}
+
+h1,
+.h1,
+h2,
+.h2,
+h3,
+.h3 {
+  font-weight: var(--edublink-p-bold);
+}
+
+:root {
+  --edublink-color-primary: #1AB69D;
+  --edublink-color-primary-alt: #31B978;
+  --edublink-color-secondary: #EE4A62;
+  --edublink-color-textSecondary: #ff5b5c;
+  --edublink-color-tertiary: #f8b81f;
+  --edublink-color-dark: #231F40;
+  --edublink-color-body: #808080;
+  --edublink-color-heading: #181818;
+  --edublink-color-white: #ffffff;
+  --edublink-color-shade: #F5F5F5;
+  --edublink-color-border: #e5e5e5;
+  --edublink-color-black: #000000;
+  --edublink-color-off-white: #bababa;
+  --edublink-color-lighten01: #f0f4f5;
+  --edublink-color-lighten02: #edf5f8;
+  --edublink-color-lighten03: #f5f1eb;
+  --edublink-color-lighten04: #f7f5f2;
+  --edublink-color-extra01: #0ecd73;
+  --edublink-color-extra02: #8e56ff;
+  --edublink-color-extra03: #f92596;
+  --edublink-color-extra04: #5866eb;
+  --edublink-color-extra05: #f8941f;
+  --edublink-color-extra06: #39c0fa;
+  --edublink-color-extra07: #da04f8;
+  --edublink-color-extra08: #4664e4;
+  --edublink-color-extra09: #525151;
+  --edublink-color-extra10: #404040;
+  --edublink-color-extra11: #22272e;
+  --edublink-gradient-primary: linear-gradient(-90deg, var(--edublink-color-primary-alt) 0%, var(--edublink-color-primary) 100%);
+  --edublink-gradient-primary-alt: linear-gradient(-90deg, var(--edublink-color-primary) 0%, var(--edublink-color-primary-alt) 100%);
+  --edublink-radius-small: 5px;
+  --edublink-radius: 10px;
+  --edublink-radius-big: 16px;
+  --edublink-p-light: 300;
+  --edublink-p-regular: 400;
+  --edublink-p-medium: 500;
+  --edublink-p-semi-bold: 600;
+  --edublink-p-bold: 700;
+  --edublink-p-extra-bold: 800;
+  --edublink-p-black: 900;
+  --edublink-shadow-darker: 0px 10px 50px 0px rgba(26, 46, 85, 0.1);
+  --edublink-shadow-darker2: 0px 20px 50px 0px rgba(26, 46, 85, 0.1);
+  --edublink-shadow-dark: 0px 10px 30px 0px rgba(20, 36, 66, 0.15);
+  --edublink-shadow-darkest: 0px 10px 30px 0px rgba(0, 0, 0, 0.05);
+  --edublink-shadow-darker3: 0px 4px 50px 0px rgba(0, 0, 0, 0.1);
+  --edublink-shadow-darker4: 0px 20px 70px 0px rgba(15, 107, 92, 0.2);
+  --edublink-transition: 0.3s;
+  --edublink-transition-2: 0.5s;
+  --edublink-transition-transform: transform .65s cubic-bezier(.23, 1, .32, 1);
+  --edublink-font-primary: 'Poppins', sans-serif;
+  --edublink-font-secondary: 'Spartan', sans-serif;
+  --edublink-font-size-b1: 15px;
+  --edublink-font-size-b2: 13px;
+  --edublink-font-size-b3: 14px;
+  --edublink-font-size-b4: 12px;
+  --edublink-line-height-b1: 1.73;
+  --edublink-line-height-b2: 1.85;
+  --edublink-line-height-b3: 1.6;
+  --edublink-line-height-b4: 1.3;
+  --edublink-h1: 50px;
+  --edublink-h2: 36px;
+  --edublink-h3: 28px;
+  --edublink-h4: 20px;
+  --edublink-h5: 18px;
+  --edublink-h6: 16px;
+  --edublink-h1-lineHeight: 1.2;
+  --edublink-h2-lineHeight: 1.39;
+  --edublink-h3-lineHeight: 1.43;
+  --edublink-h4-lineHeight: 1.4;
+  --edublink-h5-lineHeight: 1.45;
+  --edublink-h6-lineHeight: 1.62;
+}
+
+h1 {
+  font-size: 50px;
+}
+
+h2 {
+  font-size: 36px;
+}
+
+h3 {
+  font-size: 28px;
+}
+
+h4 {
+  font-size: 20px;
+}
+
+h5 {
+  font-size: 18px;
+}
+
+h6 {
+  font-size: 16px;
+}
+
+body {
+  font-size: 15px;
 }
 
 @theme inline {
@@ -14,13 +583,95 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #000000;
   }
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: #181818;
+  font-family: var(--font-poppins);
+}
+
+/* Clean Odometer CSS for Next.js Turbopack */
+.odometer.odometer-auto-theme,
+.odometer.odometer-theme-default {
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+}
+
+.odometer.odometer-auto-theme .odometer-digit,
+.odometer.odometer-theme-default .odometer-digit {
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+}
+
+.odometer.odometer-auto-theme .odometer-digit .odometer-digit-spacer,
+.odometer.odometer-theme-default .odometer-digit .odometer-digit-spacer {
+  display: inline-block;
+  vertical-align: middle;
+  visibility: hidden;
+}
+
+.odometer.odometer-auto-theme .odometer-digit .odometer-digit-inner,
+.odometer.odometer-theme-default .odometer-digit .odometer-digit-inner {
+  text-align: left;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.odometer.odometer-auto-theme .odometer-digit .odometer-ribbon,
+.odometer.odometer-theme-default .odometer-digit .odometer-ribbon {
+  display: block;
+}
+
+.odometer.odometer-auto-theme .odometer-digit .odometer-ribbon-inner,
+.odometer.odometer-theme-default .odometer-digit .odometer-ribbon-inner {
+  display: block;
+  -webkit-backface-visibility: hidden;
+}
+
+.odometer.odometer-auto-theme .odometer-digit .odometer-value,
+.odometer.odometer-theme-default .odometer-digit .odometer-value {
+  display: block;
+  -webkit-transform: translateZ(0);
+}
+
+.odometer.odometer-auto-theme .odometer-digit .odometer-value.odometer-last-value,
+.odometer.odometer-theme-default .odometer-digit .odometer-value.odometer-last-value {
+  position: absolute;
+}
+
+.odometer.odometer-auto-theme.odometer-animating-up .odometer-ribbon-inner,
+.odometer.odometer-theme-default.odometer-animating-up .odometer-ribbon-inner {
+  transition: transform 2s;
+}
+
+.odometer.odometer-auto-theme.odometer-animating-up.odometer-animating .odometer-ribbon-inner,
+.odometer.odometer-theme-default.odometer-animating-up.odometer-animating .odometer-ribbon-inner {
+  transform: translateY(-100%);
+}
+
+.odometer.odometer-auto-theme.odometer-animating-down .odometer-ribbon-inner,
+.odometer.odometer-theme-default.odometer-animating-down .odometer-ribbon-inner {
+  transform: translateY(-100%);
+}
+
+.odometer.odometer-auto-theme.odometer-animating-down.odometer-animating .odometer-ribbon-inner,
+.odometer.odometer-theme-default.odometer-animating-down.odometer-animating .odometer-ribbon-inner {
+  transition: transform 2s;
+  transform: translateY(0);
+}
+
+.odometer.odometer-auto-theme .odometer-value,
+.odometer.odometer-theme-default .odometer-value {
+  text-align: center;
 }

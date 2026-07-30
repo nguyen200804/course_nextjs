@@ -1,0 +1,235 @@
+/* Root Section */
+.hn_about_section {
+    padding: 130px 0 105px;
+    position: relative;
+    overflow: hidden;
+    /* background-color: #ffffff; */
+}
+
+/* Container & Flex Layout */
+.hn_about_section__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Columns */
+.hn_about_section__column_left {
+    width: 40%;
+    position: relative;
+    display: flex;
+}
+
+.hn_about_section__column_right {
+    width: 60%;
+    position: relative;
+    display: flex;
+
+}
+
+.hn_about_section__widget_wrap {
+    position: relative;
+    width: 100%;
+    padding: 15px;
+}
+
+.hn_about_section__column_left .hn_about_section__widget_wrap {
+    margin-right: 40px;
+}
+
+.hn_about_section__column_right .hn_about_section__widget_wrap {
+    margin-left: 40px;
+}
+
+/* Color Circle Shape (Yellow ring dot on top-left of Left Column) */
+.hn_about_section__color_shape {
+    position: absolute;
+    top: -25px;
+    left: -230px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.hn_about_section__color_dot {
+    display: block;
+    height: 100px;
+    width: 100px;
+    border-style: solid;
+    border-width: 16px 16px 16px 16px;
+    border-color: #F8B81F;
+    border-radius: 50% 50% 50% 50%;
+}
+
+/* Section Heading Widget */
+.hn_about_section__heading_widget {
+    margin-bottom: 25px;
+}
+
+.hn_about_section__heading_container {
+    margin-right: 20px;
+}
+
+.hn_about_section__pre_heading {
+    font-family: var(--font-poppins), sans-serif;
+    color: rgb(128, 128, 128);
+    font-size: 15px;
+    font-weight: 500;
+    display: inline-block;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    letter-spacing: 1px;
+
+}
+
+.hn_about_section__heading {
+    font-family: var(--font-spartan), sans-serif;
+    color: #181818;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.39em;
+}
+
+.hn_about_section__mark {
+    background: transparent;
+    color: #ee4a62;
+    position: relative;
+
+}
+
+.hn_about_section__title_shape {
+    color: #1ab69d;
+    margin-top: 4px;
+    font-size: 15px;
+}
+
+.hn_about_section__sub_heading {
+    font-family: var(--font-poppins), sans-serif;
+    color: gray;
+    font-size: 15px;
+    line-height: 1.73333em;
+    margin-top: 15px;
+}
+
+/* Icon List Widget (Checkmarks) */
+.hn_about_section__list_widget {
+    margin-top: 25px;
+}
+
+
+.hn_about_section__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.hn_about_section__list_item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+}
+
+.hn_about_section__list_icon {
+    font-size: 1.15em;
+    color: #f8b81f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hn_about_section__list_text {
+    font-family: var(--font-spartan), sans-serif;
+    color: #181818;
+    font-weight: 600;
+    font-size: 1em;
+}
+
+/* RIGHT COLUMN - Decorative Shapes */
+.hn_about_section__shape_1 {
+    position: absolute;
+    top: 15px;
+    left: 0px;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.hn_about_section__shape_2 {
+    z-index: 0;
+    pointer-events: none;
+    position: absolute;
+    top: 50px;
+    left: 20px;
+}
+
+.hn_about_section__shape_3 {
+    z-index: 1;
+    pointer-events: none;
+    position: absolute;
+    bottom: -60px;
+    left: 30px;
+}
+
+.hn_about_section__shape_4 {
+    z-index: 0;
+    pointer-events: none;
+    position: absolute;
+    bottom: -45px;
+    right: 5px;
+}
+
+/* Main Image & Overlay Card */
+.hn_about_section__main_image_widget {
+    display: block;
+    position: relative;
+    padding: 80px 0px 0px 10px;
+}
+
+.hn_about_section__main_img {
+    border-radius: 12px;
+    margin: 0 auto;
+}
+
+
+
+/* Overlay Image Card (about-12.webp - Guy with yellow background) */
+.hn_about_section__image_overlay {
+    z-index: 3;
+    position: absolute;
+    top: 30px;
+    right: 15px;
+}
+
+.hn_about_section__overlay_img {
+    border-radius: 12px;
+    display: block;
+    object-fit: cover;
+}
+
+/* Responsive Tablet & Mobile */
+@media (max-width: 991px) {
+    .hn_about_section__container {
+        flex-direction: column;
+        gap: 60px;
+    }
+
+    .hn_about_section__column_left,
+    .hn_about_section__column_right {
+        width: 100%;
+    }
+
+    .hn_about_section__heading {
+        font-size: 30px;
+    }
+
+    .hn_about_section__image_overlay {
+        position: relative;
+        top: 0;
+        right: 0;
+        margin-bottom: 20px;
+    }
+}

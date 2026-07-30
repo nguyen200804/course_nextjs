@@ -1,0 +1,38 @@
+/* Initial hidden state */
+.lazyload {
+    opacity: 0;
+    transition-property: opacity, transform;
+    transition-timing-function: ease;
+    will-change: opacity, transform;
+}
+
+/* Animations initial offsets */
+.slide_up {
+    transform: translate3d(0, 40px, 0);
+}
+
+.slide_down {
+    transform: translate3d(0, -40px, 0);
+}
+
+.slide_left {
+    transform: translate3d(40px, 0, 0);
+}
+
+.slide_right {
+    transform: translate3d(-40px, 0, 0);
+}
+
+.fade_in {
+    transform: translate3d(0, 0, 0);
+}
+
+.zoom_in {
+    transform: scale(0.9);
+}
+
+/* Active visible state when scrolled into view */
+.visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+}

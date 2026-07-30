@@ -1,0 +1,161 @@
+/* Root Section */
+.hn_heading_section_text {
+    background-color: rgb(245, 249, 250);
+    width: 100%;
+    padding: 95px 0 85px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Container Wrapper */
+.hn_heading_section_text__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+    position: relative;
+    z-index: 2;
+    text-align: center;
+}
+
+/* Page Title Wrapper & H1 */
+.hn_heading_section_text__page_title {
+    margin-bottom: 20px;
+}
+
+.hn_heading_section_text__entry_title {
+    font-family: var(--font-spartan), sans-serif;
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #181818;
+    margin: 0;
+}
+
+/* Breadcrumb Wrapper & Nav */
+.hn_heading_section_text__breadcrumb_wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hn_heading_section_text__breadcrumb_nav {
+    display: block;
+}
+
+.hn_heading_section_text__breadcrumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.hn_heading_section_text__breadcrumb_item {
+    font-family: var(--font-spartan), sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    color: #525258;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.hn_heading_section_text__breadcrumb_item:not(:last-child) {
+    padding-right: 25px;
+}
+
+.hn_heading_section_text__breadcrumb_item:not(:last-child)::after {
+    content: "\f105";
+    font-family: icomoon;
+    font-size: 14px;
+    font-weight: 700;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #525258;
+}
+
+.hn_heading_section_text__breadcrumb_link {
+    color: #525258;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.hn_heading_section_text__breadcrumb_link:hover {
+    color: #1ab69d;
+}
+
+.hn_heading_section_text__breadcrumb_active {
+    color: #181818;
+    font-weight: 600;
+}
+
+/* Abstract Parallax Background Shapes */
+.hn_heading_section_text__shape_wrapper {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+
+
+.hn_heading_section_text__shape_1 {
+    position: absolute;
+
+    height: 470px;
+    width: 470px;
+    border: 1px solid var(--edublink-color-border);
+    border-radius: 50%;
+    top: -315px;
+    left: -60px;
+}
+
+.hn_heading_section_text__shape_2 {
+    position: absolute;
+    height: 470px;
+    width: 470px;
+    border: 1px solid var(--edublink-color-border);
+    border-radius: 50%;
+    top: 30px;
+    right: -180px;
+}
+
+
+
+
+.hn_heading_section_text__shape_3 {
+    position: absolute;
+    top: 60px;
+    left: 7%;
+}
+
+.hn_heading_section_text__shape_4 {
+    position: absolute;
+    bottom: 120px;
+    right: 8%;
+}
+
+.hn_heading_section_text__shape_5 {
+    position: absolute;
+    top: -70px;
+    right: -88px;
+}
+
+/* Responsive Tablet & Mobile */
+@media (max-width: 768px) {
+    .hn_heading_section_text {
+        padding: 60px 0 65px;
+    }
+
+    .hn_heading_section_text__entry_title {
+        font-size: 32px;
+    }
+
+    .hn_heading_section_text__shape_wrapper {
+        display: none;
+    }
+}
