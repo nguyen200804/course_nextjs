@@ -34,7 +34,7 @@ export default async function LessonDetailPage({ params }: PageProps) {
     // 1. Tải thông tin khóa học LearnPress từ WordPress REST API bằng slug
     const courseData = await fetchWPCourseBySlug(slug);
     if (!courseData) {
-      throw new Error("Không tìm thấy thông tin khóa học LearnPress.");
+      throw new Error("LearnPress course information not found.");
     }
 
     course = courseData;
@@ -42,18 +42,21 @@ export default async function LessonDetailPage({ params }: PageProps) {
     sections = course.sections || [];
 
     const wpUrl = process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
-    const isNumericId = /^\d+$/.test(lessonId);
 
-    // 2. Tìm bài học trực tiếp từ course.sections trước nếu có
+    // 2. Tìm bài học trực tiếp từ course.sections trước bằng ID, Slug hoặc Tên bài
     if (Array.isArray(sections)) {
       for (const sec of sections) {
         if (sec.items && Array.isArray(sec.items)) {
-          const match = sec.items.find(
-            (it: any) =>
-              (it.item_id && it.item_id.toString() === lessonId) ||
-              (it.slug && it.slug === lessonId) ||
-              (it.id && it.id.toString() === lessonId)
-          );
+          const match = sec.items.find((it: any) => {
+            const rawId = (it.item_id || it.id || "").toString();
+            const itTitle = typeof it.title === "object" ? it.title?.rendered : (it.title || it.name || it.post_title || "");
+            const cleanTitleSlug = itTitle ? itTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") : "";
+            return (
+              rawId === lessonId ||
+              (it.slug && it.slug.toString() === lessonId) ||
+              (cleanTitleSlug && cleanTitleSlug === lessonId)
+            );
+          });
           if (match) {
             foundSectionItem = match;
             break;
@@ -62,10 +65,12 @@ export default async function LessonDetailPage({ params }: PageProps) {
       }
     }
 
+    const targetNumericId = foundSectionItem ? (foundSectionItem.item_id || foundSectionItem.id || "").toString() : (/^\d+$/.test(lessonId) ? lessonId : "");
+
     // 3. Tải thông tin chi tiết bài học từ REST API theo ID hoặc Slug
     try {
-      let lessonEndpoint = isNumericId
-        ? `${wpUrl}/wp-json/wp/v2/lp_lesson/${lessonId}?_embed=true`
+      let lessonEndpoint = targetNumericId
+        ? `${wpUrl}/wp-json/wp/v2/lp_lesson/${targetNumericId}?_embed=true`
         : `${wpUrl}/wp-json/wp/v2/lp_lesson?slug=${lessonId}&_embed=true`;
 
       let lessonRes = await fetch(lessonEndpoint, { next: { revalidate: 60 } });
@@ -73,27 +78,27 @@ export default async function LessonDetailPage({ params }: PageProps) {
       if (lessonRes.ok) {
         const lessonData = await lessonRes.json();
         const itemObj = Array.isArray(lessonData) ? lessonData[0] : lessonData;
-        if (itemObj) {
+        if (itemObj && (itemObj.id || itemObj.content?.rendered)) {
           activeLesson = {
             ...itemObj,
-            item_type: 'lp_lesson',
+            item_type: "lp_lesson",
           };
         }
       }
 
       if (!activeLesson || !activeLesson.content?.rendered) {
-        let quizEndpoint = isNumericId
-          ? `${wpUrl}/wp-json/wp/v2/lp_quiz/${lessonId}?_embed=true`
+        let quizEndpoint = targetNumericId
+          ? `${wpUrl}/wp-json/wp/v2/lp_quiz/${targetNumericId}?_embed=true`
           : `${wpUrl}/wp-json/wp/v2/lp_quiz?slug=${lessonId}&_embed=true`;
 
         let quizRes = await fetch(quizEndpoint, { next: { revalidate: 60 } });
         if (quizRes.ok) {
           const quizData = await quizRes.json();
           const quizObj = Array.isArray(quizData) ? quizData[0] : quizData;
-          if (quizObj) {
+          if (quizObj && (quizObj.id || quizObj.content?.rendered)) {
             activeLesson = {
               ...quizObj,
-              item_type: 'lp_quiz',
+              item_type: "lp_quiz",
             };
           }
         }
@@ -102,26 +107,31 @@ export default async function LessonDetailPage({ params }: PageProps) {
       console.error("Error fetching lesson from REST API:", e);
     }
 
-    // Fallback nếu REST API không trả về nội dung nhưng tìm thấy trong section
-    if (!activeLesson && foundSectionItem) {
-      activeLesson = {
-        id: foundSectionItem.item_id || foundSectionItem.id || lessonId,
-        slug: foundSectionItem.slug || lessonId,
-        item_type: foundSectionItem.item_type || foundSectionItem.type || 'lp_lesson',
-        title: { rendered: foundSectionItem.title || foundSectionItem.name || foundSectionItem.post_title || `Bài học` },
-        content: { rendered: foundSectionItem.post_content || foundSectionItem.content || foundSectionItem.description || '<p>Nội dung bài học đang được cập nhật...</p>' },
-        duration: foundSectionItem.duration || '',
-      };
+    // Fallback if REST API does not return content but found in section
+    if (foundSectionItem) {
+      const fallbackTitle = foundSectionItem.title || foundSectionItem.name || foundSectionItem.post_title || "Lesson";
+      if (!activeLesson) {
+        activeLesson = {
+          id: foundSectionItem.item_id || foundSectionItem.id || lessonId,
+          slug: foundSectionItem.slug || lessonId,
+          item_type: foundSectionItem.item_type || foundSectionItem.type || "lp_lesson",
+          title: { rendered: fallbackTitle },
+          content: { rendered: foundSectionItem.post_content || foundSectionItem.content || foundSectionItem.description || `<p>${fallbackTitle} content...</p>` },
+          duration: foundSectionItem.duration || "",
+        };
+      } else if (!activeLesson.title?.rendered || activeLesson.title.rendered === "Lesson") {
+        activeLesson.title = { rendered: fallbackTitle };
+      }
     }
 
-    // Nếu vẫn chưa có activeLesson, tạo fallback tối thiểu
+    // Minimum fallback if still no activeLesson
     if (!activeLesson) {
       activeLesson = {
         id: lessonId,
         slug: lessonId,
         item_type: 'lp_lesson',
-        title: { rendered: `Bài học` },
-        content: { rendered: `<p>Nội dung bài học đang được cập nhật...</p>` },
+        title: { rendered: `Lesson` },
+        content: { rendered: `<p>Lesson content is being updated...</p>` },
       };
     }
 
@@ -137,7 +147,7 @@ export default async function LessonDetailPage({ params }: PageProps) {
               id: itemId,
               item_id: itemId,
               slug: itemSlug,
-              title: item.title || item.name || `Bài học #${itemId}`,
+              title: item.title || item.name || `Lesson #${itemId}`,
               post_title: item.title || item.name,
               type: item.item_type || item.type || 'lp_lesson',
               content: item.post_content || item.content || item.description || '',
@@ -161,10 +171,10 @@ export default async function LessonDetailPage({ params }: PageProps) {
       }
     }
   } catch (err: any) {
-    error = err.message || "Không thể tải chi tiết bài học này.";
+    error = err.message || "Could not load details for this lesson.";
   }
 
-  // Quyền truy cập bài học LearnPress
+  // Access rights
   const isPreviewLesson =
     activeLesson?.preview === true ||
     activeLesson?.preview === "yes" ||
@@ -183,13 +193,13 @@ export default async function LessonDetailPage({ params }: PageProps) {
           <div className="h-12 w-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mb-6 mx-auto text-xl">
             ⚠️
           </div>
-          <h2 className="text-xl font-bold text-red-300 mb-3">Lỗi tải bài học</h2>
+          <h2 className="text-xl font-bold text-red-300 mb-3">Error Loading Lesson</h2>
           <p className="text-slate-400 text-sm max-w-sm mx-auto mb-6 leading-relaxed">{error}</p>
           <Link
             href={`/courses/${slug}`}
             className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-emerald-500"
           >
-            Quay lại khóa học
+            Back to course
           </Link>
         </div>
       </div>
@@ -209,6 +219,7 @@ export default async function LessonDetailPage({ params }: PageProps) {
       lessons={lessons}
       sections={sections}
       canAccess={canAccess}
+      isUserPurchased={isUserPurchased}
       progress={progress}
     />
   );

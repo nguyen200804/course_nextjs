@@ -11,7 +11,7 @@ export default function OrderHistoryPage() {
                         Order History
                     </h2>
                     <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>
-                        Lịch sử thanh toán và hóa đơn mua khóa học của bạn sẽ hiển thị ở đây.
+                        Your payment history and course purchase invoices will be displayed here.
                     </p>
                 </div>
             </LoggedInAccount>

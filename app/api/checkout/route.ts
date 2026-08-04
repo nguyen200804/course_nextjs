@@ -3,7 +3,23 @@ import { getLearnDashCourse, getWooCommerceProductByCourseId } from "@/lib/wordp
 
 export async function POST(request: Request) {
   try {
-    const { courseId, userId, billing, paymentMethod, paymentMethodTitle, note } = await request.json();
+    const { courseId, userId, billing, paymentMethod, paymentMethodTitle, note, productId: clientProductId, attribution } = await request.json();
+
+    const sourceType = attribution?.sourceType || "typein";
+    const origin = attribution?.origin || "Direct";
+    const referrer = attribution?.referrer || "";
+    const utmSource = attribution?.utmSource || "(direct)";
+
+    // Phân loại các trường động từ client gửi lên (bắt đầu bằng billing_, shipping_ hoặc tùy biến)
+    const metaData: any[] = [
+      { key: "_created_via", value: "checkout" },
+      { key: "_wc_order_attribution_source_type", value: sourceType },
+      { key: "_wc_order_attribution_origin", value: origin },
+      { key: "_wc_order_attribution_referrer", value: referrer },
+      { key: "_wc_order_attribution_utm_source", value: utmSource }
+    ];
+    const billingData: any = {};
+    const shippingData: any = {};
 
     if (!courseId || !userId || !billing) {
       return NextResponse.json(
@@ -25,7 +41,7 @@ export async function POST(request: Request) {
 
     const credentials = Buffer.from(`${username}:${password}`).toString("base64");
 
-    // 1. Lấy thông tin khóa học để tìm product ID của WooCommerce từ custom_button_url
+    // 1. Lấy thông tin khóa học
     const course = await getLearnDashCourse(courseId);
     if (!course) {
       return NextResponse.json(
@@ -34,27 +50,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Tìm product ID từ WooCommerce liên kết bằng Product Data = Course, hoặc fallback sang custom_button_url
-    let productId = null;
-    const wcProduct = await getWooCommerceProductByCourseId(courseId);
-    if (wcProduct) {
-      productId = wcProduct.id;
-    } else {
-      const match = course.custom_button_url?.match(/add-to-cart=(\d+)/);
-      productId = match ? parseInt(match[1]) : null;
+    // 2. Resolve Product ID từ client payload hoặc getWooCommerceProductByCourseId
+    let productId = clientProductId ? parseInt(String(clientProductId)) : null;
+    if (!productId) {
+      const wcProduct = await getWooCommerceProductByCourseId(courseId);
+      if (wcProduct) {
+        productId = wcProduct.id;
+      } else {
+        const match = course?.custom_button_url?.match(/add-to-cart=(\d+)/);
+        productId = match ? parseInt(match[1]) : parseInt(String(courseId));
+      }
     }
 
     if (!productId) {
-      return NextResponse.json(
-        { error: "Khóa học này chưa được liên kết với sản phẩm WooCommerce nào." },
-        { status: 400 }
-      );
+      productId = parseInt(String(courseId));
     }
-
-    // Phân loại các trường động từ client gửi lên (bắt đầu bằng billing_, shipping_ hoặc tùy biến)
-    const metaData: any[] = [];
-    const billingData: any = {};
-    const shippingData: any = {};
 
     Object.keys(billing || {}).forEach(key => {
       const val = billing[key];
@@ -100,6 +110,7 @@ export async function POST(request: Request) {
       payment_method: paymentMethod,
       payment_method_title: paymentMethodTitle || paymentMethod,
       set_paid: false,
+      created_via: "checkout",
       billing: billingData,
       shipping: shippingData,
       meta_data: metaData,

@@ -12,6 +12,7 @@ export default function SideBar({ handleLogout }: { handleLogout: () => void }) 
         { href: '/my-account', label: 'Dashboard', icon: Gauge },
         { href: '/my-account/personal-info', label: 'Personal Info', icon: UserRound },
         { href: '/my-account/my-courses', label: 'My Courses', icon: LibraryBig },
+        { href: '/my-account/wishlist', label: 'Wishlist', icon: Heart },
         { href: '/my-account/certificates', label: 'Certificates', icon: Award },
         { href: '/my-account/order-history', label: 'Order History', icon: RotateCcwIcon },
     ];

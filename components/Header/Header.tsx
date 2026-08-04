@@ -4,28 +4,24 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, Search, ShoppingCart, X, Grip, ChevronDown } from 'lucide-react';
+import { Search, ShoppingCart, X, Grip, ChevronDown } from 'lucide-react';
 import ButtonGreen from '../common/ButtonGreen';
 import HomeMegaMenu from '../MegaMenu/Home';
+import { fetchLPCategories } from '@/lib/api/courses';
 import styles from './Header.module.css';
-
-const categoryItems = [
-  { name: 'Business', link: '/category/business' },
-  { name: 'Cooking', link: '/category/cooking' },
-  { name: 'Digital Marketing', link: '/category/digital-marketing' },
-  { name: 'Fitness', link: '/category/fitness' },
-  { name: 'Motivation', link: '/category/motivation' },
-  { name: 'Online Art', link: '/category/online-art' },
-  { name: 'Photography', link: '/category/photography' },
-  { name: 'Programming', link: '/category/programming' },
-  { name: 'Yoga', link: '/category/yoga' },
-];
 
 export interface MenuItem {
   name: string;
   link: string;
   children?: MenuItem[];
   megaMenu?: React.ReactNode;
+}
+
+interface CategoryItem {
+  id: number;
+  name: string;
+  slug: string;
+  link: string;
 }
 
 const navItems: MenuItem[] = [
@@ -121,7 +117,7 @@ const navItems: MenuItem[] = [
     name: 'Blog',
     link: '#',
     children: [
-      { name: 'Blog Style 1', link: '/blog-style-1' },
+      { name: 'Blog Style 1', link: '/blog' },
       { name: 'Blog Style 2', link: '/blog-style-2' },
       { name: 'Blog Standard', link: '/blog-standard' },
       { name: 'Blog Details', link: '/blog-details' },
@@ -145,7 +141,11 @@ function RenderNavItem({ item }: { item: MenuItem }) {
     <li className={`${styles.navItem} ${hasMegaMenu ? styles.hasMegaMenu : ''}`}>
       <Link href={item.link} className={styles.navLink}>
         {item.name}
-        {(hasChildren || hasMegaMenu) && <span className={styles.arrow}><ChevronDown strokeWidth={3} width={15} height={15} /></span>}
+        {(hasChildren || hasMegaMenu) && (
+          <span className={styles.arrow}>
+            <ChevronDown strokeWidth={3} width={15} height={15} />
+          </span>
+        )}
       </Link>
 
       {hasMegaMenu && <div className={styles.megaMenuWrapper}>{item.megaMenu}</div>}
@@ -164,6 +164,29 @@ function RenderNavItem({ item }: { item: MenuItem }) {
 export default function Header() {
   const pathname = usePathname();
   const [user, setUser] = useState<{ id: number; username: string; name?: string } | null>(null);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+
+  // Fetch danh mục khóa học động từ taxonomy course_category
+  useEffect(() => {
+    async function loadCourseCategories() {
+      try {
+        const catRes = await fetchLPCategories();
+        if (Array.isArray(catRes) && catRes.length > 0) {
+          const formattedCategories: CategoryItem[] = catRes.map((c: any) => ({
+            id: c.id,
+            name: c.name?.replace(/&#038;/g, '&').replace(/&amp;/g, '&') || c.name,
+            slug: c.slug,
+            link: `/course-category/${c.slug}`,
+          }));
+          setCategories(formattedCategories);
+        }
+      } catch (error) {
+        console.error("Error loading course categories for header:", error);
+      }
+    }
+
+    loadCourseCategories();
+  }, []);
 
   useEffect(() => {
     const checkUser = () => {
@@ -183,7 +206,7 @@ export default function Header() {
             setUser(parsed);
             return;
           }
-        } catch {}
+        } catch { }
       }
       setUser(null);
     };
@@ -260,6 +283,7 @@ export default function Header() {
           </div>
         </div>
       </div>
+
       <div className={styles.container}>
         <div className={styles.headerWrapper}>
           {/* Logo thương hiệu */}
@@ -274,20 +298,25 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* Menu Danh mục (Category Dropdown) */}
+          {/* Menu Danh mục khóa học Động */}
           <div className={styles.categoryDropdown}>
             <button className={styles.categoryBtn}>
-
               <Grip size={20} className={styles.categoryIcon} />
               <span>Category</span>
             </button>
 
             <ul className={styles.categoryMenu}>
-              {categoryItems.map((cat, idx) => (
-                <li key={idx}>
-                  <Link href={cat.link}>{cat.name}</Link>
+              {categories.length > 0 ? (
+                categories.map((cat) => (
+                  <li key={cat.id}>
+                    <Link href={cat.link}>{cat.name}</Link>
+                  </li>
+                ))
+              ) : (
+                <li>
+                  <span style={{ padding: '8px 20px', color: '#888', display: 'block' }}>Loading...</span>
                 </li>
-              ))}
+              )}
             </ul>
           </div>
 
@@ -341,68 +370,6 @@ export default function Header() {
                   <div className={styles.cartItemInfo}>
                     <h6 className={styles.cartItemTitle}>Book Demo C</h6>
                     <span className={styles.cartItemPrice}>1 × $25.00</span>
-                  </div>
-                  <button className={styles.cartItemRemove} aria-label="Remove">
-                    <X strokeWidth={3} size={16} />
-                  </button>
-                </div>
-
-                <div className={styles.cartItem}>
-                  <div className={styles.cartItemThumb}>
-                    <Image src="/images/book_demo.jpg" alt="Book Demo D" width={75} height={75} />
-                  </div>
-                  <div className={styles.cartItemInfo}>
-                    <h6 className={styles.cartItemTitle}>Book Demo D</h6>
-                    <span className={styles.cartItemPrice}>1 × $45.00</span>
-                  </div>
-                  <button className={styles.cartItemRemove} aria-label="Remove">
-                    <X strokeWidth={3} size={16} />
-                  </button>
-                </div>
-
-                <div className={styles.cartItem}>
-                  <div className={styles.cartItemThumb}>
-                    <Image src="/images/book_demo.jpg" alt="Book Demo A" width={75} height={75} />
-                  </div>
-                  <div className={styles.cartItemInfo}>
-                    <h6 className={styles.cartItemTitle}>Book Demo A</h6>
-                    <span className={styles.cartItemPrice}>1 × $49.00</span>
-                  </div>
-                  <button className={styles.cartItemRemove} aria-label="Remove">
-                    <X strokeWidth={3} size={16} />
-                  </button>
-                </div>
-                <div className={styles.cartItem}>
-                  <div className={styles.cartItemThumb}>
-                    <Image src="/images/book_demo.jpg" alt="Book Demo A" width={75} height={75} />
-                  </div>
-                  <div className={styles.cartItemInfo}>
-                    <h6 className={styles.cartItemTitle}>Book Demo A</h6>
-                    <span className={styles.cartItemPrice}>1 × $49.00</span>
-                  </div>
-                  <button className={styles.cartItemRemove} aria-label="Remove">
-                    <X strokeWidth={3} size={16} />
-                  </button>
-                </div>
-                <div className={styles.cartItem}>
-                  <div className={styles.cartItemThumb}>
-                    <Image src="/images/book_demo.jpg" alt="Book Demo A" width={75} height={75} />
-                  </div>
-                  <div className={styles.cartItemInfo}>
-                    <h6 className={styles.cartItemTitle}>Book Demo A</h6>
-                    <span className={styles.cartItemPrice}>1 × $49.00</span>
-                  </div>
-                  <button className={styles.cartItemRemove} aria-label="Remove">
-                    <X strokeWidth={3} size={16} />
-                  </button>
-                </div>
-                <div className={styles.cartItem}>
-                  <div className={styles.cartItemThumb}>
-                    <Image src="/images/book_demo.jpg" alt="Book Demo A" width={75} height={75} />
-                  </div>
-                  <div className={styles.cartItemInfo}>
-                    <h6 className={styles.cartItemTitle}>Book Demo A</h6>
-                    <span className={styles.cartItemPrice}>1 × $49.00</span>
                   </div>
                   <button className={styles.cartItemRemove} aria-label="Remove">
                     <X strokeWidth={3} size={16} />

@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import HeadingSectionText from '@/components/common/HeadingSectionText';
 import LazyLoad from '@/components/common/LazyLoad';
 import CourseCard from '@/components/common/CourseCard';
+import CourseCardList from '@/components/common/CourseCardList';
+import Pagination from '@/components/common/Pagination'; // Import component Pagination
 import ButtonGreen from '@/components/common/ButtonGreen';
 import { fetchWPCourses, fetchLPCategories, fetchWPLevelCounts, fetchWPInstructors, fetchWPPriceCounts, WPLPCourseItem } from '@/lib/api/courses';
 import styles from './CoursePage.module.css';
@@ -68,6 +70,9 @@ function CoursesContent() {
         () => (activeLvlParam ? activeLvlParam.split(',') : []),
         [activeLvlParam]
     );
+
+    // State chọn chế độ hiển thị: 'grid' hoặc 'list'
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     // Draft Selection States (User picks before clicking "Apply Filter")
     const [draftCategories, setDraftCategories] = useState<number[]>(activeCategories);
@@ -197,7 +202,6 @@ function CoursesContent() {
                 });
 
                 if (isClientFiltered) {
-                    // Refine by Level Filter
                     if (activeLevels.length > 0) {
                         apiCourses = apiCourses.filter((course) =>
                             activeLevels.some((lvl) => {
@@ -209,7 +213,6 @@ function CoursesContent() {
                         );
                     }
 
-                    // Refine by Price Filter
                     if (activePriceParam === 'free') {
                         apiCourses = apiCourses.filter((course) => course.isFree || course.price === 'Free');
                     } else if (activePriceParam === 'paid') {
@@ -631,15 +634,29 @@ function CoursesContent() {
                             </div>
                             <div className={styles.hn_course_page__sorting_right}>
                                 <div className={styles.hn_course_page__layout_switcher}>
-                                    <span className={styles.hn_course_page__layout_label}>Grid</span>
+                                    <span className={styles.hn_course_page__layout_label}>
+                                        {viewMode === 'grid' ? 'Grid' : 'List'}
+                                    </span>
                                     <ul className={styles.hn_course_page__switcher_btn_list}>
                                         <li>
-                                            <button type="button" className={`${styles.hn_course_page__switcher_btn} ${styles.hn_course_page__switcher_btn_active}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setViewMode('grid')}
+                                                className={`${styles.hn_course_page__switcher_btn} ${viewMode === 'grid' ? styles.hn_course_page__switcher_btn_active : ''
+                                                    }`}
+                                                aria-label="Grid View"
+                                            >
                                                 <i className="icon-53" />
                                             </button>
                                         </li>
                                         <li>
-                                            <button type="button" className={styles.hn_course_page__switcher_btn}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setViewMode('list')}
+                                                className={`${styles.hn_course_page__switcher_btn} ${viewMode === 'list' ? styles.hn_course_page__switcher_btn_active : ''
+                                                    }`}
+                                                aria-label="List View"
+                                            >
                                                 <i className="icon-54" />
                                             </button>
                                         </li>
@@ -663,31 +680,50 @@ function CoursesContent() {
                             </div>
                         </div>
 
-                        {/* Course Cards Grid using Reusable CourseCard */}
-                        <div className={styles.hn_course_page__grid}>
+                        {/* Danh sách bài viết - Render theo Grid hoặc List */}
+                        <div className={viewMode === 'grid' ? styles.hn_course_page__grid : styles.hn_course_page__list}>
                             {isLoading ? (
                                 Array.from({ length: 9 }).map((_, index) => (
                                     <div key={index} className={styles.hn_course_page__skeleton_card} />
                                 ))
                             ) : displayedCourses.length > 0 ? (
-                                displayedCourses.map((course) => (
-                                    <CourseCard
-                                        key={course.id}
-                                        id={course.id}
-                                        title={course.title}
-                                        imgSrc={course.image}
-                                        link={course.link}
-                                        duration={course.duration}
-                                        level={course.level}
-                                        ratings={course.ratings}
-                                        price={course.price}
-                                        originPrice={course.originPrice}
-                                        lessons={course.lessons}
-                                        sections={course.sections}
-                                        students={course.students}
-                                        description={course.description}
-                                    />
-                                ))
+                                displayedCourses.map((course) =>
+                                    viewMode === 'grid' ? (
+                                        <CourseCard
+                                            key={course.id}
+                                            id={course.id}
+                                            title={course.title}
+                                            imgSrc={course.image}
+                                            link={course.link}
+                                            duration={course.duration}
+                                            level={course.level}
+                                            ratings={course.ratings}
+                                            price={course.price}
+                                            originPrice={course.originPrice}
+                                            lessons={course.lessons}
+                                            sections={course.sections}
+                                            students={course.students}
+                                            description={course.description}
+                                        />
+                                    ) : (
+                                        <CourseCardList
+                                            key={course.id}
+                                            id={course.id}
+                                            title={course.title}
+                                            imgSrc={course.image}
+                                            link={course.link}
+                                            duration={course.duration}
+                                            level={course.level}
+                                            ratings={course.ratings}
+                                            price={course.price}
+                                            originPrice={course.originPrice}
+                                            lessons={course.lessons}
+                                            sections={course.sections}
+                                            students={course.students}
+                                            description={course.description}
+                                        />
+                                    )
+                                )
                             ) : (
                                 <div className={styles.hn_course_page__no_results}>
                                     <i className="icon-55" style={{ fontSize: '42px', color: '#1ab69d', marginBottom: '15px', display: 'inline-block' }} />
@@ -705,52 +741,13 @@ function CoursesContent() {
                             )}
                         </div>
 
-                        {/* Dynamic URL Pagination Bar */}
-                        {totalPages > 1 && (
-                            <div className={styles.hn_course_page__pagination}>
-                                <ul className={styles.hn_course_page__pagination_list}>
-                                    {/* Prev Button */}
-                                    <li className={styles.hn_course_page__pagination_item}>
-                                        <button
-                                            type="button"
-                                            onClick={() => handlePageChange(currentPage - 1)}
-                                            disabled={currentPage === 1}
-                                            className={`${styles.hn_course_page__pagination_button} ${currentPage === 1 ? styles.hn_course_page__pagination_disabled : ''
-                                                }`}
-                                        >
-                                            &lsaquo;
-                                        </button>
-                                    </li>
-
-                                    {/* Page Numbers */}
-                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                        <li key={page} className={styles.hn_course_page__pagination_item}>
-                                            <button
-                                                type="button"
-                                                onClick={() => handlePageChange(page)}
-                                                className={`${styles.hn_course_page__pagination_button} ${page === currentPage ? styles.hn_course_page__pagination_active : ''
-                                                    }`}
-                                            >
-                                                {page}
-                                            </button>
-                                        </li>
-                                    ))}
-
-                                    {/* Next Button */}
-                                    <li className={styles.hn_course_page__pagination_item}>
-                                        <button
-                                            type="button"
-                                            onClick={() => handlePageChange(currentPage + 1)}
-                                            disabled={currentPage === totalPages}
-                                            className={`${styles.hn_course_page__pagination_button} ${currentPage === totalPages ? styles.hn_course_page__pagination_disabled : ''
-                                                }`}
-                                        >
-                                            &rsaquo;
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-                        )}
+                        {/* Thay thế phần Phân trang bằng Component Pagination */}
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            baseUrl="/courses"
+                            onChangePage={handlePageChange}
+                        />
 
                     </div>
 

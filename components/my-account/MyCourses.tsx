@@ -166,7 +166,7 @@ export default function MyCourses() {
                 </div>
             ) : filteredCourses.length === 0 ? (
                 <div className={styles.emptyState}>
-                    <p>Không có khóa học nào trong mục này.</p>
+                    <p>No courses found in this section.</p>
                 </div>
             ) : (
                 /* Course Table */

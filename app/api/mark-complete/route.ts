@@ -22,7 +22,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Bạn cần đăng nhập để thực hiện" }, { status: 401 });
     }
 
-    const result = await markLearnDashComplete(userId.toString(), courseId.toString(), lessonId.toString());
+    const quizScore = body.quiz_score !== undefined ? Number(body.quiz_score) : (body.quizScore !== undefined ? Number(body.quizScore) : undefined);
+    const result = await markLearnDashComplete(userId.toString(), courseId.toString(), lessonId.toString(), quizScore);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Lỗi API /api/mark-complete:", error);

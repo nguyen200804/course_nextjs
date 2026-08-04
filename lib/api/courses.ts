@@ -275,7 +275,52 @@ export async function fetchWPCourseBySlug(slug: string): Promise<WPLPCourseItem 
         if (!response.ok) return null;
 
         const courses: WPLPCourseItem[] = await response.json();
-        return courses.length > 0 ? courses[0] : null;
+        if (courses.length === 0) return null;
+
+        const course = courses[0];
+        if (course.sections && Array.isArray(course.sections)) {
+            const quizIds: string[] = [];
+            course.sections.forEach((sec: any) => {
+                if (sec.items && Array.isArray(sec.items)) {
+                    sec.items.forEach((item: any) => {
+                        const isQuiz = item.item_type === 'lp_quiz' || item.type === 'lp_quiz' || (item.title && (item.title.toLowerCase().includes('quiz') || item.title.toLowerCase().includes('review')));
+                        if (isQuiz && (item.item_id || item.id)) {
+                            quizIds.push(String(item.item_id || item.id));
+                        }
+                    });
+                }
+            });
+
+            if (quizIds.length > 0) {
+                try {
+                    const quizRes = await fetch(`${API_BASE_URL}/wp/v2/lp_quiz?include=${quizIds.join(',')}`, {
+                        next: { revalidate: 300 },
+                    });
+                    if (quizRes.ok) {
+                        const quizzes = await quizRes.json();
+                        const quizMap = new Map<string, any>();
+                        quizzes.forEach((q: any) => {
+                            quizMap.set(String(q.id), q);
+                        });
+                        course.sections.forEach((sec: any) => {
+                            if (sec.items && Array.isArray(sec.items)) {
+                                sec.items.forEach((item: any) => {
+                                    const qId = String(item.item_id || item.id);
+                                    if (quizMap.has(qId)) {
+                                        const qObj = quizMap.get(qId);
+                                        item.questions_count = qObj.questions_count || (qObj.questions ? `${qObj.questions.length} questions` : undefined);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch quiz details for course sections:', e);
+                }
+            }
+        }
+
+        return course;
     } catch (error) {
         console.error('Failed to fetch course by slug:', error);
         return null;

@@ -1,317 +1,210 @@
-<div id="content" class="site-content"><div class="lp-archive-courses">	<div id="popup-course" class="course-summary">
-		<input type="checkbox" id="sidebar-toggle" title="Show/Hide curriculum">
-<div id="popup-header">
-	<div class="popup-header__inner">
-		<h2 class="course-title">
-			<a href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/">The Ultimate Drawing Course – Beginner to Advanced</a>
-		</h2>
-
-				<div class="items-progress" data-total-items="8">
-			<span class="number">
-				<span class="items-completed">1</span> of 8 items			</span>
-			<div class="learn-press-progress">
-				<div class="learn-press-progress__active" data-value="12%;" style="left: -88%;">
-				</div>
-			</div>
-		</div>
-			</div>
-	<a href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/" class="back-course"><i class="fa fa-times"></i></a>
-</div>
-
-<div id="popup-sidebar">
-	<form method="post" class="search-course">
-		<input type="text" name="s" autocomplete="off" placeholder="Search for course content">
-		<button name="submit"></button>
-		<button type="button" class="clear"></button>
-	</form>
-
-	
-<div class="course-curriculum" id="learn-press-course-curriculum">
-	<div class="curriculum-scrollable">
-
-		
-					<ul class="curriculum-sections">
-				
-<li class="section" id="section-introduction-60" data-id="introduction-60" data-section-id="60">
-	
-	<div class="section-header">
-		<div class="section-left">
-			<h5 class="section-title">
-				Introduction
-				
-							</h5>
-
-			<span class="section-toggle">
-				<i class="fas fa-caret-down"></i>
-				<i class="fas fa-caret-up"></i>
+<div class="edublink-col-lg-12">                                            <div id="post-12688" class="post-12688 lp_course type-lp_course status-publish has-post-thumbnail hentry course_category-business course_category-programming course_tag-development course">
+                                            <div class="edublink-single-course course-style-19"><div class="inner"><div class="thumbnail"><a class="course-thumb" href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/"><img decoding="async" class="w-100" src="https://demo.edublink.co/wp-content/uploads/2023/11/course-83-590x430.jpg" alt="course-83"></a><div class="time-top"><span class="duration"><i class="icon-61"></i>30 hours</span></div></div><div class="content main-content">
+<div class="course-price">
+	<span class="course-item-price"><span class="price">$35</span></span></div>
+<h6 class="title"><a href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/">The Complete Python Bootcamp From Zero to Hero</a></h6><div class="course-rating"><div class="edublink-course-review-wrapper"><div class="review-stars-rated" title="4 out of 5 stars">
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
 			</span>
 		</div>
-
-					
-			<div class="section-meta">
-				<div class="learn-press-progress" title="Section progress 25%">
-					<div class="learn-press-progress__active" data-value="25" style="left: -75%;"></div>
-				</div>
-			</div>
-
-						</div>
-
-	
-	
-		<ul class="section-content">
-
-							<li class="course-item course-item-lp_lesson course-item-14220 has-status status-completed passed" data-id="14220">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/introduction-2/">
-
-						
-<span class="item-name">Introduction</span>
-
-<div class="course-item-meta">
-
-	
-			<span class="item-meta course-item-status" title="Passed"></span>
-	
-	</div>
-					</a>
-
-									</li>
-							<li class="course-item course-item-lp_lesson course-item-14221" data-id="14221">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/practical-life/">
-
-						
-<span class="item-name">Practical Life</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta duration">10 minutes</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-							<li class="course-item course-item-lp_lesson course-item-14222" data-id="14222">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/practical-life-curriculum-perspective-from-anna-perry/">
-
-						
-<span class="item-name">Practical Life Curriculum Perspective from Anna Perry</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta duration">2 minutes</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-							<li class="course-item course-item-lp_quiz course-item-14223" data-id="14223">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/quizzes/practical-life-review/">
-
-						
-<span class="item-name">Practical Life Review</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta count-questions">2 questions</span><span class="item-meta duration">1 minute</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-					</ul>
-	
-	</li>
-
-<li class="section" id="section-sensorial-61" data-id="sensorial-61" data-section-id="61">
-	
-	<div class="section-header">
-		<div class="section-left">
-			<h5 class="section-title">
-				Sensorial
-				
-							</h5>
-
-			<span class="section-toggle">
-				<i class="fas fa-caret-down"></i>
-				<i class="fas fa-caret-up"></i>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
 			</span>
 		</div>
-
-					
-			<div class="section-meta">
-				<div class="learn-press-progress" title="Section progress 0%">
-					<div class="learn-press-progress__active" data-value="0" style="left: -100%;"></div>
-				</div>
-			</div>
-
-						</div>
-
-	
-	
-		<ul class="section-content">
-
-							<li class="course-item course-item-lp_lesson course-item-14224" data-id="14224">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/sensorial-curriculum/">
-
-						
-<span class="item-name">Sensorial Curriculum</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta duration">9 minutes</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-							<li class="course-item course-item-lp_lesson course-item-14225" data-id="14225">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/sensorial-curriculum-perspective-from-anna-perry/">
-
-						
-<span class="item-name">Sensorial Curriculum Perspective from Anna Perry</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta duration">3 minutes</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-							<li class="course-item course-item-lp_lesson course-item-14226" data-id="14226">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/cultural-curriculum/">
-
-						
-<span class="item-name">Cultural Curriculum</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta duration">5 minutes</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-							<li class="course-item course-item-lp_lesson course-item-14227" data-id="14227">
-
-					
-					<a class="section-item-link" href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/conclusion-4/">
-
-						
-<span class="item-name">Conclusion</span>
-
-<div class="course-item-meta">
-
-	<span class="item-meta duration">10 minutes</span>
-			<span class="item-meta course-item-status" title="Unread"></span>
-	
-	</div>
-					</a>
-
-									</li>
-					</ul>
-	
-	</li>
-			</ul>
-
-		
-		
-	</div>
-</div>
-</div>
-
-<div id="popup-content" style="">
-	
-<div id="learn-press-content-item">
-
-	
-	<div class="content-item-scrollable">
-		<div class="content-item-wrap">
-			<div class="learn-press-message success lp-content-area">
-	<i class="fa"></i>Congrats! You have completed "Introduction".</div>
-
-<div class="content-item-summary">
-
-	
-<h1 class="course-item-title lesson-title">Practical Life</h1>
-
-<div class="content-item-description lesson-description">
-	<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-</div>
-	<form method="post" name="learn-press-form-complete-lesson" class="learn-press-form form-button " data-title="Complete lesson" data-confirm="Do you want to complete the lesson &quot;Practical Life&quot; ?">
-
-		
-		<input type="hidden" name="id" value="14221">
-		<input type="hidden" name="course_id" value="14218">
-		<input type="hidden" name="complete-lesson-nonce" value="3be91b92ce">
-		<input type="hidden" name="type" value="lp_lesson">
-		<input type="hidden" name="item_id_next" value="14222">
-		<input type="hidden" name="lp-ajax" value="complete-lesson">
-		<input type="hidden" name="noajax" value="yes">
-		<button class="lp-button button button-complete-item button-complete-lesson lp-btn-complete-item">
-			Complete		</button>
-
-		
-	</form>
-
-</div>
-
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
+		</div>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
+		</div>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:0%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
 		</div>
 	</div>
-
-	
-</div>
-	<div id="learn-press-item-comments">
-		<div class="learn-press-comments">
-			
-<div id="comments" class="comments-area edublink-comments-area">
-
-		<div id="respond" class="comment-respond">
-		<h3 class="edublink-title">Leave a Reply <small><a rel="nofollow" id="cancel-comment-reply-link" href="/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/practical-life/#respond" style="display:none;">Cancel reply</a></small></h3><form action="https://demo.edublink.co/wp-comments-post.php" method="post" id="commentform" class="edublink-comment-form form media-body"><p class="logged-in-as">Logged in as nguyen200804. <a href="https://demo.edublink.co/wp-admin/profile.php">Edit your profile</a>. <a href="https://demo.edublink.co/wp-login.php?action=logout&amp;redirect_to=https%3A%2F%2Fdemo.edublink.co%2Flessons%2Fpractical-life%2F&amp;_wpnonce=482c96c028">Log out?</a> <span class="required-field-message">Required fields are marked <span class="required">*</span></span></p><div class="form-group edublink-comment-field label-floating is-empty"><textarea rows="8" id="comment" name="comment" class="form-control" cols="20" aria-required="true" placeholder="Comment"></textarea></div><p class="form-submit"><input name="submit" type="submit" id="submit" class="edublink-comment-btn" value="Post A Comment"> <input type="hidden" name="comment_post_ID" value="14221" id="comment_post_ID">
-<input type="hidden" name="comment_parent" id="comment_parent" value="0">
-</p></form>	</div><!-- #respond -->
-	
-</div><!-- #comments -->
+<span>(4.0/ 2 Ratings)</span></div></div><p>Lorem ipsum dolor sit amet consectur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,...</p>
+<ul class="course-meta"><li><i class="icon-24"></i>7 Lessons</li><li><i class="icon-25"></i>674 Students</li></ul></div></div><div class="edublink-course-14-hover visible-bottom"><div class="inner"><div class="content"><span class="course-level"><a href="https://demo.edublink.co/course-category/business/">Business</a></span><h6 class="title"><a href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/">The Complete Python Bootcamp From Zero to Hero</a></h6><div class="course-rating"><div class="edublink-course-review-wrapper"><div class="review-stars-rated" title="4 out of 5 stars">
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
+		</div>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
+		</div>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
+		</div>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:100%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
+		</div>
+			<div class="review-star">
+			<span class="far">
+  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
+						</g>
+					</g>
+				</svg>
+ 			</span>
+			<span class="fas" style="width:0%;">
+ 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
+					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+						<g fill="#FFB606" fill-rule="nonzero">
+							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
+						</g>
+					</g>
+				</svg>
+			</span>
 		</div>
 	</div>
-</div>
-
-<div id="popup-footer">
-	
-<div class="course-item-nav" data-nav="all">
-			<div class="prev">
-			<div class="course-item-nav__name">Introduction</div>
-			<a href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/introduction-2/">
-				Prev			</a>
-		</div>
-	
-			<div class="next">
-			<div class="course-item-nav__name">Practical Life Curriculum Perspective from Anna Perry</div>
-			<a href="https://demo.edublink.co/courses/the-ultimate-drawing-course-beginner-to-advanced/lessons/practical-life-curriculum-perspective-from-anna-perry/">
-				Next			</a>
-		</div>
-	</div>
-
-
-</div>
-	</div>
-</div></div>
+<span>(4.0)</span></div></div><ul class="course-meta"><li>7 Lessons</li><li class="course-meta-info">30 hours</li><li class="course-meta-info">Beginner</li></ul><div class="course-feature"><h6 class="feature-title">What You’ll Learn?</h6><ul><li class="course-list-item">Python Programming: A Beginner's Guide</li><li class="course-list-item">Mastering Python: From Novice to Expert</li><li class="course-list-item">Building Web Applications with Python</li></ul></div><div class="button-group"><a class="edu-btn btn-medium" href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/">Enroll Now</a><button class="edublink-wishlist-wrapper learn-press-course-wishlist-button-12688 course-wishlist" data-id="12688" data-nonce="1cdabed616" title="Add this course to your wishlist"></button></div></div></div></div></div></div></div>

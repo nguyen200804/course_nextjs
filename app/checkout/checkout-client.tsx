@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import styles from "@/styles/CheckoutPage.module.css";
+import { ReceiptText, CreditCard, Receipt, CircleCheckBig } from "lucide-react";
+import ButtonGreen from "@/components/common/ButtonGreen";
+
 
 interface CheckoutClientProps {
   course: any;
@@ -12,6 +16,10 @@ interface CheckoutClientProps {
     billing?: Record<string, any>;
     shipping?: Record<string, any>;
     additional?: Record<string, any>;
+    currency?: string;
+    currency_symbol?: string;
+    currency_pos?: string;
+    [key: string]: any;
   };
   paymentGateways?: any[];
 }
@@ -54,7 +62,7 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
     if (fieldsConfig) {
       setFormValues(prev => {
         const next = { ...prev };
-        
+
         // Cấu hình các trường Billing
         const billingConfig = fieldsConfig.billing;
         if (billingConfig) {
@@ -107,7 +115,7 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
   // Khởi tạo phương thức thanh toán mặc định dựa trên cổng WooCommerce
   const defaultPaymentMethod = paymentGateways.length > 0 ? paymentGateways[0].id : "bacs";
   const [paymentMethod, setPaymentMethod] = useState(defaultPaymentMethod);
-  
+
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -117,11 +125,69 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
     }
   }, [paymentGateways]);
 
-  const priceVal = course.course_price ? Number(course.course_price) : 0;
-  const formattedPrice = new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-  }).format(priceVal);
+  const getMetaValue = (key: string) => {
+    if (course?.meta_data && Array.isArray(course.meta_data)) {
+      const found = course.meta_data.find((m: any) => m.key === key);
+      if (found && found.value !== undefined && found.value !== null && found.value !== '') {
+        return found.value;
+      }
+    }
+    return undefined;
+  };
+
+  const salePrice =
+    course?.sale_price ??
+    course?._lp_sale_price ??
+    course?._sale_price ??
+    course?.meta?._lp_sale_price ??
+    getMetaValue("_lp_sale_price") ??
+    getMetaValue("_sale_price");
+
+  const regularPrice =
+    course?.price ??
+    course?.course_price ??
+    course?.lp_price ??
+    course?._lp_price ??
+    course?.regular_price ??
+    course?._regular_price ??
+    course?.meta?._lp_price ??
+    getMetaValue("_lp_price") ??
+    getMetaValue("_lp_regular_price");
+
+  const rawSaleNum = salePrice !== undefined && salePrice !== null && salePrice !== ""
+    ? (parseFloat(String(salePrice).replace(/[^0-9.]/g, "")) || 0)
+    : 0;
+
+  const rawRegNum = regularPrice !== undefined && regularPrice !== null && regularPrice !== ""
+    ? (parseFloat(String(regularPrice).replace(/[^0-9.]/g, "")) || 0)
+    : 0;
+
+  const priceVal = rawSaleNum > 0 ? rawSaleNum : rawRegNum;
+  const originPriceVal = (rawSaleNum > 0 && rawRegNum > rawSaleNum) ? rawRegNum : null;
+
+  const wcCurrencyCode = fieldsConfig?.currency || "VND";
+  const wcCurrencySymbol = fieldsConfig?.currency_symbol || (wcCurrencyCode === "VND" ? "₫" : "$");
+  const wcCurrencyPos = fieldsConfig?.currency_pos || (wcCurrencyCode === "VND" ? "right_space" : "left");
+
+  const formatPriceWithWc = (val: number) => {
+    if (val === 0) return "Free";
+    try {
+      return new Intl.NumberFormat(wcCurrencyCode === "VND" ? "vi-VN" : "en-US", {
+        style: "currency",
+        currency: wcCurrencyCode,
+        maximumFractionDigits: wcCurrencyCode === "VND" ? 0 : 2,
+      }).format(val);
+    } catch (_) {
+      const numStr = val.toLocaleString();
+      if (wcCurrencyPos === "left") return `${wcCurrencySymbol}${numStr}`;
+      if (wcCurrencyPos === "left_space") return `${wcCurrencySymbol} ${numStr}`;
+      if (wcCurrencyPos === "right") return `${numStr}${wcCurrencySymbol}`;
+      return `${numStr} ${wcCurrencySymbol}`;
+    }
+  };
+
+  const formattedPrice = formatPriceWithWc(priceVal);
+  const formattedOriginPrice = originPriceVal ? formatPriceWithWc(originPriceVal) : null;
 
   const transferContent = `KHOAHOC ${course.id} USER ${user?.id || 0}`;
 
@@ -142,12 +208,10 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
     const required = !!field.required;
 
     // Phân chia độ rộng grid dựa theo CSS class WooCommerce
-    let widthClass = "col-span-full";
+    let widthClass = styles.colSpanFull;
     if (field.class && Array.isArray(field.class)) {
-      if (field.class.includes("form-row-first")) {
-        widthClass = "col-span-full sm:col-span-1";
-      } else if (field.class.includes("form-row-last")) {
-        widthClass = "col-span-full sm:col-span-1";
+      if (field.class.includes("form-row-first") || field.class.includes("form-row-last")) {
+        widthClass = styles.colSpanHalf;
       }
     }
 
@@ -163,9 +227,9 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
     };
 
     return (
-      <div key={key} className={widthClass}>
-        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-          {label} {required && <span className="text-red-500">*</span>}
+      <div key={key} className={`${styles.fieldGroup} ${widthClass}`}>
+        <label className={styles.fieldLabel}>
+          {label} {required && <span className={styles.requiredStar}>*</span>}
         </label>
 
         {field.type === "textarea" ? (
@@ -174,14 +238,14 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
             rows={3}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full p-4 rounded-xl bg-slate-950/50 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+            className={styles.textarea}
             required={required}
           />
         ) : shouldRenderSelect ? (
           <select
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl bg-slate-950/50 border border-slate-800 text-sm text-slate-300 focus:outline-none focus:border-purple-500/50 transition-colors"
+            className={styles.select}
             required={required}
           >
             {field.options && typeof field.options === "object" && !Array.isArray(field.options) ? (
@@ -214,15 +278,15 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
             )}
           </select>
         ) : field.type === "checkbox" ? (
-          <label className="flex items-center gap-3 cursor-pointer select-none">
+          <label className={styles.checkboxGroup}>
             <input
               type="checkbox"
               checked={!!value}
               onChange={(e) => handleChange(e.target.checked ? "1" : "")}
-              className="h-5 w-5 rounded border border-slate-800 bg-slate-950/50 text-purple-600 focus:ring-0 cursor-pointer"
+              className={styles.checkboxInput}
               required={required}
             />
-            <span className="text-sm text-slate-300">{placeholder || label}</span>
+            <span className={styles.checkboxText}>{placeholder || label}</span>
           </label>
         ) : (
           <input
@@ -230,7 +294,7 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
             placeholder={placeholder}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl bg-slate-950/50 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+            className={styles.input}
             required={required}
           />
         )}
@@ -247,10 +311,10 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate động dựa theo cấu hình bắt buộc (required) và định dạng (validate) thực tế của WordPress
     const errors: string[] = [];
-    
+
     const validateFields = (section: any) => {
       if (!section) return;
       Object.keys(section).forEach(key => {
@@ -258,32 +322,32 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
         if (field.hidden === true || field.enabled === false || field.enabled === 0) {
           return;
         }
-        
+
         let val = (formValues[key] || "").trim();
         const label = field.label || field.placeholder || key;
-        
-        // 1. Kiểm tra trường bắt buộc (Required)
+
+        // 1. Check required fields
         if (field.required && !val) {
           if (field.type === "country" || key.endsWith("country")) {
             val = "VN";
             formValues[key] = "VN";
           } else {
-            errors.push(`Trường "${label}" là bắt buộc và không được để trống.`);
+            errors.push(`Field "${label}" is required and cannot be empty.`);
             return;
           }
         }
 
-        // 2. Kiểm tra định dạng (Validations) khi có dữ liệu điền vào
+        // 2. Check format validation when field is provided
         if (val) {
           if (hasValidation(field, "email") || field.type === "email" || key.endsWith("email")) {
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-              errors.push(`Trường "${label}" phải đúng định dạng email.`);
+              errors.push(`Field "${label}" must be a valid email address.`);
             }
           }
           if (hasValidation(field, "phone") || field.type === "tel" || key.endsWith("phone")) {
             const cleanPhone = val.replace(/[\s\-\(\)\+]/g, "");
             if (!/^\d{9,11}$/.test(cleanPhone)) {
-              errors.push(`Trường "${label}" phải đúng định dạng số điện thoại (9-11 chữ số).`);
+              errors.push(`Field "${label}" must be a valid phone number (9-11 digits).`);
             }
           }
         }
@@ -294,17 +358,39 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
     validateFields(fieldsConfig?.additional);
 
     if (errors.length > 0) {
-      alert(`Đã xảy ra lỗi kiểm tra dữ liệu:\n\n${errors.join("\n")}`);
+      alert(`Validation errors occurred:\n\n${errors.join("\n")}`);
       return;
     }
-    
+
     setLoading(true);
 
     try {
       const selectedGateway = paymentGateways.find(g => g.id === paymentMethod);
-      const paymentTitle = selectedGateway ? selectedGateway.title : (paymentMethod === "bacs" ? "Chuyển khoản ngân hàng" : "Thanh toán COD");
+      const paymentTitle = selectedGateway ? selectedGateway.title : (paymentMethod === "bacs" ? "Bank Transfer" : "Cash on Delivery");
 
-      // Gửi toàn bộ formValues (chứa billing và additional) lên API xử lý
+      // Trích xuất thuộc tính nguồn truy cập thực tế (Dynamic Order Attribution)
+      let urlProductId: string | null = null;
+      let attribution = { sourceType: "typein", origin: "Direct", referrer: "", utmSource: "(direct)" };
+      if (typeof window !== "undefined") {
+        const ref = document.referrer || "";
+        const urlParams = new URLSearchParams(window.location.search);
+        urlProductId = urlParams.get("product_id") || urlParams.get("productId");
+        const utmSource = urlParams.get("utm_source");
+
+        if (utmSource) {
+          attribution = { sourceType: "utm", origin: utmSource, referrer: ref, utmSource: utmSource };
+        } else if (ref) {
+          if (/google|bing|yahoo|duckduckgo|baidu/i.test(ref)) {
+            attribution = { sourceType: "organic", origin: "Organic Search", referrer: ref, utmSource: "organic" };
+          } else if (/facebook|fb|instagram|zalo|tiktok|youtube|twitter|t.co|linkedin/i.test(ref)) {
+            attribution = { sourceType: "social", origin: "Social", referrer: ref, utmSource: "social" };
+          } else {
+            attribution = { sourceType: "referral", origin: "Referral", referrer: ref, utmSource: "referral" };
+          }
+        }
+      }
+
+      // Send formValues to API
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: {
@@ -312,33 +398,48 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
         },
         body: JSON.stringify({
           courseId: course.id,
+          productId: urlProductId,
           userId: user.id,
-          billing: formValues, 
+          billing: formValues,
           paymentMethod,
           paymentMethodTitle: paymentTitle,
           note: formValues["order_comments"] || "",
+          attribution,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Lỗi khi xử lý đơn hàng trên hệ thống.");
+        throw new Error(data.error || "Error processing order on the system.");
       }
 
       setLoading(false);
       setIsSuccess(true);
     } catch (error: any) {
       console.error(error);
-      alert(error.message || "Đã xảy ra lỗi khi tạo đơn hàng thanh toán. Vui lòng thử lại.");
+      alert(error.message || "An error occurred while creating order. Please try again.");
       setLoading(false);
     }
+  };
+
+  const defaultBillingFields: Record<string, any> = {
+    billing_first_name: { type: "text", label: "First name", required: true, class: ["form-row-first"] },
+    billing_last_name: { type: "text", label: "Last name", required: true, class: ["form-row-last"] },
+    billing_email: { type: "email", label: "Email address", required: true, class: ["form-row-wide"] },
+    billing_phone: { type: "tel", label: "Phone", required: false, class: ["form-row-wide"] },
+    billing_country: { type: "country", label: "Country / Region", required: true, class: ["form-row-wide"] },
+    billing_address_1: { type: "text", label: "Street address", required: true, class: ["form-row-wide"] },
+    billing_city: { type: "text", label: "Town / City", required: true, class: ["form-row-wide"] },
+    billing_state: { type: "state", label: "State / County", required: true, class: ["form-row-wide"] },
   };
 
   const selectedGateway = paymentGateways.find(g => g.id === paymentMethod);
 
   // Lấy các trường đã cấu hình từ prop hoặc dùng mặc định
-  const billingFields = fieldsConfig?.billing || {};
+  const billingFields = (fieldsConfig?.billing && Object.keys(fieldsConfig.billing).length > 0)
+    ? fieldsConfig.billing
+    : defaultBillingFields;
   const additionalFields = fieldsConfig?.additional || {};
 
   // Có hiển thị phần Additional không
@@ -349,43 +450,44 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
 
   if (isSuccess) {
     return (
-      <div className="max-w-2xl mx-auto bg-slate-900/60 border border-slate-800/80 rounded-3xl p-8 md:p-10 backdrop-blur-xl shadow-2xl text-center">
-        <div className="h-16 w-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto mb-6 text-3xl animate-bounce">
-          ✓
+      <div className={styles.successContainer}>
+        <div className={styles.successIcon}>
+          <CircleCheckBig />
         </div>
-        <h1 className="text-2xl md:text-3xl font-bold mb-4 bg-gradient-to-r from-emerald-200 to-green-400 bg-clip-text text-transparent">
-          Đăng ký khóa học thành công!
+        <h1 className={styles.successTitle}>
+          Course Registration Successful!
         </h1>
-        <p className="text-slate-300 mb-6 text-sm leading-relaxed max-w-md mx-auto">
-          Cảm ơn bạn đã đăng ký khóa học <strong className="text-white" dangerouslySetInnerHTML={{ __html: course.title.rendered }} />. Hệ thống đang xác thực giao dịch chuyển khoản của bạn.
+        <p className={styles.successText}>
+          Thank you for enrolling in <strong dangerouslySetInnerHTML={{ __html: course.title.rendered }} />. The system is verifying your transaction.
         </p>
 
-        <div className="bg-slate-950/80 rounded-2xl p-6 border border-slate-800 text-left mb-8 max-w-md mx-auto space-y-3">
-          <h3 className="font-bold text-white text-sm border-b border-slate-800 pb-2 mb-2">Thông tin đăng ký:</h3>
-          <p className="text-xs text-slate-400">Học viên: <span className="text-white font-medium">{formValues.billing_first_name} {formValues.billing_last_name}</span></p>
-          <p className="text-xs text-slate-400">Email: <span className="text-white font-medium">{formValues.billing_email}</span></p>
-          <p className="text-xs text-slate-400">Số điện thoại: <span className="text-white font-medium">{formValues.billing_phone}</span></p>
+        <div className={styles.successDetailsBox}>
+          <h3 className={styles.successDetailsHeader}>Registration Details:</h3>
+          <p className={styles.successDetailItem}>Student: <span>{formValues.billing_first_name} {formValues.billing_last_name}</span></p>
+          <p className={styles.successDetailItem}>Email: <span>{formValues.billing_email}</span></p>
+          <p className={styles.successDetailItem}>Phone: <span>{formValues.billing_phone}</span></p>
           {formValues.billing_address_1 && (
-            <p className="text-xs text-slate-400">Địa chỉ: <span className="text-white font-medium">{formValues.billing_address_1}{formValues.billing_state ? `, ${formValues.billing_state}` : ""}{formValues.billing_city ? `, ${formValues.billing_city}` : ""}</span></p>
+            <p className={styles.successDetailItem}>Address: <span>{formValues.billing_address_1}{formValues.billing_state ? `, ${formValues.billing_state}` : ""}{formValues.billing_city ? `, ${formValues.billing_city}` : ""}</span></p>
           )}
-          <p className="text-xs text-slate-400">Khóa học: <span className="text-white font-medium" dangerouslySetInnerHTML={{ __html: course.title.rendered }} /></p>
-          <p className="text-xs text-slate-400">Số tiền: <span className="text-emerald-400 font-bold">{formattedPrice}</span></p>
-          <p className="text-xs text-slate-400">Phương thức: <span className="text-slate-300">{selectedGateway ? selectedGateway.title : (paymentMethod === "bacs" ? "Chuyển khoản ngân hàng" : "COD")}</span></p>
-          <p className="text-xs text-slate-400">Trạng thái kích hoạt: <span className="text-amber-400 font-semibold">Chờ xác nhận (5-10 phút)</span></p>
+          <p className={styles.successDetailItem}>Course: <span dangerouslySetInnerHTML={{ __html: course.title.rendered }} /></p>
+          <p className={styles.successDetailItem}>Amount: <span className={styles.successAmount}>{formattedPrice}</span></p>
+          <p className={styles.successDetailItem}>Method: <span>{selectedGateway ? selectedGateway.title : (paymentMethod === "bacs" ? "Bank Transfer" : "COD")}</span></p>
+          <p className={styles.successDetailItem}>Activation Status: <span className={styles.successStatus}>Pending confirmation (5-10 mins)</span></p>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-center gap-4">
+        <div className={styles.successActions}>
           <Link
-            href={`/courses/${course.id}`}
-            className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-500 flex items-center justify-center text-xs font-bold text-white transition-all cursor-pointer"
+            // href={`/courses/${course.id}`}
+            href={`/courses/`}
+            className={styles.successBtnPrimary}
           >
-            Quay lại trang khóa học
+            Back to course page
           </Link>
           <Link
             href="/"
-            className="h-11 px-6 rounded-xl border border-slate-800 hover:bg-slate-900 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer"
+            className={styles.successBtnSecondary}
           >
-            Trang chủ
+            Home
           </Link>
         </div>
       </div>
@@ -393,195 +495,119 @@ export default function CheckoutClient({ course, user, customer, fieldsConfig, p
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in">
-      {/* Cột trái: Form thông tin thanh toán động */}
-      <form onSubmit={handleSubmit} className="lg:col-span-7 bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-xl space-y-6">
-        
-        {/* Phần 1: Billing Fields */}
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold text-white border-b border-slate-800/80 pb-4 flex items-center gap-2">
-            ✍ Thông tin thanh toán (Billing Fields)
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Object.keys(billingFields).map(key => renderFieldInput(key, billingFields[key]))}
-          </div>
-        </div>
-
-        {/* Phần 3: Additional Fields (Chỉ hiển thị nếu có trường hoạt động) */}
-        {hasActiveAdditional && (
-          <div className="space-y-6 pt-4">
-            <h2 className="text-xl font-bold text-white border-b border-slate-800/80 pb-4 flex items-center gap-2">
-              📝 Thông tin bổ sung (Additional Fields)
+    <form onSubmit={handleSubmit} className={styles.checkoutGrid}>
+      {/* Left Column: Form Fields */}
+      <div className={`${styles.formColumn} ${styles.cardSection}`}>
+        {/* Section 1: Billing Fields */}
+        <div>
+          <div>
+            <h2 className={styles.sectionTitle}>
+              <ReceiptText /> <span>Billing Details</span>
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Object.keys(additionalFields).map(key => renderFieldInput(key, additionalFields[key]))}
+            <div className={styles.fieldsGrid}>
+              {Object.keys(billingFields).map(key => renderFieldInput(key, billingFields[key]))}
             </div>
           </div>
-        )}
 
-        <h2 className="text-xl font-bold text-white border-b border-slate-800/80 pb-4 pt-4">
-          💳 Phương thức thanh toán (Đồng bộ WooCommerce)
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {paymentGateways.length > 0 ? (
-            paymentGateways.map((gw: any) => {
-              const isSelected = paymentMethod === gw.id;
-              
-              const subLabel = gw.description || "";
-              
-              return (
-                <div
-                  key={gw.id}
-                  onClick={() => setPaymentMethod(gw.id)}
-                  className={`cursor-pointer p-4 rounded-2xl border transition-all flex items-center gap-3 ${
-                    isSelected
-                      ? "bg-purple-950/20 border-purple-500/50 text-white shadow-lg shadow-purple-500/5 border-purple-500"
-                      : "bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-300"
-                  }`}
-                >
-                  <div className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 ${
-                    isSelected ? "border-purple-500" : "border-slate-800"
-                  }`}>
-                    {isSelected && <div className="h-2.5 w-2.5 rounded-full bg-purple-500" />}
-                  </div>
-                  <div>
-                    <span className="text-sm font-bold block">{gw.title}</span>
-                    <span className="text-[10px] text-slate-500">{subLabel}</span>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div
-              onClick={() => setPaymentMethod("bacs")}
-              className={`cursor-pointer p-4 rounded-2xl border transition-all flex items-center gap-3 bg-purple-950/20 border-purple-500/50 text-white shadow-lg shadow-purple-500/5`}
-            >
-              <div className="h-5 w-5 rounded-full border border-purple-500 flex items-center justify-center shrink-0">
-                <div className="h-2.5 w-2.5 rounded-full bg-purple-500" />
-              </div>
-              <div>
-                <span className="text-sm font-bold block">Chuyển khoản Ngân hàng</span>
-                <span className="text-[10px] text-slate-500">Quét mã VietQR tự động điền</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-850 flex items-center justify-center text-sm font-bold text-white transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.99] cursor-pointer"
-        >
-          {loading ? "Đang xử lý đăng ký..." : "Xác nhận và hoàn thành đơn hàng"}
-        </button>
-      </form>
-
-      {/* Cột phải: Thông tin đơn hàng & Thanh toán chuyển khoản */}
-      <div className="lg:col-span-5 space-y-6">
-        {/* Hộp đơn hàng */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 backdrop-blur-xl shadow-xl">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            🛍 Khóa học đăng ký
-          </h3>
-          <div className="flex gap-4 items-start pb-4 border-b border-slate-800">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xs shrink-0">
-              LMS
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-slate-200 line-clamp-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: course.title.rendered }} />
-              <span className="text-[10px] text-slate-500 block font-mono mt-1">ID Khóa học: #{course.id}</span>
-            </div>
-          </div>
-          <div className="flex justify-between items-center pt-4">
-            <span className="text-sm text-slate-400">Tổng thanh toán:</span>
-            <span className="text-xl font-black text-emerald-400">{formattedPrice}</span>
-          </div>
-        </div>
-
-        {/* Hộp hướng dẫn chuyển tiền theo cổng thanh toán đã chọn */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 backdrop-blur-xl shadow-xl space-y-4">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            💸 Hướng dẫn thanh toán
-          </h3>
-
-          {paymentMethod === "bacs" ? (
-            <div className="space-y-4 text-center">
-              <p className="text-xs text-slate-400 leading-relaxed text-left">
-                Vui lòng mở ứng dụng ngân hàng quét mã QR dưới đây hoặc chuyển khoản theo thông tin chi tiết:
-              </p>
-              
-              <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto">
-                <img
-                  src={vietQrUrl}
-                  alt="VietQR MBBank"
-                  className="w-56 h-56 object-contain"
-                />
-              </div>
-
-              <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 text-left text-xs space-y-2.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Ngân hàng:</span>
-                  <span className="text-slate-200 font-bold">MB Bank (Quân Đội)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Số tài khoản:</span>
-                  <span className="text-white font-mono font-bold select-all">0987654321</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Chủ tài khoản:</span>
-                  <span className="text-slate-200 font-bold">CONG TY LMS VIET NAM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Số tiền:</span>
-                  <span className="text-emerald-400 font-bold">{formattedPrice}</span>
-                </div>
-                <div className="flex flex-col gap-1 border-t border-slate-900 pt-2 mt-1">
-                  <span className="text-slate-500">Nội dung chuyển khoản chính xác:</span>
-                  <span className="text-purple-400 font-mono font-bold bg-slate-900/80 px-2.5 py-1 rounded text-center select-all border border-purple-500/20">
-                    {transferContent}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : paymentMethod === "cod" ? (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Bạn đã chọn phương thức thanh toán tại nhà / thanh toán sau (COD).
-              </p>
-
-              <div className="bg-emerald-600/10 border border-emerald-500/20 p-6 rounded-2xl text-center space-y-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black mx-auto text-xl">
-                  📦
-                </div>
-                <div className="text-xs font-bold text-white">Cash on Delivery (COD)</div>
-                <p className="text-slate-400 text-xs leading-relaxed">
-                  Hệ thống sẽ tạo đơn hàng chờ duyệt trên WordPress. Khóa học sẽ tự động được kích hoạt sau khi quản trị viên xác nhận thông tin thanh toán ngoại tuyến của bạn.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Vui lòng thanh toán theo hướng dẫn của cổng thanh toán đã chọn:
-              </p>
-
-              <div className="bg-slate-950/80 rounded-2xl p-5 border border-slate-800 text-xs text-left space-y-3">
-                <div className="font-bold text-white text-sm">
-                  {selectedGateway ? selectedGateway.title : "Phương thức khác"}
-                </div>
-                <p className="text-slate-400 leading-relaxed">
-                  {selectedGateway?.description || "Vui lòng hoàn thành thanh toán ngoại tuyến để kích hoạt khóa học."}
-                </p>
-                <div className="flex justify-between border-t border-slate-900 pt-2.5 mt-2">
-                  <span className="text-slate-500">Số tiền cần thanh toán:</span>
-                  <span className="text-emerald-400 font-bold">{formattedPrice}</span>
-                </div>
+          {/* Section 2: Additional Fields */}
+          {hasActiveAdditional && (
+            <div style={{ marginTop: "1.5rem" }}>
+              <h2 className={styles.sectionTitle}>
+                <ReceiptText /> <span>Additional Information</span>
+              </h2>
+              <div className={styles.fieldsGrid}>
+                {Object.keys(additionalFields).map(key => renderFieldInput(key, additionalFields[key]))}
               </div>
             </div>
           )}
         </div>
       </div>
-    </div>
+
+      {/* Right Column: Order Summary & Payment Method */}
+      <div className={styles.summaryColumn}>
+        {/* Order Box */}
+        <div className={styles.summaryBox}>
+          <div>
+            <h3 className={styles.sectionTitle}>
+              <Receipt /> <span>Order Summary</span>
+            </h3>
+            <div className={styles.courseItem}>
+              <div className={styles.courseBadge}>
+                LMS
+              </div>
+              <div>
+                <h4 className={styles.courseName} dangerouslySetInnerHTML={{ __html: course.title.rendered }} />
+                <span className={styles.courseMeta}>Course ID: #{course.id}</span>
+              </div>
+            </div>
+            <div className={styles.summaryTotalRow}>
+              <span className={styles.totalLabel}>Total Amount:</span>
+              <div>
+                {formattedOriginPrice && (
+                  <span className={styles.priceOriginal}>{formattedOriginPrice}</span>
+                )}
+                <span className={styles.priceCurrent}>{formattedPrice}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Method Card */}
+        <div className={styles.cardSection}>
+          <div>
+            <h2 className={styles.sectionTitle}>
+              <CreditCard /> <span>Payment Method</span>
+            </h2>
+
+            <div>
+              {paymentGateways.length > 0 ? (
+                paymentGateways.map((gw: any) => {
+                  const isSelected = paymentMethod === gw.id;
+                  const subLabel = gw.description || "";
+
+                  return (
+                    <div
+                      key={gw.id}
+                      onClick={() => setPaymentMethod(gw.id)}
+                      className={`${styles.paymentOption} ${isSelected ? styles.paymentOptionActive : ""}`}
+                    >
+                      <div className={`${styles.paymentRadioOuter} ${isSelected ? styles.paymentRadioOuterActive : ""}`}>
+                        {isSelected && <div className={styles.paymentRadioInner} />}
+                      </div>
+                      <div>
+                        <span className={styles.paymentTitle}>{gw.title}</span>
+                        <span className={styles.paymentDescription}>{subLabel}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div
+                  onClick={() => setPaymentMethod("bacs")}
+                  className={`${styles.paymentOption} ${styles.paymentOptionActive}`}
+                >
+                  <div className={`${styles.paymentRadioOuter} ${styles.paymentRadioOuterActive}`}>
+                    <div className={styles.paymentRadioInner} />
+                  </div>
+                  <div>
+                    <span className={styles.paymentTitle}>Direct Bank Transfer</span>
+                    <span className={styles.paymentDescription}>Scan VietQR code for automatic filling</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <ButtonGreen
+              type="submit"
+              disabled={loading}
+              text={loading ? "Processing registration..." : "Confirm & Place Order"}
+              showIcon={true}
+              className={styles.submitBtn}
+              style={{ width: "100%" }}
+            />
+          </div>
+        </div>
+      </div>
+    </form>
   );
 }

@@ -12,30 +12,34 @@ export async function getLearnDashCourses() {
     );
   }
 
-  // Mã hóa thông tin đăng nhập thành chuỗi Base64
   const credentials = Buffer.from(`${username}:${password}`).toString("base64");
+  const endpoints = [
+    `${wpUrl}/wp-json/ldlms/v1/sfwd-courses`,
+    `${wpUrl}/wp-json/wp/v2/lp_course`,
+    `${wpUrl}/wp-json/learnpress/v1/courses`,
+  ];
 
-  // Endpoint LearnDash Courses V1 (bạn cũng có thể đổi thành v2 nếu cần)
-  const apiUrl = `${wpUrl}/wp-json/ldlms/v1/sfwd-courses`;
+  for (const apiUrl of endpoints) {
+    try {
+      const res = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "Authorization": `Basic ${credentials}`,
+          "Content-Type": "application/json",
+        },
+        next: { revalidate: 60 },
+      });
 
-  const res = await fetch(apiUrl, {
-    method: "GET",
-    headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/json",
-    },
-    // Sử dụng ISR (Incremental Static Regeneration) hoặc SSR tùy nhu cầu
-    // revalidate: 3600 -> Cache 1 tiếng
-    next: { revalidate: 60 }, 
-  });
-
-  if (!res.ok) {
-    const errorBody = await res.text();
-    console.error("Lỗi chi tiết từ WordPress API:", errorBody);
-    throw new Error(`WordPress API trả về mã lỗi: ${res.status}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      }
+    } catch (_) {}
   }
 
-  return res.json();
+  return [];
 }
 
 /**
@@ -52,32 +56,48 @@ export async function getLearnDashCourse(idOrSlug: string) {
 
   const credentials = Buffer.from(`${username}:${password}`).toString("base64");
   const isId = /^\d+$/.test(idOrSlug);
-  const apiUrl = isId 
-    ? `${wpUrl}/wp-json/ldlms/v1/sfwd-courses/${idOrSlug}`
-    : `${wpUrl}/wp-json/ldlms/v1/sfwd-courses?slug=${idOrSlug}`;
 
-  const res = await fetch(apiUrl, {
-    method: "GET",
-    headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/json",
-    },
-    next: { revalidate: 600 },
-  });
+  const endpoints = isId
+    ? [
+        `${wpUrl}/wp-json/ldlms/v1/sfwd-courses/${idOrSlug}`,
+        `${wpUrl}/wp-json/wp/v2/lp_course/${idOrSlug}`,
+        `${wpUrl}/wp-json/learnpress/v1/courses/${idOrSlug}`,
+      ]
+    : [
+        `${wpUrl}/wp-json/ldlms/v1/sfwd-courses?slug=${idOrSlug}`,
+        `${wpUrl}/wp-json/wp/v2/lp_course?slug=${idOrSlug}`,
+        `${wpUrl}/wp-json/learnpress/v1/courses?slug=${idOrSlug}`,
+      ];
 
-  if (!res.ok) {
-    throw new Error(`Không thể lấy chi tiết khóa học. Mã lỗi: ${res.status}`);
-  }
+  let lastRes: Response | null = null;
 
-  const data = await res.json();
-  if (isId) {
-    return data;
-  } else {
-    if (Array.isArray(data) && data.length > 0) {
-      return data[0];
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Authorization": `Basic ${credentials}`,
+          "Content-Type": "application/json",
+        },
+        next: { revalidate: 600 },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (isId) {
+          if (data && (data.id || data.ID)) return data;
+        } else {
+          if (Array.isArray(data) && data.length > 0) return data[0];
+          if (data && (data.id || data.ID)) return data;
+        }
+      }
+      lastRes = res;
+    } catch (e) {
+      // Try next endpoint
     }
-    throw new Error(`Không tìm thấy khóa học với slug "${idOrSlug}".`);
   }
+
+  throw new Error(`Không thể lấy chi tiết khóa học. Mã lỗi: ${lastRes ? lastRes.status : 404}`);
 }
 
 /**
@@ -371,8 +391,8 @@ export async function getWooCommerceCheckoutFields(productId: string | number) {
 
         additional["order_comments"] = {
           type: "textarea",
-          label: "Ghi chú đơn hàng",
-          placeholder: "Ghi chú về đơn hàng, ví dụ: lưu ý đặc biệt khi giao hàng.",
+          label: "Order notes",
+          placeholder: "Notes about your order, e.g. special notes for delivery.",
           required: false,
           enabled: true,
         };
@@ -381,14 +401,14 @@ export async function getWooCommerceCheckoutFields(productId: string | number) {
       }
     }
   } catch (error) {
-    console.error("Lỗi khi giải mã cấu hình trường thanh toán WooCommerce:", error);
+    console.error("Error decoding WooCommerce checkout fields:", error);
   }
 
-  // 3. Fallback cuối cùng nếu cả hai cách trên đều lỗi
+  // 3. Ultimate fallback
   return getWooCommerceDefaultFields();
 }
 
-// Cấu hình các trường mặc định chuẩn của WooCommerce
+// WooCommerce standard default fields
 function getWooCommerceDefaultFields() {
   const standardBilling: Record<string, any> = {
     billing_first_name: { type: "text", label: "First name", required: true, class: ["form-row-first"] },
@@ -402,7 +422,7 @@ function getWooCommerceDefaultFields() {
   };
 
   const standardAdditional: Record<string, any> = {
-    order_comments: { type: "textarea", label: "Ghi chú đơn hàng", placeholder: "Ghi chú về đơn hàng của bạn", required: false, class: ["form-row-wide"] }
+    order_comments: { type: "textarea", label: "Order notes", placeholder: "Notes about your order, e.g. special notes for delivery.", required: false, class: ["form-row-wide"] }
   };
 
   return { billing: standardBilling, shipping: {}, additional: standardAdditional };
@@ -422,8 +442,8 @@ export async function getWooCommerceProductByCourseId(courseId: string | number)
 
   try {
     const credentials = Buffer.from(`${username}:${password}`).toString("base64");
-    // Lấy danh sách sản phẩm có type = course (được tạo để liên kết với LearnDash Course)
-    const apiUrl = `${wpUrl}/wp-json/wc/v3/products?type=course&per_page=100`;
+    // Fetch WooCommerce products list without invalid type parameter
+    const apiUrl = `${wpUrl}/wp-json/wc/v3/products?per_page=100`;
 
     const res = await fetch(apiUrl, {
       method: "GET",
@@ -688,8 +708,8 @@ export async function recordVideoProgress(userId: string | number, postId: strin
 /**
  * Đánh dấu hoàn thành bài học / chủ đề LearnDash
  */
-export async function markLearnDashComplete(userId: string | number, courseId: string | number, postId: string | number) {
-  const wpUrl = process.env.WORDPRESS_URL;
+export async function markLearnDashComplete(userId: string | number, courseId: string | number, postId: string | number, quizScore?: number) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
   if (!wpUrl || !userId || !postId) return { success: false, message: "Thiếu thông tin người dùng hoặc bài học" };
 
   try {
@@ -702,6 +722,7 @@ export async function markLearnDashComplete(userId: string | number, courseId: s
         user_id: userId,
         course_id: courseId,
         post_id: postId,
+        quiz_score: quizScore,
       }),
       cache: "no-store",
     });
@@ -715,6 +736,54 @@ export async function markLearnDashComplete(userId: string | number, courseId: s
   }
 
   return { success: false, message: "Không thể gửi yêu cầu đánh dấu hoàn thành" };
+}
+
+/**
+ * Lấy danh sách ID khóa học trong Wishlist của User từ WordPress
+ */
+export async function getUserWishlist(userId: number | string): Promise<number[]> {
+  const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://khoahoc.local";
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/custom/v1/wishlist?user_id=${userId}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data.wishlist) ? data.wishlist : [];
+    }
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách Wishlist từ WP:", error);
+  }
+  return [];
+}
+
+/**
+ * Thêm hoặc xóa (Toggle) khóa học trong Wishlist của User trên WordPress
+ */
+export async function toggleUserWishlist(userId: number | string, courseId: number | string): Promise<{ success: boolean; in_wishlist: boolean; wishlist: number[] }> {
+  const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://khoahoc.local";
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/custom/v1/toggle-wishlist`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: Number(userId),
+        course_id: Number(courseId),
+      }),
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (error) {
+    console.error("Lỗi khi toggle Wishlist trên WP:", error);
+  }
+  return { success: false, in_wishlist: false, wishlist: [] };
 }
 
 

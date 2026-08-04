@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import ButtonGreen from '@/components/common/ButtonGreen';
+import WishlistButton from '@/components/common/WishlistButton';
 import CourseCard from '@/components/common/CourseCard';
 import { fetchWPCourseBySlug, fetchWPCourses, WPLPCourseItem } from '@/lib/api/courses';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -33,6 +34,34 @@ const decodeHTMLEntities = (text?: string) => {
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 };
 
+const getQuizQuestionsText = (item: any) => {
+  const rawCount = item.questions_count ?? item.question_count ?? item.total_questions ?? item.count ?? item.lessons_count;
+  if (rawCount !== undefined && rawCount !== null && rawCount !== '') {
+    const rawStr = String(rawCount).trim();
+    if (rawStr.toLowerCase().includes('question') || rawStr.toLowerCase().includes('câu hỏi')) {
+      return rawStr;
+    }
+    const match = rawStr.match(/(\d+)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      return `${num} ${num === 1 ? 'question' : 'questions'}`;
+    }
+  }
+  if (Array.isArray(item.questions)) {
+    const num = item.questions.length;
+    return `${num} ${num === 1 ? 'question' : 'questions'}`;
+  }
+  if (Array.isArray(item.items)) {
+    const num = item.items.length;
+    return `${num} ${num === 1 ? 'question' : 'questions'}`;
+  }
+  if (Array.isArray(item.lessons)) {
+    const num = item.lessons.length;
+    return `${num} ${num === 1 ? 'question' : 'questions'}`;
+  }
+  return '1 question';
+};
+
 export default function CourseDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -47,6 +76,44 @@ export default function CourseDetailsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'curriculum' | 'instructor' | 'reviews'>('overview');
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [user, setUser] = useState<{ id: number; username: string } | null>(null);
+
+  useEffect(() => {
+    const checkUser = () => {
+      const getCookie = (name: string) => {
+        if (typeof document === 'undefined') return null;
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+        return null;
+      };
+
+      const cookieVal = getCookie('session_user');
+      if (cookieVal) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(cookieVal));
+          if (parsed && (parsed.id || parsed.username || parsed.name)) {
+            setUser(parsed);
+            return;
+          }
+        } catch {}
+      }
+
+      const localUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      if (localUser) {
+        try {
+          const parsed = JSON.parse(localUser);
+          if (parsed && (parsed.id || parsed.username || parsed.name)) {
+            setUser(parsed);
+            return;
+          }
+        } catch {}
+      }
+
+      setUser(null);
+    };
+
+    checkUser();
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -495,11 +562,12 @@ export default function CourseDetailsPage() {
                                             {section.items && section.items.map((item: any, itemIdx: number) => {
                                               const itemTitle = decodeHTMLEntities(item.title || item.name || item.post_title);
                                               const isPreview = item.preview === true || item.preview === 'yes' || item.preview === '1';
-                                              const durationText = item.duration || '10 minutes';
-                                              const itemSlug = item.slug || itemTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-                                              const itemLink = `/courses/${slug}/lessons/${itemSlug}`;
-
-                                              const isQuiz = item.item_type === 'lp_quiz';
+                                              const rawDuration = item.duration || '10 minutes';
+                                              const durationText = String(rawDuration).replace(/^0+(\d)/, '$1');
+                                              const cleanTitleSlug = itemTitle ? itemTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : '';
+                                              const itemSlug = (item.slug && !/^\d+$/.test(item.slug.toString())) ? item.slug : (cleanTitleSlug || item.item_id || item.id);
+                                              const isQuiz = item.item_type === 'lp_quiz' || item.type === 'lp_quiz' || itemTitle.toLowerCase().includes('quiz') || itemTitle.toLowerCase().includes('review');
+                                              const itemLink = isQuiz ? `/courses/${slug}/quizzes/${itemSlug}` : `/courses/${slug}/lessons/${itemSlug}`;
                                               const itemTypeClass = isQuiz ? styles.hn_course_details_course_item_quiz : styles.hn_course_details_course_item_lesson;
 
                                               return (
@@ -514,8 +582,8 @@ export default function CourseDetailsPage() {
                                                         <span className={styles.hn_course_details_item_preview} data-preview="Preview">Preview</span>
                                                       ) : (
                                                         <>
-                                                          {item.item_type === 'lp_quiz' && (
-                                                            <span className={styles.hn_course_details_item_questions}>2 questions</span>
+                                                          {isQuiz && (
+                                                            <span className={styles.hn_course_details_item_questions}>{getQuizQuestionsText(item)}</span>
                                                           )}
                                                           <span className={styles.hn_course_details_item_duration}>{durationText}</span>
                                                           <span className={styles.hn_course_details_item_status} title="Unread"></span>
@@ -633,7 +701,7 @@ export default function CourseDetailsPage() {
                                 if (reviewsList.length === 0) {
                                   return (
                                     <p style={{ color: '#64748b', fontStyle: 'italic', padding: '16px 0' }}>
-                                      Chưa có nhận xét nào cho khóa học này.
+                                      No reviews for this course yet.
                                     </p>
                                   );
                                 }
@@ -769,8 +837,11 @@ export default function CourseDetailsPage() {
                     {(() => {
                       const isFree = priceDisplay === 'Free' || priceDisplay === 'Miễn phí' || priceDisplay === '$0' || priceDisplay === '$0.00' || parseFloat(String(lpPrice || lpRegPrice || 0)) === 0;
                       const firstLessonItem = (course as any)?.sections?.[0]?.items?.[0];
-                      const firstLessonSlug = firstLessonItem?.slug || firstLessonItem?.item_id || '1';
-                      const lessonUrl = `/courses/${slug}/lessons/${firstLessonSlug}`;
+                      const firstItemTitle = firstLessonItem ? decodeHTMLEntities(firstLessonItem.title || firstLessonItem.name || '') : '';
+                      const cleanFirstSlug = firstItemTitle ? firstItemTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : '';
+                      const firstLessonSlug = (firstLessonItem?.slug && !/^\d+$/.test(firstLessonItem.slug.toString())) ? firstLessonItem.slug : (cleanFirstSlug || firstLessonItem?.item_id || '1');
+                      const isFirstQuiz = firstLessonItem?.item_type === 'lp_quiz' || firstLessonItem?.type === 'lp_quiz' || firstItemTitle.toLowerCase().includes('quiz');
+                      const lessonUrl = isFirstQuiz ? `/courses/${slug}/quizzes/${firstLessonSlug}` : `/courses/${slug}/lessons/${firstLessonSlug}`;
                       const checkoutUrl = `/checkout?course_id=${course?.id || ''}`;
 
                       const handleAction = async (e: React.FormEvent) => {
@@ -793,7 +864,29 @@ export default function CourseDetailsPage() {
                           }
                           router.push(lessonUrl);
                         } else {
-                          router.push(checkoutUrl);
+                          setActionLoading(true);
+                          try {
+                            const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || "";
+                            if (wpUrl) {
+                              const cartRes = await fetch(`${wpUrl}/wp-json/custom/v1/add-to-cart`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ course_id: course?.id }),
+                              });
+                              if (cartRes.ok) {
+                                const cartData = await cartRes.json();
+                                if (cartData?.product_id) {
+                                  router.push(`/checkout?courseId=${course?.id || slug}&courseSlug=${slug}&product_id=${cartData.product_id}`);
+                                  return;
+                                }
+                              }
+                            }
+                          } catch (cartErr) {
+                            console.error("Cart sync error:", cartErr);
+                          } finally {
+                            setActionLoading(false);
+                          }
+                          router.push(`/checkout?courseId=${course?.id || slug}&courseSlug=${slug}`);
                         }
                       };
 
@@ -806,8 +899,8 @@ export default function CourseDetailsPage() {
 
                       return (
                         <div className={styles.hn_course_details_sidebar_buttons}>
-                          <div className={styles.hn_course_details_lp_buttons}>
-                            <form name="purchase-course" className={styles.hn_course_details_purchase_form} onSubmit={handleAction}>
+                          <div className={styles.hn_course_details_lp_buttons} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <form name="purchase-course" className={styles.hn_course_details_purchase_form} style={{ width: '100%' }} onSubmit={handleAction}>
                               <input type="hidden" name="purchase-course" value={course?.id || "12768"} />
                               <ButtonGreen
                                 type="submit"
@@ -815,6 +908,14 @@ export default function CourseDetailsPage() {
                                 showIcon={false}
                               />
                             </form>
+                            {user && course?.id && (
+                              <WishlistButton
+                                courseId={Number(course.id)}
+                                showText={true}
+                                text="Add to Wishlist"
+                                activeText="Remove from Wishlist"
+                              />
+                            )}
                           </div>
                         </div>
                       );

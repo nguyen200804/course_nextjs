@@ -21,7 +21,7 @@ export default function TopicLoading() {
                 <div className="h-4 w-full bg-slate-800/60 rounded animate-pulse" />
                 <div className="h-4 w-5/6 bg-slate-800/60 rounded animate-pulse" />
                 <div className="h-48 w-full bg-slate-950/80 border border-slate-800/50 rounded-2xl animate-pulse flex items-center justify-center">
-                  <span className="text-slate-600 text-xs font-mono">Đang tải chủ đề bài học...</span>
+                  <span className="text-slate-600 text-xs font-mono">Loading lesson topic...</span>
                 </div>
               </div>
             </div>

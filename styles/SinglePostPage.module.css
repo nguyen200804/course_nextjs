@@ -1,0 +1,927 @@
+/* SinglePostPage.module.css */
+
+/* --- LAYOUT CHÍNH --- */
+.hn__singlePostPage {
+    background-color: #e1000000;
+    padding: 115px 0;
+}
+
+.hn__singlePostPage_container {
+    /* background-color: #e2000000; */
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.hn__singlePostPage_row {
+    display: flex;
+}
+
+.hn__singlePostPage_row>* {
+    padding: 0 15px;
+}
+
+.hn__singlePostPage_primary {
+    width: 66.666666666667%;
+}
+
+.hn__singlePostPage_sidebar {
+    width: 33.333333333333%;
+}
+
+
+/* --- ARTICLE & BÀI VIẾT CHÍNH --- */
+.hn__singlePostPage_article {
+    background-color: #f1000000;
+}
+
+.hn__singlePostPage_header {
+    background-color: #f2000000;
+}
+
+.hn__singlePostPage_category {
+    background-color: #f3000000;
+}
+
+.hn__singlePostPage_category>a {
+    color: var(--edublink-color-body);
+    margin-bottom: 10px;
+    display: inline-block;
+}
+
+.hn__singlePostPage_title {
+    font-size: var(--edublink-h3);
+    line-height: var(--edublink-h3-lineHeight);
+    font-family: var(--font-spartan);
+    margin-bottom: 5px;
+}
+
+.hn__singlePostPage_meta {
+    display: flex;
+    flex-wrap: wrap;
+    padding-bottom: 18px;
+    margin: -5px -16px;
+}
+
+.hn__singlePostPage_metaItem {
+    margin: 5px 16px;
+    color: var(--edublink-color-heading);
+    position: relative;
+}
+
+.hn__singlePostPage_metaItem:not(:last-child)::after {
+    content: "";
+    height: 19px;
+    width: 1px;
+    background-color: #dbdbdb;
+    position: absolute;
+    top: 3px;
+    right: -18px;
+}
+
+.hn__singlePostPage_metaItem i {
+    font-size: 16px;
+    padding-right: 10px;
+    position: relative;
+    top: 2px;
+    color: var(--edublink-color-primary);
+}
+
+.hn__singlePostPage_featuredImage {
+    margin: 50px 0 50px;
+}
+
+.hn__singlePostPage_featuredImage img {
+    width: 100%;
+    border-radius: var(--edublink-radius-small);
+}
+
+
+
+
+
+
+/* ==========================================================================
+   CSS CHO NỘI DUNG BÀI VIẾT (.hn__singlePostPage_content)
+   ========================================================================== */
+
+/* Khối bao ngoài nội dung */
+.hn__singlePostPage_content {
+    font-family: var(--edublink-font-primary, Arial, sans-serif);
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--edublink-color-body, #525258);
+    word-break: break-word;
+}
+
+/* Khoảng cách cơ bản giữa các đoạn văn */
+.hn__singlePostPage_content p {
+    margin-bottom: 24px;
+    line-height: 1.8;
+}
+
+.hn__singlePostPage_content p:last-child {
+    margin-bottom: 0;
+}
+
+/* --- TIÊU ĐỀ TRONG BÀI VIẾT (HEADINGS) --- */
+.hn__singlePostPage_content h1,
+.hn__singlePostPage_content h2,
+.hn__singlePostPage_content h3,
+.hn__singlePostPage_content h4,
+.hn__singlePostPage_content h5,
+.hn__singlePostPage_content h6 {
+    color: var(--edublink-color-heading, #181818);
+    font-family: var(--font-spartan, sans-serif);
+    font-weight: 700;
+    line-height: 1.35;
+    margin-top: 36px;
+    margin-bottom: 20px;
+}
+
+.hn__singlePostPage_content h1 {
+    font-size: 32px;
+}
+
+.hn__singlePostPage_content h2 {
+    font-size: 26px;
+}
+
+.hn__singlePostPage_content h3 {
+    font-size: 22px;
+}
+
+.hn__singlePostPage_content h4 {
+    font-size: 18px;
+}
+
+.hn__singlePostPage_content h5 {
+    font-size: 16px;
+}
+
+.hn__singlePostPage_content h6 {
+    font-size: 14px;
+}
+
+/* --- LIÊN KẾT (LINKS) --- */
+.hn__singlePostPage_content a {
+    color: var(--edublink-color-primary, #1ab69d);
+    text-decoration: underline;
+    transition: color 0.3s ease;
+}
+
+.hn__singlePostPage_content a:hover {
+    color: var(--edublink-color-heading, #181818);
+}
+
+/* --- KHỐI TRÍCH DẪN (BLOCKQUOTE) --- */
+.hn__singlePostPage_content blockquote {
+    position: relative;
+    background-color: #f7f9fb;
+    border-left: 4px solid var(--edublink-color-primary, #1ab69d);
+    margin: 35px 0;
+    padding: 30px 35px;
+    border-radius: 0 8px 8px 0;
+}
+
+.hn__singlePostPage_content blockquote p {
+    font-size: 18px;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--edublink-color-heading, #181818);
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+
+.hn__singlePostPage_content blockquote cite {
+    display: block;
+    font-size: 14px;
+    font-style: normal;
+    font-weight: 600;
+    color: var(--edublink-color-primary, #1ab69d);
+}
+
+/* --- DANH SÁCH (LISTS: UL, OL) --- */
+.hn__singlePostPage_content ul,
+.hn__singlePostPage_content ol {
+    margin: 0 0 24px 24px;
+    padding: 0;
+}
+
+.hn__singlePostPage_content ul li,
+.hn__singlePostPage_content ol li {
+    margin-bottom: 10px;
+    line-height: 1.7;
+}
+
+.hn__singlePostPage_content ul li:last-child,
+.hn__singlePostPage_content ol li:last-child {
+    margin-bottom: 0;
+}
+
+.hn__singlePostPage_content ul {
+    list-style: disc;
+}
+
+.hn__singlePostPage_content ol {
+    list-style: decimal;
+}
+
+/* Class danh sách đặc biệt từ Elementor / Gutenberg (nếu có) */
+.hn__singlePostPage_content :global(.eb-list-style-2) {
+    list-style: none;
+    margin-left: 0;
+}
+
+.hn__singlePostPage_content :global(.eb-list-style-2) li {
+    position: relative;
+    padding-left: 28px;
+}
+
+.hn__singlePostPage_content :global(.eb-list-style-2) li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--edublink-color-primary, #1ab69d);
+    font-weight: bold;
+}
+
+/* --- HÌNH ẢNH TRONG BÀI VIẾT (IMAGES & FIGURES) --- */
+.hn__singlePostPage_content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 20px 0;
+    display: block;
+}
+
+.hn__singlePostPage_content figure {
+    margin: 25px 0;
+    max-width: 100%;
+}
+
+.hn__singlePostPage_content figure img {
+    margin: 0 0 10px 0;
+}
+
+.hn__singlePostPage_content figcaption {
+    font-size: 14px;
+    color: #777;
+    text-align: center;
+    font-style: italic;
+}
+
+/* Khối nhiều ảnh chia cột (Gutenberg Gallery / Custom Grid) */
+.hn__singlePostPage_content :global(.elementor-inner-section),
+.hn__singlePostPage_content :global(.wp-block-gallery) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin: 25px 0;
+}
+
+.hn__singlePostPage_content :global(.wp-block-gallery) .wp-block-image {
+    flex: 1;
+    min-width: 250px;
+    margin: 0;
+}
+
+/* --- BẢNG (TABLES) --- */
+.hn__singlePostPage_content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 25px 0;
+    font-size: 15px;
+}
+
+.hn__singlePostPage_content th,
+.hn__singlePostPage_content td {
+    border: 1px solid #e5e5e5;
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.hn__singlePostPage_content th {
+    background-color: #f7f9fb;
+    font-weight: 600;
+    color: var(--edublink-color-heading, #181818);
+}
+
+.hn__singlePostPage_content tr:nth-child(even) {
+    background-color: #fbfbfb;
+}
+
+/* --- ĐOẠN CODE & PRE --- */
+.hn__singlePostPage_content code {
+    background-color: #f3f4f6;
+    color: #d63384;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: monospace;
+}
+
+.hn__singlePostPage_content pre {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    padding: 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 25px 0;
+}
+
+.hn__singlePostPage_content pre code {
+    background-color: transparent;
+    color: inherit;
+    padding: 0;
+}
+
+/* --- BÀI VIẾT TRÊN THIẾT BỊ DI ĐỘNG --- */
+@media (max-width: 768px) {
+    .hn__singlePostPage_content {
+        font-size: 15px;
+    }
+
+    .hn__singlePostPage_content h1 {
+        font-size: 26px;
+    }
+
+    .hn__singlePostPage_content h2 {
+        font-size: 22px;
+    }
+
+    .hn__singlePostPage_content h3 {
+        font-size: 19px;
+    }
+
+    .hn__singlePostPage_content blockquote {
+        padding: 20px;
+        margin: 25px 0;
+    }
+
+    .hn__singlePostPage_content blockquote p {
+        font-size: 16px;
+    }
+}
+
+
+
+
+
+/* --- FOOTER BÀI VIẾT, TAGS & SOCIAL SHARE --- */
+.hn__singlePostPage_articleFooter {
+    background-color: #a1000000;
+    overflow: hidden;
+    clear: both;
+    padding-bottom: 60px;
+    padding-top: 40px;
+}
+
+.hn__singlePostPage_shareWrapper {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: -15px;
+    margin-left: -15px;
+}
+
+.hn__singlePostPage_shareWrapper>div {
+    padding: 0 15px;
+}
+
+.hn__singlePostPage_tagsBox {
+    -webkit-box-flex: 0;
+    -ms-flex: 0 0 58.33333333%;
+    flex: 0 0 58.33333333%;
+    max-width: 58.33333333%;
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.hn__singlePostPage_tagTitle {
+    margin-right: 12px;
+    margin-bottom: 0;
+    font-weight: var(--edublink-p-semi-bold);
+    font-size: var(--edublink-h6);
+    line-height: var(--edublink-h6-lineHeight);
+    font-family: var(--edublink-font-secondary);
+    color: var(--edublink-color-heading);
+    margin-top: 8px;
+}
+
+.hn__singlePostPage_tagList {
+    margin: -5px;
+}
+
+.hn__singlePostPage_tagList>a {
+    border: 1px solid var(--edublink-color-border);
+    border-radius: 5px;
+    font-weight: 500;
+    font-size: 14px;
+    font-family: var(--edublink-font-secondary);
+    margin: 5px;
+    height: 40px;
+    line-height: 40px;
+    padding: 0 14px;
+    -webkit-transition: var(--edublink-transition);
+    transition: var(--edublink-transition);
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+}
+
+.hn__singlePostPage_tagList>a:hover {
+    color: #fff;
+}
+
+.hn__singlePostPage_tagList>a::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(-90deg, var(--edublink-color-primary-alt) 0%, var(--edublink-color-primary) 100%);
+    opacity: 0;
+    border-radius: 5px;
+    z-index: -1;
+    pointer-events: none;
+    -webkit-transition: var(--edublink-transition);
+    transition: var(--edublink-transition);
+    background-size: 100% 100%;
+}
+
+.hn__singlePostPage_tagList>a:hover::before {
+    opacity: 1;
+}
+
+.hn__singlePostPage_socialShare {
+    flex: 0 0 41.6667%;
+    max-width: 41.6667%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.hn__singlePostPage_shareTitle {
+    background-color: #a7000000;
+    margin-right: 25px;
+    margin-bottom: 0;
+    font-weight: var(--edublink-p-semi-bold);
+    font-size: var(--edublink-h6);
+    line-height: var(--edublink-h6-lineHeight);
+    font-family: var(--edublink-font-secondary);
+    color: var(--edublink-color-heading);
+}
+
+.hn__singlePostPage_socialList {
+    background-color: #a8000000;
+    margin: 0 -12px !important;
+    padding: 0 !important;
+    list-style: none;
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-flex-wrap: wrap;
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    list-style: none !important;
+}
+
+.hn__singlePostPage_socialList li {
+    margin: 0 12px !important;
+}
+
+.hn__singlePostPage_socialList li a {
+    display: inline-block;
+    font-size: 18px;
+    color: var(--edublink-color-body);
+    -webkit-transition: 0.3s;
+    transition: 0.3s;
+    text-align: center;
+    line-height: initial;
+}
+
+.hn__singlePostPage_socialList li a:hover {
+    color: var(--edublink-color-primary);
+}
+
+
+
+
+/* --- TÁC GIẢ BÀI VIẾT (AUTHOR BIO) --- */
+.hn__singlePostPage_authorBio {
+    border-top: 1px solid var(--edublink-color-border);
+    display: flex;
+    padding: 60px 0 60px;
+}
+
+.hn__singlePostPage_authorThumb {
+    background-color: #c2000000;
+    flex-shrink: 0;
+}
+
+.hn__singlePostPage_authorThumb img {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 100%;
+}
+
+.hn__singlePostPage_authorDetails {
+    background-color: #c3000000;
+    flex: 1;
+    width: calc(100% - 100px);
+    padding-left: 30px;
+}
+
+.hn__singlePostPage_authorName {
+    font-family: var(--font-spartan);
+    background-color: #c4000000;
+    font-size: 20px;
+    line-height: 32px;
+    margin: 0 0 10px;
+}
+
+.hn__singlePostPage_authorName a {
+    color: var(--edublink-color-heading);
+    transition: color 0.3s ease;
+}
+
+.hn__singlePostPage_authorName a:hover {
+    color: var(--edublink-color-primary);
+}
+
+.hn__singlePostPage_authorInfo {
+    color: #808080;
+    background-color: #c5000000;
+    margin-bottom: 20px;
+    line-height: 1.73333em;
+}
+
+.hn__singlePostPage_authorSocials {
+    margin: 0 -12px !important;
+    padding: 0 !important;
+    list-style: none;
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-flex-wrap: wrap;
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    list-style: none !important;
+}
+
+.hn__singlePostPage_authorSocials a {
+    transition: color .3s;
+    display: inline-block;
+    font-size: 18px;
+    color: var(--edublink-color-body);
+    -webkit-transition: 0.3s;
+    transition: 0.3s;
+    text-align: center;
+    line-height: initial;
+    margin: 0 12px !important;
+}
+
+.hn__singlePostPage_authorSocials a:hover {
+    color: var(--edublink-color-primary);
+}
+
+
+
+
+
+/* --- CHUYỂN BÀI TRƯỚC VÀ TIẾP THEO (POST NAVIGATION) [BỔ SUNG MỚI] --- */
+.hn__singlePostPage_postNav {
+    display: -ms-flexbox;
+    display: -webkit-box;
+    display: flex;
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    margin-right: -15px;
+    margin-left: -15px;
+    margin-top: 30px;
+}
+
+.hn__singlePostPage_postNavItem {
+    -webkit-box-flex: 0;
+    -ms-flex: 0 0 50%;
+    flex: 0 0 50%;
+    max-width: 50%;
+    position: relative;
+    width: 100%;
+    min-height: 1px;
+    padding-right: 15px;
+    padding-left: 15px;
+}
+
+.hn__singlePostPage_singleNav {
+    background-color: #d3000000;
+    border: 1px solid #e7e7e7;
+    border-radius: 5px;
+    -webkit-transition: var(--edublink-transition);
+    transition: var(--edublink-transition);
+    position: relative;
+    z-index: 2;
+}
+
+.hn__singlePostPage_singleNav a {
+    background-color: #d4000000;
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -webkit-align-items: center;
+    -ms-flex-align: center;
+    align-items: center;
+    padding: 25px 30px;
+    position: relative;
+    z-index: 1;
+    color: var(--edublink-color-heading);
+    font-family: var(--edublink-font-secondary);
+    font-weight: var(--edublink-p-semi-bold);
+    font-size: 18px;
+    line-height: 26px;
+    -webkit-transition: var(--edublink-transition);
+    transition: var(--edublink-transition);
+    text-align: left;
+}
+
+.hn__singlePostPage_singleNav a:hover {
+    background-color: #f0f4f5;
+    border-color: #f0f4f5;
+}
+
+.hn__singlePostPage_singleNav a:hover {
+    /* color: var(--edublink-color-primary); */
+}
+
+.hn__singlePostPage_singleNav svg {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+}
+
+.hn__singlePostPage_singleNav--prev a svg {
+    margin-right: 20px;
+}
+
+.hn__singlePostPage_singleNav--next a {
+    justify-content: flex-end;
+}
+
+.hn__singlePostPage_singleNav--next a svg {
+    margin-left: 20x;
+}
+
+.hn__singlePostPage_singleNav--prev a:hover svg {
+    /* transform: translateX(-5px); */
+}
+
+.hn__singlePostPage_singleNav--next a:hover svg {
+    /* transform: translateX(5px); */
+}
+
+.hn__singlePostPage_navTitle {
+    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+
+
+
+/* --- KHU VỰC BÌNH LUẬN (COMMENTS & FORM) --- */
+.hn__singlePostPage_commentsSection {
+    background-color: #b1000000;
+    margin-top: 50px;
+}
+
+.hn__singlePostPage_commentsTitle {
+    background-color: #b2000000;
+    border-bottom: 0;
+    padding-bottom: 0px;
+    margin-bottom: 30px;
+    font-size: 28px;
+    line-height: 40px;
+    font-weight: 700;
+    font-family: var(--font-spartan);
+}
+
+
+
+/* SinglePostPage.module.css - Comment List Selectors */
+
+/* 1. Khối chứa toàn bộ danh sách comment */
+.hn__singlePostPage_commentList {
+    background-color: #f1100000;
+    list-style: none;
+    margin: 30px 0 0 0;
+    padding: 0;
+}
+
+/* 2. Thẻ <li> cho từng phần tử bình luận */
+.hn__singlePostPage_commentItem {
+    background-color: #f1200000;
+    margin-bottom: 30px;
+}
+
+.hn__singlePostPage_commentItem:not(:last-child) {
+    margin-bottom: 30px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid var(--edublink-color-border);
+}
+
+/* 3. Khối thẻ <article> bọc thông tin bình luận */
+.hn__singlePostPage_commentCard {
+    background-color: #f1300000;
+    display: flex;
+    align-items: flex-start;
+}
+
+/* 4. Khối chứa ảnh Avatar của người bình luận */
+.hn__singlePostPage_commentAvatar {
+    background-color: #f1400000;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.hn__singlePostPage_commentAvatar img {
+    object-fit: cover;
+    border-radius: 50%;
+    height: 80px;
+    min-width: 80px;
+    width: 80px;
+    margin-right: 30px;
+}
+
+/* 5. Khối chứa nội dung bên phải (Header, Text, Reply) */
+.hn__singlePostPage_commentBody {
+    background-color: #f1500000;
+    flex: 1;
+}
+
+/* 6. Header bình luận (Tên tác giả + Thời gian) */
+.hn__singlePostPage_commentHeader {
+    margin-bottom: 14px;
+}
+
+/* 7. Tên người đăng bình luận */
+.hn__singlePostPage_commentAuthor {
+    font-family: var(--font-spartan);
+    margin: 0 0 2px;
+    font-size: 18px;
+    line-height: 1.45;
+    font-weight: 600;
+}
+
+.hn__singlePostPage_commentAuthor a {
+    color: var(--edublink-color-heading, #181818);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.hn__singlePostPage_commentAuthor a:hover {
+    color: var(--edublink-color-primary, #1ab69d);
+}
+
+/* 8. Thời gian đăng bình luận */
+.hn__singlePostPage_commentTime {
+    background-color: #f1800000;
+    font-size: 14px;
+    color: var(--edublink-color-body, #666666);
+}
+
+/* 9. Nội dung văn bản bình luận */
+.hn__singlePostPage_commentText {
+    color: #808080;
+    background-color: #f1900000;
+    line-height: 1.733em;
+    margin-bottom: 18px;
+}
+
+.hn__singlePostPage_commentText p {
+    margin: 0;
+}
+
+/* 10. Nút Reply (Phản hồi) */
+.hn__singlePostPage_commentReply {
+    background-color: #f2100000;
+}
+
+.hn__singlePostPage_commentReply a {
+    gap: 6px;
+    font-size: 14px;
+    text-decoration: none;
+    transition: opacity .3s;
+    color: var(--edublink-color-heading);
+    display: inline-flex;
+    align-items: center;
+    font-weight: 500;
+    font-family: var(--edublink-font-secondary);
+}
+
+.hn__singlePostPage_commentReply a:hover {
+    opacity: 0.8;
+}
+
+/* 11. Danh sách bình luận con (Phản hồi lồng cấp / Children Comments) */
+.hn__singlePostPage_commentChildren {
+    background-color: #f2200000;
+    list-style: none;
+    padding-left: 30px;
+    margin-top: 25px;
+    margin-bottom: 0;
+}
+
+
+
+
+
+
+
+
+.hn__singlePostPage_respondForm {
+    background-color: #b3000000;
+    margin-top: 70px;
+}
+
+.hn__singlePostPage_respondTitle {
+    background-color: #b4000000;
+    border-bottom: 0;
+    padding-bottom: 0px;
+    margin-bottom: 20px;
+    font-size: 28px;
+    line-height: 40px;
+    font-weight: 700;
+    font-family: var(--font-spartan);
+}
+
+.hn__singlePostPage_form {
+    background-color: #b5000000;
+}
+
+.hn__singlePostPage_formGroup {
+    background-color: #b6000000;
+}
+
+.hn__singlePostPage_srOnly {
+    background-color: #b7000000;
+    margin: 0 0 30px;
+    display: block;
+}
+
+.hn__singlePostPage_textarea {
+    background-color: #b8000000;
+    width: 100%;
+    margin-bottom: 30px;
+    background: var(--edublink-color-white);
+    border: 0;
+    font-family: var(--edublink-font-primary);
+    font-weight: 400;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    transition: 0.3s;
+    box-shadow: var(--edublink-shadow-darker);
+    font-size: 15px;
+    height: 180px;
+    display: grid;
+    padding: 17px 30px;
+    outline: 0;
+}
+
+.hn__singlePostPage_textarea:focus {
+    border-color: var(--edublink-color-primary);
+}
+
+.hn__singlePostPage_formSubmit {
+    background-color: #b9000000;
+}
+
+.hn__singlePostPage_submitBtn {
+    background-color: #c1000000;
+    border-radius: 5px;
+    display: inline-block;
+    height: 60px;
+    line-height: 62px;
+    color: var(--edublink-color-white);
+    background: var(--edublink-color-primary);
+    padding: 0 30px;
+    font-size: 15px;
+    font-weight: 500;
+    transition: 0.4s;
+    font-family: var(--edublink-font-secondary);
+    border: 0 none;
+    margin: 0 0 30px !important;
+    cursor: pointer;
+}
+
+.hn__singlePostPage_submitBtn:hover {
+    background: var(--edublink-color-primary-alt);
+    color: var(--edublink-color-white);
+}

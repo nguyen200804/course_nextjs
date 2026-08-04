@@ -44,7 +44,7 @@ export default async function Home() {
       courses = coursesData;
       currencyInfo = currencyData;
     } catch (err: any) {
-      error = err.message || "Không thể kết nối tới WordPress API";
+      error = err.message || "Could not connect to WordPress API";
     }
   }
 

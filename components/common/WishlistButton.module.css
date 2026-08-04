@@ -1,0 +1,78 @@
+.wishlistButton {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.25s ease-in-out !important;
+  border: 1px solid #1ab69d !important;
+  background-color: #ffffff !important;
+  color: #1ab69d !important;
+  border-radius: 5px !important;
+  padding: 0 16px !important;
+}
+
+.wishlistButton svg {
+  color: #1ab69d !important;
+  stroke: #1ab69d !important;
+  fill: none !important;
+  transition: all 0.25s ease-in-out !important;
+  margin-right: 8px !important;
+  flex-shrink: 0 !important;
+  position: static !important;
+}
+
+.wishlistButton span {
+  color: #1ab69d !important;
+  transition: all 0.25s ease-in-out !important;
+}
+
+/* Hover State */
+.wishlistButton:hover {
+  border-color: #1ab69d !important;
+  background-color: #1ab69d !important;
+  color: #ffffff !important;
+}
+
+.wishlistButton:hover svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+  transform: scale(1.1) !important;
+}
+
+.wishlistButton:hover span {
+  color: #ffffff !important;
+}
+
+/* Active State (In Wishlist - when wishlisted) */
+.active {
+  border-color: #ef4444 !important;
+  background-color: #ffffff !important;
+  color: #ef4444 !important;
+}
+
+.active svg {
+  color: #ef4444 !important;
+  stroke: #ef4444 !important;
+  fill: #ef4444 !important;
+}
+
+.active span {
+  color: #ef4444 !important;
+}
+
+.active:hover {
+  border-color: #ef4444 !important;
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+.active:hover svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.active:hover span {
+  color: #ffffff !important;
+}

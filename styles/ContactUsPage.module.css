@@ -1,0 +1,186 @@
+.hn__contactContent {
+    padding-top: 120px;
+}
+
+.hn__contactContent__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+}
+
+.hn__contactContent__column {
+    background-color: transparent;
+}
+
+.hn__contactContent__column:first-child {
+    width: 33%;
+    padding: 0 15px;
+}
+
+.hn__contactContent__column:last-child {
+    width: 67%;
+}
+
+.hn__contactContent__header {
+    margin-bottom: 20px;
+}
+
+.hn__contactContent__headingTitle {
+    font-family: var(--font-spartan);
+}
+
+.hn__contactContent__addressInfo {
+    background-color: transparent;
+}
+
+.hn__contactContent__infoGroup {
+    margin-bottom: 24px;
+}
+
+.hn__contactContent__infoTitle {
+    font-size: 18px;
+    font-weight: 600;
+    font-family: var(--font-spartan);
+    font-style: normal;
+    margin-bottom: 5px;
+}
+
+.hn__contactContent__text {
+    color: rgb(128, 128, 128);
+    font-style: normal;
+}
+
+.hn__contactContent__link {
+    background-color: transparent;
+}
+
+.hn__contactContent__socialNav {
+    background-color: transparent;
+}
+
+.hn__contactContent__socialList {
+    display: flex;
+}
+
+.hn__contactContent__socialItem {
+    background-color: transparent;
+}
+
+.hn__contactContent__socialLink {
+    width: 46px;
+    height: 46px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #FFFFFF;
+    border-style: solid;
+    border-width: 1px 1px 1px 1px;
+    border-color: #E5E5E5;
+    margin-right: 20px;
+    margin-bottom: 20px;
+    border-radius: 100px 100px 100px 100px;
+    color: #808080;
+    transition: all .3s ease;
+}
+
+.hn__contactContent__socialLink:hover {
+    color: #fff;
+    background-color: #1ab69d;
+}
+
+.hn__contactContent__socialIcon {
+    background-color: transparent;
+}
+
+
+
+.hn__contactContent__formContainer {
+    margin: 0px 15px -80px 220px;
+    position: relative;
+}
+
+.hn__contactContent__decorations {
+    background-color: transparent;
+}
+
+.hn__contactContent__decorImg {
+    background-color: transparent;
+    position: absolute;
+    z-index: -1;
+}
+
+.hn__contactContent__decorImg1 {
+    top: -100px;
+    right: -10.4px;
+    z-index: 1;
+}
+
+.hn__contactContent__decorImg2 {
+    top: -69px;
+    right: -93px;
+    z-index: -1;
+}
+
+.hn__contactContent__formWrapper {
+    background-color: #fff;
+    padding: 70px;
+    box-shadow: 0px 0px 50px 0px rgba(25.999999999999996, 46, 84.99999999999999, 0.1);
+
+}
+
+.hn__contactContent__formHeader {
+    background-color: transparent;
+    margin-bottom: 20px;
+}
+
+.hn__contactContent__formTitle {
+    font-size: 20px;
+    line-height: calc(28 / 20 * 100%);
+    font-weight: 600;
+    font-family: var(--font-spartan);
+    font-style: normal;
+    margin-bottom: 5px;
+}
+
+.hn__contactContent__formDesc {
+    color: #808080;
+}
+
+.hn__contactContent__form {
+    background-color: transparent;
+}
+
+.hn__contactContent__formGroup {
+    background-color: transparent;
+}
+
+.hn__contactContent__srOnly {
+    background-color: transparent;
+}
+
+.hn__contactContent__input {
+    font-family: var(--edublink-font-primary);
+    box-shadow: none;
+    outline: none;
+    width: 100%;
+    height: 60px;
+    font-weight: 400;
+    transition: all .4s;
+    border: 0;
+    border-bottom: 1px solid var(--edublink-color-border);
+    padding: 20px 0 10px;
+    background: transparent;
+    border-radius: 0;
+}
+
+.hn__contactContent__textarea {
+    background-color: transparent;
+}
+
+.hn__contactContent__submitBtn {
+    background-color: transparent;
+}
+
+.hn__contactContent__formGroup--submit {
+    background-color: transparent;
+}

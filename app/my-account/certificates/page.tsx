@@ -11,7 +11,7 @@ export default function CertificatesPage() {
                         Certificates
                     </h2>
                     <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>
-                        Các chứng chỉ hoàn thành khóa học của bạn sẽ xuất hiện ở đây.
+                        Your course completion certificates will appear here.
                     </p>
                 </div>
             </LoggedInAccount>

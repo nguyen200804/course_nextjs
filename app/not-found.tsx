@@ -26,7 +26,7 @@ export default function NotFoundPage() {
   return (
     <main>
       <HeadingSectionText
-        title="404 - Page not found"
+        title="404 - Error not found"
         breadcrumb={[
           { label: 'Home', href: '/' },
           { label: 'Error 404' },

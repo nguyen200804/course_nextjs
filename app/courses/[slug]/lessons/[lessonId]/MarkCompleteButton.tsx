@@ -54,20 +54,20 @@ export default function MarkCompleteButton({
 
       if (res.ok && data.success) {
         setCompleted(true);
-        // Refresh lại dữ liệu Server Component để cập nhật thanh tiến trình & mở khóa bài kế tiếp
+        // Refresh Server Component data to update progress bar & unlock next lesson
         router.refresh();
       } else {
-        setErrorMsg(data.message || "Không thể đánh dấu hoàn thành.");
+        setErrorMsg(data.message || "Could not mark as complete.");
       }
     } catch (err: any) {
-      console.error("Lỗi khi đánh dấu hoàn thành bài học:", err);
-      setErrorMsg("Đã xảy ra lỗi kết nối.");
+      console.error("Error marking lesson complete:", err);
+      setErrorMsg("A connection error occurred.");
     } finally {
       setLoading(false);
     }
   };
 
-  // 1. Trạng thái đã hoàn thành bài học
+  // 1. Completed state
   if (completed) {
     return (
       <div className="w-full">
@@ -76,19 +76,19 @@ export default function MarkCompleteButton({
           className="w-full h-11 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center gap-2 text-xs font-bold text-emerald-400 shadow-md cursor-default transition-all"
         >
           <span>✓</span>
-          <span>Đã hoàn thành bài học</span>
+          <span>Lesson Completed</span>
         </button>
       </div>
     );
   }
 
-  // 2. Trạng thái bình thường hoặc bị disabled do chưa xem xong video
+  // 2. Normal or video-locked state
   return (
     <div className="w-full space-y-2">
       <button
         onClick={handleMarkComplete}
         disabled={isDisabled}
-        title={isVideoLocked ? "Bạn cần xem hết video để đánh dấu hoàn thành bài học" : undefined}
+        title={isVideoLocked ? "You need to watch the entire video to mark this lesson complete" : undefined}
         className={`w-full h-11 rounded-xl flex items-center justify-center text-xs font-bold text-white transition-all ${isDisabled
             ? "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed opacity-60"
             : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-lg shadow-indigo-500/20 active:scale-[0.98] cursor-pointer"
@@ -100,10 +100,10 @@ export default function MarkCompleteButton({
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            Đang xử lý...
+            Processing...
           </span>
         ) : (
-          "Đánh dấu hoàn thành"
+          "Mark as Complete"
         )}
       </button>
       {errorMsg && (

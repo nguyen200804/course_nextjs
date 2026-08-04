@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import styles from './CourseCard.module.css';
+import WishlistButton from './WishlistButton';
 
 export interface CourseCardProps {
     id?: number | string;
@@ -67,6 +68,7 @@ const decodeHTMLEntities = (text?: string) => {
 };
 
 export default function CourseCard({
+    id,
     title,
     imgSrc,
     link = '#',
@@ -269,13 +271,12 @@ export default function CourseCard({
             {/* Hover Content */}
             <div className={styles.hn_featured_courses__hover_wrapper}>
                 <div className={styles.hn_featured_courses__wishlist_top}>
-                    <button
-                        type="button"
-                        className={styles.hn_featured_courses__wishlist_btn}
-                        title="Add this course to your wishlist"
-                    >
-                        <i className="icon-22"></i>
-                    </button>
+                    {id && (
+                        <WishlistButton
+                            courseId={Number(id)}
+                            className={styles.hn_featured_courses__wishlist_btn}
+                        />
+                    )}
                 </div>
             </div>
 

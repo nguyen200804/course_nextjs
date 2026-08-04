@@ -1,0 +1,62 @@
+/* --- PHÂN TRANG (PAGINATION) --- */
+.hn__pagination {
+    background-color: transparent;
+}
+
+.hn__paginationList {
+    background-color: transparent;
+    margin: 40px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    justify-content: center;
+}
+
+.hn__paginationItem:not(:last-child) {
+    margin-right: 10px;
+}
+
+.hn__paginationLink {
+    width: 50px;
+    height: 50px;
+    color: var(--edublink-color-heading);
+    z-index: 1;
+    border-radius: 50%;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 50px;
+    display: flex;
+    position: relative;
+    transition: all .3s ease;
+}
+
+.hn__paginationLink svg {
+    width: 1em;
+}
+
+.hn__paginationLink::before {
+    content: "";
+    background-image: linear-gradient(-90deg, var(--edublink-color-primary-alt) 0%, var(--edublink-color-primary) 100%);
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    z-index: -1;
+    border-radius: 50%;
+    transition: opacity .3s ease;
+}
+
+.hn__paginationItem--active .hn__paginationLink,
+.hn__paginationLink:hover {
+    color: #fff;
+}
+
+.hn__paginationItem--active .hn__paginationLink::before,
+.hn__paginationLink:hover::before {
+    opacity: 1;
+}
+
+.hn__paginationLink--next {
+    background-color: transparent;
+}

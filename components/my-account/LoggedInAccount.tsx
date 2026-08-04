@@ -29,7 +29,7 @@ export default function LoggedInAccount({ children }: LoggedInAccountProps) {
       router.refresh();
       router.push('/my-account');
     } catch {
-      alert('Đã xảy ra lỗi khi đăng xuất.');
+      alert('An error occurred while logging out.');
     } finally {
       setLoading(false);
     }
@@ -50,7 +50,7 @@ export default function LoggedInAccount({ children }: LoggedInAccountProps) {
                     Dashboard
                   </h2>
                   <p style={{ color: '#64748b', margin: 0, fontSize: '14px', lineHeight: 1.6 }}>
-                    Chào mừng bạn đến với trang quản lý tài khoản. Hãy chọn các mục từ thanh điều hướng bên trái để xem và chỉnh sửa Thông tin cá nhân, Khóa học đã đăng ký, Chứng chỉ cũng như Lịch sử đơn hàng.
+                    Welcome to your account dashboard. Select items from the navigation menu on the left to view and edit your Personal Info, Enrolled Courses, Certificates, or Order History.
                   </p>
                 </div>
               )}

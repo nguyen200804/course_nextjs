@@ -239,7 +239,6 @@
 .hn_course_details_container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 15px;
 }
 
 .hn_course_details_row {
@@ -1109,4 +1108,22 @@
 .hn_related_courses_slide {
     height: auto;
     display: flex;
+}
+
+.wishlistBtn {
+    height: 50px;
+    width: 100%;
+    border-radius: 6px;
+    border: 1px solid #d8d8d8;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.wishlistBtn:hover {
+    border-color: #1ab69d;
+    background-color: #f8fafc;
 }

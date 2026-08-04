@@ -32,7 +32,7 @@ export default function LoginRegister() {
     setLoginSuccess(null);
 
     if (!loginUsername || !loginPassword) {
-      setLoginError('Vui lòng nhập Username/Email và Mật khẩu.');
+      setLoginError('Please enter Username/Email and Password.');
       return;
     }
 
@@ -48,9 +48,9 @@ export default function LoginRegister() {
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(data.error || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+        setLoginError(data.error || 'Invalid username or password.');
       } else {
-        setLoginSuccess(`Đăng nhập thành công! Xin chào ${data.user?.name || data.user?.username || ''}.`);
+        setLoginSuccess(`Login successful! Welcome ${data.user?.name || data.user?.username || ''}.`);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('user-auth-change'));
         }
@@ -60,7 +60,7 @@ export default function LoginRegister() {
         }, 1500);
       }
     } catch {
-      setLoginError('Đã xảy ra lỗi kết nối tới máy chủ WordPress.');
+      setLoginError('An error occurred connecting to the server.');
     } finally {
       setLoginLoading(false);
     }
@@ -73,13 +73,13 @@ export default function LoginRegister() {
     setRegSuccess(null);
 
     if (!regEmail || !regPassword) {
-      setRegError('Vui lòng nhập đầy đủ Email và Mật khẩu.');
+      setRegError('Please enter both Email and Password.');
       return;
     }
 
     setRegLoading(true);
 
-    // Tạo username từ tên Email
+    // Create username from email prefix
     const rawUsername = regEmail.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '');
     const uniqueUsername = `${rawUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -97,14 +97,14 @@ export default function LoginRegister() {
       const data = await res.json();
 
       if (!res.ok) {
-        setRegError(data.error || 'Đăng ký tài khoản thất bại.');
+        setRegError(data.error || 'Account registration failed.');
       } else {
-        setRegSuccess('Đăng ký tài khoản WordPress thành công! Bạn có thể dùng thông tin này để đăng nhập.');
+        setRegSuccess('Registration successful! You can now log in using your account details.');
         setRegEmail('');
         setRegPassword('');
       }
     } catch {
-      setRegError('Đã xảy ra lỗi hệ thống khi kết nối tới WordPress.');
+      setRegError('An error occurred connecting to the server.');
     } finally {
       setRegLoading(false);
     }

@@ -113,19 +113,22 @@ export async function GET() {
     const counts = { enrolled: 0, inprogress: 0, finished: 0, passed: 0, failed: 0 };
 
     const formattedCourses = rawCourses.map((c: any) => {
-      let status: 'in-progress' | 'finished' | 'passed' | 'failed' = 'in-progress';
+      let status: 'enrolled' | 'in-progress' | 'finished' | 'passed' | 'failed' = 'enrolled';
       const rawStatus = (c.status || c.results?.status || '').toLowerCase();
+      const graduation = (c.graduation || '').toLowerCase();
       const resultGrade = (c.grade || c.results?.grade || '').toLowerCase();
       const progressNum = Math.min(100, Math.max(0, Number(c.progress ?? c.results?.result ?? 0)));
 
-      if (resultGrade === 'passed' || rawStatus === 'passed') {
+      if (resultGrade === 'passed' || rawStatus === 'passed' || graduation === 'passed') {
         status = 'passed';
-      } else if (resultGrade === 'failed' || rawStatus === 'failed') {
+      } else if (resultGrade === 'failed' || rawStatus === 'failed' || graduation === 'failed') {
         status = 'failed';
-      } else if (rawStatus === 'completed' || rawStatus === 'finished' || progressNum === 100) {
+      } else if (rawStatus === 'completed' || rawStatus === 'finished' || graduation === 'completed' || progressNum === 100) {
         status = 'finished';
-      } else {
+      } else if (rawStatus === 'in-progress' || graduation === 'in-progress' || progressNum > 0) {
         status = 'in-progress';
+      } else {
+        status = 'enrolled';
       }
 
       // Tăng chỉ số tương ứng
