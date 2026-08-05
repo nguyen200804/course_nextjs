@@ -108,7 +108,7 @@
 .hn_course_card_list__title {
     margin-bottom: 8px;
     font-weight: 600;
-    font-size: var(--edublink-h6);
+    font-size: var(--edublink-h5);
     line-height: var(--edublink-h6-lineHeight);
     font-family: var(--font-spartan);
 }
@@ -218,7 +218,7 @@
     top: 100%;
     left: 50%;
     transform: translateX(-50%) translateY(12px);
-    width: 360px;
+    width: 344px;
     padding-top: 10px;
     /* Vùng đệm kết nối giữa Card và Hover Content */
     visibility: hidden;
