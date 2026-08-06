@@ -1,118 +1,16 @@
-Để đồng bộ URL hai chiều giữa WordPress (LearnPress Quiz) và NextJS, bạn cần điều chỉnh hai phần chính: **WordPress Custom Rewrites/Filters** (cho phía WordPress redirect đúng cấu trúc NextJS) và **NextJS Routes & Components** (để xử lý tham số và gọi API chính xác).
-
-**Cấu trúc URL chuẩn đồng bộ:**
-`/courses/[course-slug]/quizzes/[quiz-slug]`
-
----
-
-### 1. Cấu hình WordPress (`functions.php`)
-
-Thêm code hook vào `functions.php` để thay đổi permalink của Quiz LearnPress và hỗ trợ rewrite rule chuẩn:
-
-```php
-// 1. Đổi permalink của Quiz để WordPress trả về đúng đường dẫn NextJS
-add_filter('post_type_link', 'custom_lp_quiz_permalink', 10, 2);
-function custom_lp_quiz_permalink($post_link, $post) {
-    if ($post->post_type === 'lp_quiz') {
-        // Lấy course ID / slug liên quan đến quiz
-        $course_id = learn_press_get_item_course($post->ID);
-        if ($course_id) {
-            $course = get_post($course_id);
-            if ($course) {
-                return home_url("/courses/{$course->post_name}/quizzes/{$post->post_name}/");
-            }
-        }
-    }
-    return $post_link;
-}
-
-// 2. Thêm Rewrite Rules cho WordPress nhận diện URL này
-add_action('init', 'custom_lp_quiz_rewrite_rules');
-function custom_lp_quiz_rewrite_rules() {
-    add_rewrite_rule(
-        '^courses/([^/]+)/quizzes/([^/]+)/?$',
-        'index.php?post_type=lp_quiz&name=$matches[2]',
-        'top'
-    );
-}
-
-```
-
-*(Lưu ý: Sau khi thêm code này, bạn hãy vào **WordPress Dashboard -> Settings -> Permalinks** và nhấn **Save Changes** để flush rewrite rules)*.
-
----
-
-### 2. Cấu hình Next.js (`app/courses/[slug]/quizzes/[quizSlug]/page.tsx`)
-
-Cập nhật file Route chính cho Quiz trong Next.js để nhận diện đúng `slug` (course) và `quizSlug` từ URL:
-
-```tsx
-import React from "react";
-import LessonViewWrapper from "../../lessons/[lessonId]/LessonViewWrapper";
-import { getQuizBySlug } from "@/lib/wordpress"; // Thêm function gọi API tương ứng
-
-interface PageProps {
-  params: Promise<{
-    slug: string;
-    quizSlug: string;
-  }>;
-}
-
-export default async function QuizPage({ params }: PageProps) {
-  const { slug, quizSlug } = await params;
-
-  // Lấy dữ liệu quiz thông qua quizSlug
-  const quizData = await getQuizBySlug(quizSlug);
-
-  return (
-    <LessonViewWrapper
-      courseSlug={slug}
-      itemId={quizData?.id}
-      itemType="lp_quiz"
-      itemSlug={quizSlug}
-    >
-      {/* NỘI DUNG QUIZ CỦA BẠN */}
-    </LessonViewWrapper>
-  );
-}
-
-```
-
----
-
-### 3. Cập nhật `LessonViewWrapper.tsx`
-
-Cập nhật file `app/courses/[slug]/lessons/[lessonId]/LessonViewWrapper.tsx` để hỗ trợ chuyển đổi linh hoạt các tab Bài học (Lesson) và Bài tập (Quiz) đúng URL đồng bộ:
-
-```tsx
-// Trong LessonViewWrapper.tsx, cập nhật hàm xử lý chuyển bài/quiz:
-
-const handleItemClick = (item: { id: number; type: string; slug: string }) => {
-  if (item.type === "lp_quiz") {
-    // Điều hướng theo URL đồng bộ Quiz
-    router.push(`/courses/${courseSlug}/quizzes/${item.slug}`);
-  } else {
-    // Điều hướng bài học thông thường
-    router.push(`/courses/${courseSlug}/lessons/${item.id}`);
-  }
-};
-
-```
-
----
-
-### 4. Bổ sung API helper (`lib/wordpress.ts`)
-
-Bổ sung hàm truy vấn dữ liệu Quiz theo `quizSlug` trong `lib/wordpress.ts`:
-
-```typescript
-export async function getQuizBySlug(quizSlug: string) {
-  const res = await fetch(
-    `${WORDPRESS_API_URL}/wp/v2/quizzes?slug=${quizSlug}`,
-    { next: { revalidate: 60 } }
-  );
-  const quizzes = await res.json();
-  return quizzes?.[0] || null;
-}
-
-```
+<section class="elementor-section elementor-top-section elementor-element elementor-element-a7d265d elementor-section-full_width elementor-section-height-default elementor-section-height-default" data-id="a7d265d" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-no">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-102888e" data-id="102888e" data-element_type="column">
+			<div class="elementor-widget-wrap elementor-element-populated">
+								<div class="elementor-element elementor-element-3ac55f1 elementor-widget elementor-widget-google_maps" data-id="3ac55f1" data-element_type="widget" data-widget_type="google_maps.default">
+				<div class="elementor-widget-container">
+			<style>/*! elementor - v3.17.0 - 25-10-2023 */
+.elementor-widget-google_maps .elementor-widget-container{overflow:hidden}.elementor-widget-google_maps .elementor-custom-embed{line-height:0}.elementor-widget-google_maps iframe{height:300px}</style>		<div class="elementor-custom-embed">
+			<iframe loading="lazy" src="https://maps.google.com/maps?q=London%20Eye%2C%20London%2C%20United%20Kingdom&amp;t=m&amp;z=10&amp;output=embed&amp;iwloc=near" title="London Eye, London, United Kingdom" aria-label="London Eye, London, United Kingdom"></iframe>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>

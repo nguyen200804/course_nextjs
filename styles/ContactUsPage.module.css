@@ -174,17 +174,54 @@
 }
 
 .hn__contactContent__textarea {
+    border: none;
+    outline: 0;
     width: 100%;
     min-height: 150px;
-    border: none;
     padding: 20px 0 10px;
-    outline: 0;
+    border-bottom: 1px solid var(--edublink-color-border);
+    box-sizing: border-box;
 }
 
 .hn__contactContent__submitBtn {
-    background-color: transparent;
+    padding: 0 30px 0 30px;
+    width: inherit;
+    margin-top: 40px;
+    height: 50px;
+    line-height: 50px;
+    border-radius: 5px;
+    font-family: var(--font-spartan);
+    font-weight: 500;
 }
 
 .hn__contactContent__formGroup--submit {
-    background-color: transparent;
+    /* background-color: transparent; */
+}
+
+.hn__contactContent__formGroup--submit {}
+
+
+
+
+
+/* Section Google Map */
+.hn__contactMap {
+    width: 100%;
+    overflow: hidden;
+}
+
+.hn__contactMap__container {
+    width: 100%;
+}
+
+.hn__contactMap__embed {
+    line-height: 0;
+    width: 100%;
+}
+
+.hn__contactMap__iframe {
+    width: 100%;
+    height: 600px;
+    /* Có thể tùy chỉnh độ cao theo thiết kế */
+    border: 0;
 }

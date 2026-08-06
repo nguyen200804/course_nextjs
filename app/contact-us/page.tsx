@@ -1,5 +1,6 @@
 import HeadingSectionText from "@/components/common/HeadingSectionText";
-import styles from '@/styles/ContactUsPage.module.css'
+import ButtonGreen from "@/components/common/ButtonGreen";
+import styles from '@/styles/ContactUsPage.module.css';
 
 export default function ContactUsPage() {
     return (
@@ -11,6 +12,8 @@ export default function ContactUsPage() {
                     { label: 'Contact Us' },
                 ]}
             />
+
+            {/* Section 1: Thông tin và Form liên hệ */}
             <section className={styles.hn__contactContent}>
                 <div className={styles.hn__contactContent__container}>
 
@@ -94,7 +97,6 @@ export default function ContactUsPage() {
 
                                 <form action="/contact-us/" method="post" className={styles.hn__contactContent__form}>
                                     <div className={styles.hn__contactContent__formGroup}>
-                                        {/* <label htmlFor="user-name" className={styles.hn__contactContent__srOnly}>Your name</label> */}
                                         <input
                                             id="user-name"
                                             type="text"
@@ -106,7 +108,6 @@ export default function ContactUsPage() {
                                     </div>
 
                                     <div className={styles.hn__contactContent__formGroup}>
-                                        {/* <label htmlFor="user-email" className={styles.hn__contactContent__srOnly}>Your email</label> */}
                                         <input
                                             id="user-email"
                                             type="email"
@@ -118,7 +119,6 @@ export default function ContactUsPage() {
                                     </div>
 
                                     <div className={styles.hn__contactContent__formGroup}>
-                                        {/* <label htmlFor="user-subject" className={styles.hn__contactContent__srOnly}>Subject</label> */}
                                         <input
                                             id="user-subject"
                                             type="text"
@@ -129,7 +129,6 @@ export default function ContactUsPage() {
                                     </div>
 
                                     <div className={styles.hn__contactContent__formGroup}>
-                                        {/* <label htmlFor="user-message" className={styles.hn__contactContent__srOnly}>Your Message</label> */}
                                         <textarea
                                             id="user-message"
                                             name="message"
@@ -141,15 +140,32 @@ export default function ContactUsPage() {
                                     </div>
 
                                     <div className={`${styles.hn__contactContent__formGroup} ${styles["hn__contactContent__formGroup--submit"]}`}>
-                                        <button type="submit" className={styles.hn__contactContent__submitBtn}>
-                                            Submit Message
-                                        </button>
+                                        <ButtonGreen
+                                            type="submit"
+                                            text="Submit Message"
+                                            className={styles.hn__contactContent__submitBtn}
+                                        />
                                     </div>
                                 </form>
                             </div>
                         </div>
                     </div>
 
+                </div>
+            </section>
+
+            {/* Section 2: Bản đồ Google Maps */}
+            <section className={styles.hn__contactMap}>
+                <div className={styles.hn__contactMap__container}>
+                    <div className={styles.hn__contactMap__embed}>
+                        <iframe
+                            loading="lazy"
+                            src="https://maps.google.com/maps?q=London%20Eye%2C%20London%2C%20United%20Kingdom&t=m&z=10&output=embed&iwloc=near"
+                            title="London Eye, London, United Kingdom"
+                            aria-label="London Eye, London, United Kingdom"
+                            className={styles.hn__contactMap__iframe}
+                        ></iframe>
+                    </div>
                 </div>
             </section>
         </main>

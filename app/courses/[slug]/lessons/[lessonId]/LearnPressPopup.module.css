@@ -526,34 +526,34 @@
 
 /* Buttons */
 .btn_complete {
-  color: #fff;
-  cursor: pointer;
-  background: #1ab69d;
-  border: none;
-  border-radius: 5px;
   align-items: center;
-  height: 50px;
-  gap: 0.5em;
-  margin-bottom: 40px;
-  padding: 0px 50px;
+  box-shadow: 0 4px 12px #1ab69d40;
+  cursor: pointer;
+  color: var(--edublink-color-white);
+  background: var(--edublink-color-primary);
   font-size: 15px;
   font-weight: 500;
-  transition: background .2s, transform .1s;
-  display: inline-flex;
-  box-shadow: 0 4px 12px #1ab69d40;
+  font-family: var(--edublink-font-secondary);
+  border: 0;
+  border-radius: 5px;
+  transition: all .4s;
+  display: inline-block;
+  height: 50px !important;
+  margin: 0 0 30px !important;
+  padding: 0 50px !important;
+  line-height: 52px !important;
 }
 
 .btn_complete:hover {
-  background: #159c86;
+  background: #31B978;
 }
 
 .btn_complete:disabled {
-  opacity: 0.7;
   cursor: not-allowed;
 }
 
 .btn_completed_done {
-  background: #10b981;
+  background: #31B978;
 }
 
 /* Comment section */
@@ -754,9 +754,9 @@
   padding: 0 50px !important;
 }
 
-/* .btn_submit_comment:hover {
-  background: #0f172a;
-} */
+.btn_submit_comment:hover {
+  background: #31B978;
+}
 
 /* Footer Navigation */
 .popup_footer {
@@ -770,7 +770,7 @@
   flex-shrink: 0;
 }
 
-.nav_btn {
+/* .nav_btn {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -789,7 +789,7 @@
   background: #f8fafc;
   border-color: #1ab69d;
   color: #1ab69d;
-}
+} */
 
 .nav_btn_disabled {
   opacity: 0.4;
@@ -978,20 +978,20 @@
 }
 
 .nav_btn {
-  display: inline-flex;
+  color: #181818;
+  cursor: pointer;
+  /* background: #f8fafc; */
+  /* border: 1px solid #e2e8f0; */
+  border-radius: 8px;
   align-items: center;
   gap: 6px;
-  padding: 10px 22px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #181818;
+  /* padding: 10px 22px; */
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all .2s;
+  display: inline-flex;
   position: relative;
-  cursor: pointer;
 }
 
 .nav_btn svg {
@@ -999,11 +999,7 @@
   height: 1.2em;
 }
 
-.nav_btn:hover {
-  background: #1ab69d;
-  color: #ffffff;
-  border-color: #1ab69d;
-}
+/*  */
 
 .nav_btn_disabled {
   opacity: 0.4;
