@@ -223,6 +223,13 @@
     color: #1AB69D;
 }
 
+.hn_latest_news__category_separator {
+    color: #808080;
+    font-size: 13px;
+    font-family: var(--font-poppins);
+    font-weight: 600;
+}
+
 /* Title */
 .hn_latest_news__title {
     font-family: var(--font-spartan);

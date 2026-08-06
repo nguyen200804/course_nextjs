@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserRound, Gauge, LibraryBig, Award, RotateCcwIcon, LogOut, Heart } from 'lucide-react';
+import { UserRound, Gauge, LibraryBig, Award, RotateCcwIcon, LogOut, Heart, ClipboardList } from 'lucide-react';
 import styles from '@/styles/my-account/SideBar.module.css';
 
 export default function SideBar({ handleLogout }: { handleLogout: () => void }) {
@@ -12,6 +12,7 @@ export default function SideBar({ handleLogout }: { handleLogout: () => void }) 
         { href: '/my-account', label: 'Dashboard', icon: Gauge },
         { href: '/my-account/personal-info', label: 'Personal Info', icon: UserRound },
         { href: '/my-account/my-courses', label: 'My Courses', icon: LibraryBig },
+        { href: '/my-account/quizzes', label: 'Quizzes', icon: ClipboardList },
         { href: '/my-account/wishlist', label: 'Wishlist', icon: Heart },
         { href: '/my-account/certificates', label: 'Certificates', icon: Award },
         { href: '/my-account/order-history', label: 'Order History', icon: RotateCcwIcon },

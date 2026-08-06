@@ -124,6 +124,7 @@ export default function LessonViewWrapper({
 
   // Quiz state
   const [quizStarted, setQuizStarted] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [timeSpent, setTimeSpent] = useState<number>(0);
@@ -136,6 +137,7 @@ export default function LessonViewWrapper({
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState<boolean>(false);
   const [showSubmitQuizModal, setShowSubmitQuizModal] = useState(false);
+  const [showRetakeModal, setShowRetakeModal] = useState(false);
 
   useEffect(() => {
     if (quizStarted && !quizSubmitted) {
@@ -304,28 +306,181 @@ export default function LessonViewWrapper({
     console.groupEnd();
   };
 
-  // Fetch Last Attempt from LearnPress DB
+  // Helper restore answered values from attempt data for Review Mode
+  const restoreQuizAnswersFromAttempt = (attempt: any, questions: any[]) => {
+    if (!attempt || !questions || questions.length === 0) return {};
+    const qMap: Record<number, any> = {};
+    const attemptsQuestions = attempt.questionsData || attempt.results?.questions || attempt.data?.questions || attempt.questions || {};
+
+    questions.forEach((q) => {
+      const qId = q.id;
+      const qData = attemptsQuestions[String(qId)] || attemptsQuestions[qId];
+      if (!qData || qData.answered === undefined || qData.answered === null) return;
+
+      const rawAns = qData.answered;
+      const lpOptions = Array.isArray(qData.options) ? qData.options : [];
+
+      if (lpOptions.length > 0) {
+        const optionHashes = lpOptions.map((opt: any) => (typeof opt === "object" ? String(opt.value || opt.id || opt.title || "") : String(opt)));
+        const optionTitles = lpOptions.map((opt: any) => (typeof opt === "object" ? String(opt.title || "") : String(opt)));
+
+        const resolveIndex = (ansVal: any): number => {
+          const valStr = String(ansVal);
+          let idx = optionHashes.indexOf(valStr);
+          if (idx !== -1) return idx;
+          idx = optionTitles.indexOf(valStr);
+          if (idx !== -1) return idx;
+          const num = Number(ansVal);
+          if (!isNaN(num) && num >= 0 && num < lpOptions.length) return num;
+          return -1;
+        };
+
+        if (Array.isArray(rawAns)) {
+          const indices = rawAns.map(resolveIndex).filter((i) => i !== -1);
+          if (indices.length > 0) qMap[qId] = indices;
+        } else {
+          const idx = resolveIndex(rawAns);
+          if (idx !== -1) qMap[qId] = idx;
+        }
+      } else if (q.optionValues && typeof q.optionValues === "object") {
+        const hashKeys = Object.keys(q.optionValues);
+        if (Array.isArray(rawAns)) {
+          const indices = rawAns
+            .map((h) => {
+              const matchKey = hashKeys.find((k) => q.optionValues[k] === String(h));
+              return matchKey !== undefined ? Number(matchKey) : -1;
+            })
+            .filter((idx) => idx !== -1);
+          if (indices.length > 0) qMap[qId] = indices;
+        } else {
+          const matchKey = hashKeys.find((k) => q.optionValues[k] === String(rawAns));
+          if (matchKey !== undefined) qMap[qId] = Number(matchKey);
+        }
+      } else {
+        if (Array.isArray(rawAns)) {
+          const nums = rawAns.map(Number).filter((n) => !isNaN(n));
+          if (nums.length > 0) qMap[qId] = nums;
+        } else if (!isNaN(Number(rawAns))) {
+          qMap[qId] = Number(rawAns);
+        }
+      }
+    });
+
+    return qMap;
+  };
+
+  // Fetch Last Attempt from LearnPress DB — dùng /learnpress/v1/users/{id} (chính xác nhất)
   useEffect(() => {
-    const targetQuizId = activeItem?.id || lessonId;
+    const numericQuizId = activeLesson?.id || activeItem?.id;
+    const targetQuizId = numericQuizId ? numericQuizId.toString() : lessonId;
+
     const isQuizType = isQuizPage || activeLesson?.item_type === "lp_quiz" || activeLesson?.type === "lp_quiz" || activeItem?.type === "lp_quiz" || (activeItem?.title && (activeItem.title.toLowerCase().includes("quiz") || activeItem.title.toLowerCase().includes("review")));
-    if (!targetQuizId || !user?.id || !isQuizType) {
+    if (!targetQuizId || !isQuizType) {
       setLastAttempt(null);
       setAttemptsList([]);
       return;
     }
 
     setLoadingLastAttempt(true);
-    const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
-    fetch(`${wpUrl}/wp-json/custom/v1/quiz-attempts?user_id=${user.id}&quiz_id=${targetQuizId}&t=${Date.now()}`, {
-      cache: "no-store",
-    })
+
+    // Call internal NextJS API route /api/user/quizzes (handles server-side auth & cookies)
+    fetch("/api/user/quizzes", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && data.success && data.last_attempt) {
-          setLastAttempt(data.last_attempt);
-          const list = Array.isArray(data.attempts) && data.attempts.length > 0 ? data.attempts : [data.last_attempt];
-          setAttemptsList(list);
-          logQuizAttemptsNextJS(list, activeItem?.title || activeLesson?.title?.rendered);
+        if (!data || !Array.isArray(data.quizzes)) return;
+        const myQuizzes = data.quizzes.filter((q: any) => {
+          const qIdStr = String(q.quizId);
+          const targetIdStr = String(targetQuizId);
+          const activeIdStr = activeItem?.id ? String(activeItem.id) : "";
+          const activeLessonIdStr = activeLesson?.id ? String(activeLesson.id) : "";
+          const lessonIdStr = String(lessonId);
+
+          return (
+            qIdStr === targetIdStr ||
+            qIdStr === activeIdStr ||
+            qIdStr === activeLessonIdStr ||
+            qIdStr === lessonIdStr ||
+            (q.slug && (q.slug === lessonIdStr || q.slug === activeItem?.slug))
+          );
+        });
+
+        if (myQuizzes.length > 0) {
+          const latest = myQuizzes[myQuizzes.length - 1];
+          const isPassed = (latest.status === "passed");
+
+          let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined 
+            ? Number(latest.scorePercent) 
+            : parseFloat(String(latest.resultLabel || "0").replace("%", ""));
+          if (isNaN(resNum)) resNum = 0;
+          if (isPassed && resNum < 80) resNum = 100;
+
+          let qCount = latest.questionCount || 0;
+          if (qCount === 0 && quizQuestions && quizQuestions.length > 0) {
+            qCount = quizQuestions.length;
+          }
+          if (qCount === 0) qCount = 1;
+
+          let totMark = latest.totalScore !== null && latest.totalScore !== undefined && Number(latest.totalScore) > 0 ? Number(latest.totalScore) : qCount;
+
+          let uMark: number;
+          if (latest.score !== null && latest.score !== undefined) {
+            uMark = Number(latest.score);
+          } else if (resNum > 0) {
+            uMark = Math.round((resNum / 100) * totMark);
+          } else if (isPassed) {
+            uMark = totMark;
+          } else {
+            uMark = 0;
+          }
+
+          let qCorrect = latest.questionCorrect !== null && latest.questionCorrect !== undefined ? Number(latest.questionCorrect) : uMark;
+          let qWrong = Math.max(0, totMark - qCorrect);
+
+          const normalized = {
+            user_item_id: latest.id || `lp-${targetQuizId}`,
+            status: "completed",
+            graduation: isPassed ? "passed" : "failed",
+            start_time: latest.startedAt,
+            end_time: latest.completedAt,
+            time_spent: latest.duration || "00:00:03",
+            questions_count: qCount,
+            correct: qCorrect,
+            wrong: qWrong,
+            skipped: 0,
+            points: `${uMark} / ${totMark}`,
+            user_mark: uMark,
+            mark: totMark,
+            passing_grade: latest.passingGrade || "80%",
+            result: `${resNum.toFixed(2)}%`,
+            result_num: resNum,
+            questionsData: latest.questionsData || latest.data?.questions || latest.results?.questions || latest.questions || {},
+          };
+          setLastAttempt(normalized);
+
+          // Build previous attempts list (latest.attempt) excluding current attempt
+          const rawAttempts = Array.isArray(latest.attempt) ? latest.attempt : [];
+          const previousAttemptsList: any[] = [];
+
+          rawAttempts.forEach((attItem: any, i: number) => {
+            const attScore = attItem.result !== undefined ? Number(attItem.result) : 0;
+            const attPassed = (attItem.pass === 1 || attItem.graduation === "passed" || attScore >= 80);
+            const attTotal = attItem.mark || attItem.question_count || qCount;
+            const attUser = attItem.user_mark !== undefined ? Number(attItem.user_mark) : (attPassed ? attTotal : 0);
+
+            previousAttemptsList.push({
+              user_item_id: attItem.user_item_id || `att-${i}`,
+              questions: `${attUser} / ${attTotal}`,
+              time_spent: attItem.time_spend || attItem.time_spent || "00:00:00",
+              points: `${attUser} / ${attTotal}`,
+              passing_grade: attItem.passing_grade || "80%",
+              result: `${attScore.toFixed(2)}%`,
+              result_num: attScore,
+              graduation: attPassed ? "passed" : "failed",
+            });
+          });
+
+          setAttemptsList(previousAttemptsList);
+          logQuizAttemptsNextJS([normalized, ...previousAttemptsList], activeItem?.title || activeLesson?.title?.rendered);
         } else {
           setLastAttempt(null);
           setAttemptsList([]);
@@ -336,7 +491,16 @@ export default function LessonViewWrapper({
         setAttemptsList([]);
       })
       .finally(() => setLoadingLastAttempt(false));
-  }, [activeItem, lessonId, user?.id, isQuizPage, activeLesson]);
+  }, [activeItem, lessonId, isQuizPage, activeLesson, quizQuestions, user?.id]);
+
+  useEffect(() => {
+    if (lastAttempt && quizQuestions && quizQuestions.length > 0) {
+      const restored = restoreQuizAnswersFromAttempt(lastAttempt, quizQuestions);
+      if (Object.keys(restored).length > 0) {
+        setQuizAnswers((prev) => ({ ...restored, ...prev }));
+      }
+    }
+  }, [lastAttempt, quizQuestions]);
 
   useEffect(() => {
     if (quizStarted && !quizSubmitted) {
@@ -372,7 +536,8 @@ export default function LessonViewWrapper({
   useEffect(() => {
     const isQuizType = isQuizPage || activeLesson?.item_type === "lp_quiz" || activeLesson?.type === "lp_quiz" || activeItem?.type === "lp_quiz" || (activeItem?.title && (activeItem.title.toLowerCase().includes("quiz") || activeItem.title.toLowerCase().includes("review")));
     if (isQuizType) {
-      const quizIdOrSlug = activeItem?.id || activeLesson?.id || activeLesson?.slug || lessonId;
+      // Ưu tiên numeric ID của WP (activeLesson.id) để lấy đúng câu hỏi quiz
+      const quizIdOrSlug = activeLesson?.id || activeItem?.id || lessonId;
       const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
       setLoadingQuestions(true);
 
@@ -547,10 +712,15 @@ export default function LessonViewWrapper({
         const numId = Number(targetId);
         setCompletedList((prev) => Array.from(new Set([...prev, ...(isNaN(numId) ? [] : [numId])])));
 
-        // Tự động chuyển sang bài học tiếp theo nếu có
+        // Tự động chuyển sang bài học/quiz tiếp theo nếu có
         if (nextItem) {
           const nextSlug = nextItem.slug || nextItem.id;
-          router.push(`/courses/${slug}/lessons/${nextSlug}`);
+          const isNextQuiz = nextItem.type === "lp_quiz" || (nextItem.title && (nextItem.title.toLowerCase().includes("quiz") || nextItem.title.toLowerCase().includes("review")));
+          if (isNextQuiz) {
+            router.push(`/courses/${slug}/quizzes/${nextSlug}`);
+          } else {
+            router.push(`/courses/${slug}/lessons/${nextSlug}`);
+          }
         }
       }
     } catch (e) {
@@ -651,15 +821,18 @@ export default function LessonViewWrapper({
     if (ans === undefined || ans === null) return false;
     const qType = q.type || q.question_type || "single_choice";
     if (qType === "multi_choice" || qType === "multiple_choice") {
-      const userSelected: number[] = Array.isArray(ans) ? [...ans].sort() : [ans];
+      const userSelected: number[] = (Array.isArray(ans) ? ans : [ans]).map(Number).filter((n: any) => !isNaN(n)).sort();
       let correctArr: number[] = [];
       if (Array.isArray(q.correct)) {
-        correctArr = [...q.correct].sort();
+        correctArr = q.correct.map(Number).filter((n: any) => !isNaN(n)).sort();
+      } else if (typeof q.correct === "string") {
+        correctArr = q.correct.split(/[,|]/).map((s: string) => Number(s.trim())).filter((n: any) => !isNaN(n)).sort();
       } else if (typeof q.correct === "number") {
         correctArr = [q.correct];
       }
       return userSelected.length > 0 && userSelected.length === correctArr.length && userSelected.every((val, index) => val === correctArr[index]);
     }
+    // true_or_false / single_choice: so sánh theo index
     return Number(ans) === Number(q.correct);
   };
 
@@ -677,7 +850,8 @@ export default function LessonViewWrapper({
     setQuizSubmitted(true);
     setQuizStarted(false);
 
-    const targetId = activeItem?.id || lessonId;
+    // Ưu tiên numeric ID từ WP (activeLesson.id) để đồng bộ đúng quiz
+    const targetId = (activeLesson?.id || activeItem?.id || lessonId).toString();
     const numId = Number(targetId);
     setCompletedList((prev) => Array.from(new Set([...prev, ...(isNaN(numId) ? [] : [numId])])));
 
@@ -714,33 +888,177 @@ export default function LessonViewWrapper({
 
     // Đồng bộ hoàn thành Quiz về WordPress REST API
     try {
-      await fetch("/api/mark-complete", {
+      // Build answers payload & detailed question evaluation for WordPress LearnPress
+      const answersPayload: Record<string, string | string[]> = {};
+      const questionsDetailPayload: Record<string, any> = {};
+
+      activeQuizQuestions.forEach((q) => {
+        const userAns = quizAnswers[q.id];
+        const isCorrect = isQuestionCorrect(q, userAns);
+        let ansVal: any = null;
+
+        if (userAns !== undefined && userAns !== null) {
+          if (q.optionValues && typeof q.optionValues === "object") {
+            if (Array.isArray(userAns)) {
+              ansVal = (userAns as number[])
+                .map((idx) => q.optionValues[idx])
+                .filter(Boolean);
+            } else {
+              ansVal = q.optionValues[Number(userAns)] || String(userAns);
+            }
+          } else {
+            ansVal = Array.isArray(userAns) ? userAns.map(String) : String(userAns);
+          }
+          answersPayload[String(q.id)] = ansVal;
+        }
+
+        questionsDetailPayload[String(q.id)] = {
+          answered: ansVal,
+          correct: isCorrect,
+          mark: 1,
+          user_mark: isCorrect ? 1 : 0,
+        };
+      });
+
+      const numericCourseId = !isNaN(Number(courseId))
+        ? Number(courseId)
+        : !isNaN(Number(activeCourse?.id))
+        ? Number(activeCourse?.id)
+        : !isNaN(Number(course?.id))
+        ? Number(course?.id)
+        : 0;
+
+      const submitRes = await fetch("/api/submit-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          course_id: courseId,
-          lesson_id: targetId,
           user_id: user?.id,
-          quiz_score: finalScore,
+          quiz_id: Number(targetId),
+          course_id: numericCourseId,
+          result: finalScore,
+          correct: correctCount,
+          wrong: wrongCount,
+          skipped: skippedCount,
+          user_mark: correctCount,
+          total_mark: totalCount,
+          time_spent: formatTimerSeconds(timeSpent) || "00:00:00",
+          time_spent_seconds: timeSpent,
+          graduation: finalScore >= passingGrade ? "passed" : "failed",
+          answers: Object.keys(answersPayload).length > 0 ? answersPayload : undefined,
+          questions_detail: questionsDetailPayload,
         }),
       });
 
-      if (user?.id && targetId) {
-        const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
-        const attRes = await fetch(`${wpUrl}/wp-json/custom/v1/quiz-attempts?user_id=${user.id}&quiz_id=${targetId}&t=${Date.now()}`, { cache: "no-store" });
-        if (attRes.ok) {
-          const attData = await attRes.json();
-          if (attData && attData.success && Array.isArray(attData.attempts) && attData.attempts.length > 0) {
-            setAttemptsList(attData.attempts);
-            setLastAttempt(attData.last_attempt || attData.attempts[attData.attempts.length - 1]);
-            logQuizAttemptsNextJS(attData.attempts, activeItem?.title || activeLesson?.title?.rendered);
+      if (submitRes.ok) {
+        const submitData = await submitRes.json();
+        console.log("[NextJS] Quiz result submitted to WordPress:", submitData);
+
+        // ── Sync: Đọc kết quả chính xác từ API nội bộ /api/user/quizzes ──
+        try {
+          await new Promise((r) => setTimeout(r, 800)); // đợi WP commit xong
+          const lpRes = await fetch("/api/user/quizzes", { cache: "no-store" });
+          if (lpRes.ok) {
+            const lpData = await lpRes.json();
+            const allQuizzes: any[] = lpData?.quizzes ?? [];
+            const myQuizzes = allQuizzes.filter((q: any) => {
+              const qIdStr = String(q.quizId);
+              const targetIdStr = String(targetId);
+              const activeIdStr = activeItem?.id ? String(activeItem.id) : "";
+              const lessonIdStr = String(lessonId);
+
+              return (
+                qIdStr === targetIdStr ||
+                qIdStr === activeIdStr ||
+                qIdStr === lessonIdStr ||
+                (q.slug && (q.slug === lessonIdStr || q.slug === activeItem?.slug))
+              );
+            });
+            if (myQuizzes.length > 0) {
+              const latest = myQuizzes[myQuizzes.length - 1];
+              const isPassed = (latest.status === "passed");
+
+              let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined 
+                ? Number(latest.scorePercent) 
+                : (finalScore ?? 0);
+              if (isNaN(resNum)) resNum = finalScore;
+              if (isPassed && resNum < 80) resNum = 100;
+
+              let qCount = latest.questionCount || totalCount;
+              let totMark = latest.totalScore !== null && latest.totalScore !== undefined && Number(latest.totalScore) > 0 ? Number(latest.totalScore) : qCount;
+
+              let uMark: number;
+              if (latest.score !== null && latest.score !== undefined) {
+                uMark = Number(latest.score);
+              } else if (isPassed) {
+                uMark = totMark;
+              } else {
+                uMark = correctCount;
+              }
+
+              let qCorrect = latest.questionCorrect !== null && latest.questionCorrect !== undefined ? Number(latest.questionCorrect) : uMark;
+              let qWrong = Math.max(0, totMark - qCorrect);
+
+              const normalized = {
+                user_item_id: latest.id || Date.now(),
+                status: "completed",
+                graduation: isPassed ? "passed" : "failed",
+                start_time: latest.startedAt,
+                end_time: latest.completedAt,
+                time_spent: latest.duration || formatTimerSeconds(timeSpent) || "00:00:03",
+                questions_count: qCount,
+                correct: qCorrect,
+                wrong: qWrong,
+                skipped: skippedCount,
+                points: `${uMark} / ${totMark}`,
+                user_mark: uMark,
+                mark: totMark,
+                passing_grade: latest.passingGrade || `${passingGrade}%`,
+                result: `${resNum.toFixed(2)}%`,
+                result_num: resNum,
+              };
+              setLastAttempt(normalized);
+
+              const rawAttempts = Array.isArray(latest.attempt) ? latest.attempt : [];
+              const previousAttemptsList: any[] = [];
+
+              rawAttempts.forEach((attItem: any, i: number) => {
+                const attScore = attItem.result !== undefined ? Number(attItem.result) : 0;
+                const attPassed = (attItem.pass === 1 || attItem.graduation === "passed" || attScore >= 80);
+                const attTotal = attItem.mark || attItem.question_count || qCount;
+                const attUser = attItem.user_mark !== undefined ? Number(attItem.user_mark) : (attPassed ? attTotal : 0);
+
+                previousAttemptsList.push({
+                  user_item_id: attItem.user_item_id || `att-${i}`,
+                  questions: `${attUser} / ${attTotal}`,
+                  time_spent: attItem.time_spend || attItem.time_spent || "00:00:00",
+                  points: `${attUser} / ${attTotal}`,
+                  passing_grade: attItem.passing_grade || `${passingGrade}%`,
+                  result: `${attScore.toFixed(2)}%`,
+                  result_num: attScore,
+                  graduation: attPassed ? "passed" : "failed",
+                });
+              });
+
+              if (lastAttempt && !previousAttemptsList.some((a) => String(a.user_item_id) === String(lastAttempt.user_item_id))) {
+                previousAttemptsList.push(lastAttempt);
+              }
+
+              setAttemptsList(previousAttemptsList);
+              logQuizAttemptsNextJS([normalized, ...previousAttemptsList], activeItem?.title || activeLesson?.title?.rendered);
+              console.log("[NextJS] Synced quiz result from internal API:", normalized);
+            }
           }
+        } catch (syncErr) {
+          console.warn("[NextJS] Could not sync from internal API after submit:", syncErr);
         }
+      } else {
+        console.warn("[NextJS] submit-quiz returned error:", await submitRes.text());
       }
     } catch (e) {
       console.error("Lỗi khi đồng bộ kết quả Quiz sang WordPress:", e);
     }
   };
+
 
   // Helper calculations for Quiz Result Card
   const currentCalculatedScore = Math.round(
@@ -815,7 +1133,7 @@ export default function LessonViewWrapper({
               return (
                 <div key={sec.section_id} className={styles.section_block}>
                   <div className={styles.section_header} onClick={() => toggleSection(sec.section_id)}>
-                    <div className="flex-1 min-w-0 pr-2">
+                    <div className={styles.section_title_wrap}>
                       <h5 className={styles.section_title_text}>{sec.title}</h5>
                     </div>
                     <span className={`${styles.section_caret} ${!isCollapsed ? styles.section_caret_expanded : ""}`}>
@@ -925,7 +1243,7 @@ export default function LessonViewWrapper({
         <main className={styles.popup_content}>
           {/* Header inside Main Area */}
           <header className={styles.popup_header}>
-            <div className="flex items-center gap-3 min-w-0 pr-4">
+            <div className={styles.header_left_title}>
 
               <Link href={`/courses/${slug}`} className={styles.course_title} title={courseTitle}>
                 {courseTitle}
@@ -935,7 +1253,7 @@ export default function LessonViewWrapper({
             <div className={styles.header_right}>
               <div className={styles.items_progress}>
                 <span>
-                  <strong className="text-white font-bold">{completedCount}</strong> of {totalItemsCount} items ({progressPercent}% / Passing: {passingGrade}%)
+                  <strong className={styles.highlight_count}>{completedCount}</strong> of {totalItemsCount} items ({progressPercent}% / Passing: {passingGrade}%)
                 </span>
                 <div className={styles.progress_bar_outer} title={`Progress: ${progressPercent}% | Passing Grade: ${passingGrade}%`}>
                   <div className={styles.progress_bar_inner} style={{ width: `${progressPercent}%` }} />
@@ -973,19 +1291,19 @@ export default function LessonViewWrapper({
 
               {/* Lesson or Quiz Content */}
               {!canAccess ? (
-                <div className="p-8 my-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center shadow-lg mb-10">
-                  <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500 text-3xl mx-auto mb-4">
+                <div className={styles.lock_banner}>
+                  <div className={styles.lock_icon_circle}>
                     🔒
                   </div>
-                  <h3 className="text-xl font-bold text-slate-800 mb-3">
+                  <h3 className={styles.lock_banner_title}>
                     This content is protected. Please enroll in the course to view this content!
                   </h3>
-                  <p className="text-slate-600 text-sm max-w-md mx-auto mb-6 leading-relaxed">
+                  <p className={styles.lock_banner_desc}>
                     This content is protected. Please enroll in the course to unlock full access to lessons and quizzes.
                   </p>
                   <Link
                     href={`/courses/${slug}`}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-emerald-600/20"
+                    className={styles.btn_enroll_banner}
                   >
                     <span>🚀</span> Enroll in course now
                   </Link>
@@ -994,15 +1312,15 @@ export default function LessonViewWrapper({
                 <>
                   {!quizStarted ? (
                     (isCurrentCompleted || quizSubmitted || !!lastAttempt) ? (
-                      <div className="my-8 p-8 bg-white border border-slate-100 rounded-2xl max-w-xl mx-auto shadow-sm text-center">
+                      <div className={styles.quiz_result_card}>
                         {/* Circular Gauge */}
-                        <div className="relative w-40 h-40 mx-auto mb-6">
-                          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
+                        <div className={styles.quiz_gauge_container}>
+                          <svg className={styles.quiz_gauge_svg} viewBox="0 0 160 160">
                             <circle
                               cx={80}
                               cy={80}
                               r={68}
-                              className="text-slate-200 stroke-current"
+                              className={styles.quiz_gauge_bg}
                               strokeWidth={12}
                               fill="transparent"
                             />
@@ -1010,7 +1328,7 @@ export default function LessonViewWrapper({
                               cx={80}
                               cy={80}
                               r={68}
-                              className="text-amber-500 stroke-current transition-all duration-700 ease-out"
+                              className={styles.quiz_gauge_fill}
                               strokeWidth={12}
                               strokeDasharray={2 * Math.PI * 68}
                               strokeDashoffset={(2 * Math.PI * 68) - ((displayQuizScore / 100) * (2 * Math.PI * 68))}
@@ -1019,85 +1337,80 @@ export default function LessonViewWrapper({
                             />
                           </svg>
 
-                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-3xl font-extrabold text-slate-900 leading-none">
+                          <div className={styles.quiz_score_center}>
+                            <span className={styles.quiz_score_percent}>
                               {displayQuizScore}%
                             </span>
-                            <div className="w-8 h-[1px] bg-slate-300 my-1.5" />
-                            <span className="text-sm font-medium text-slate-400">
+                            <div className={styles.quiz_score_divider} />
+                            <span className={styles.quiz_score_passing}>
                               {passingGrade}%
                             </span>
                           </div>
                         </div>
 
                         {/* Status Pill Badge */}
-                        <div className="flex justify-center mb-8">
+                        <div className={styles.quiz_status_icon_wrap}>
                           <div
-                            className={`px-8 py-2.5 rounded-lg text-white font-bold text-base flex items-center justify-center gap-2 shadow-sm min-w-[140px] ${isQuizPassed ? "bg-[#10b981]" : "bg-[#ef4444]"
-                              }`}
+                            className={`${styles.quiz_status_badge} ${
+                              isQuizPassed ? styles.quiz_status_badge_passed : styles.quiz_status_badge_failed
+                            }`}
                           >
                             {isQuizPassed ? (
                               <>
                                 <span>Passed</span>
-                                <span className="text-lg font-bold">✓</span>
+                                <span className={styles.quiz_status_icon}>✓</span>
                               </>
                             ) : (
                               <>
                                 <span>Failed</span>
-                                <span className="text-lg font-bold">✕</span>
+                                <span className={styles.quiz_status_icon}>✕</span>
                               </>
                             )}
                           </div>
                         </div>
 
                         {/* Stats Table List */}
-                        <div className="max-w-xs mx-auto space-y-3 text-sm text-slate-500 mb-8">
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                        <div className={styles.quiz_stats_list}>
+                          <div className={styles.quiz_stat_item}>
                             <span>Time spent</span>
-                            <span className="font-bold text-slate-800">
+                            <span className={styles.quiz_stat_value}>
                               {displayTimeSpent}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                          <div className={styles.quiz_stat_item}>
                             <span>Points</span>
-                            <span className="font-bold text-slate-800">
+                            <span className={styles.quiz_stat_value}>
                               {displayPoints}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                          <div className={styles.quiz_stat_item}>
                             <span>Questions</span>
-                            <span className="font-bold text-slate-800">{displayQuestionsCount}</span>
+                            <span className={styles.quiz_stat_value}>{displayQuestionsCount}</span>
                           </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                          <div className={styles.quiz_stat_item}>
                             <span>Correct</span>
-                            <span className="font-bold text-slate-800">{displayCorrectCount}</span>
+                            <span className={styles.quiz_stat_value}>{displayCorrectCount}</span>
                           </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                          <div className={styles.quiz_stat_item}>
                             <span>Wrong</span>
-                            <span className="font-bold text-slate-800">{displayWrongCount}</span>
+                            <span className={styles.quiz_stat_value}>{displayWrongCount}</span>
                           </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                          <div className={styles.quiz_stat_item}>
                             <span>Skipped</span>
-                            <span className="font-bold text-slate-800">{displaySkippedCount}</span>
+                            <span className={styles.quiz_stat_value}>{displaySkippedCount}</span>
                           </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
+                          <div className={styles.quiz_stat_item}>
                             <span>Minus points</span>
-                            <span className="font-bold text-slate-800">0</span>
+                            <span className={styles.quiz_stat_value}>0</span>
                           </div>
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center justify-center gap-4">
+                        <div className={styles.quiz_actions_wrap}>
                           <button
                             type="button"
-                            onClick={() => {
-                              setQuizStarted(true);
-                              setQuizSubmitted(false);
-                              setQuizAnswers({});
-                              setCurrentQuestionIndex(0);
-                              setTimeSpent(0);
-                            }}
-                            className="px-6 py-2 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-sm"
+                            onClick={() => setShowRetakeModal(true)}
+                            className={styles.btn_quiz_action}
                           >
                             Retake
                           </button>
@@ -1105,9 +1418,16 @@ export default function LessonViewWrapper({
                             type="button"
                             onClick={() => {
                               setQuizStarted(true);
+                              setIsReviewing(true);
                               setCurrentQuestionIndex(0);
+                              if (lastAttempt) {
+                                const restored = restoreQuizAnswersFromAttempt(lastAttempt, activeQuizQuestions);
+                                if (Object.keys(restored).length > 0) {
+                                  setQuizAnswers((prev) => ({ ...restored, ...prev }));
+                                }
+                              }
                             }}
-                            className="px-6 py-2 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-sm"
+                            className={styles.btn_quiz_action}
                           >
                             Review
                           </button>
@@ -1115,38 +1435,37 @@ export default function LessonViewWrapper({
 
                         {/* Attempts History Table ("Last Attempt" section) */}
                         {attemptsList.length > 0 && (
-                          <div className="mt-10 pt-8 border-t border-slate-100 max-w-2xl mx-auto">
-                            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-4 text-left">
+                          <div className={styles.quiz_attempts_wrapper}>
+                            <h3 className={styles.quiz_attempts_title}>
                               Last Attempt
                             </h3>
-                            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
-                              <table className="w-full text-sm text-left text-slate-600">
-                                <thead className="text-xs uppercase bg-slate-100/70 border-b border-slate-200 font-bold text-slate-700">
+                            <div className={styles.quiz_attempts_table_wrap}>
+                              <table className={styles.quiz_attempts_table}>
+                                <thead className={styles.quiz_attempts_thead}>
                                   <tr>
-                                    <th className="px-4 py-3">Questions</th>
-                                    <th className="px-4 py-3">Time spent</th>
-                                    <th className="px-4 py-3">Marks</th>
-                                    <th className="px-4 py-3">Passing grade</th>
-                                    <th className="px-4 py-3 text-right">Result</th>
+                                    <th className={styles.quiz_attempts_th}>Questions</th>
+                                    <th className={styles.quiz_attempts_th}>Time spent</th>
+                                    <th className={styles.quiz_attempts_th}>Marks</th>
+                                    <th className={styles.quiz_attempts_th}>Passing grade</th>
+                                    <th className={styles.quiz_attempts_th_right}>Result</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 bg-white">
+                                <tbody className={styles.quiz_attempts_tbody}>
                                   {attemptsList.map((att: any, index: number) => (
-                                    <tr key={att.user_item_id || index} className="hover:bg-slate-50/80 transition-colors">
-                                      <td className="px-4 py-3 font-medium text-slate-900">
+                                    <tr key={att.user_item_id || index}>
+                                      <td className={styles.quiz_attempts_td_main}>
                                         {att.questions || ""}
                                       </td>
-                                      <td className="px-4 py-3 text-slate-600 font-mono">
+                                      <td className={styles.quiz_attempts_td_mono}>
                                         {att.time_spent || ""}
                                       </td>
-                                      <td className="px-4 py-3 font-medium text-slate-800">
+                                      <td className={styles.quiz_attempts_td}>
                                         {att.points || ""}
                                       </td>
-                                      <td className="px-4 py-3 text-slate-600">
+                                      <td className={styles.quiz_attempts_td}>
                                         {att.passing_grade || "80%"}
                                       </td>
-                                      <td className={`px-4 py-3 font-bold text-right ${parseFloat(att.result || att.result_num || "0") >= 80 ? "text-emerald-600" : "text-red-500"
-                                        }`}>
+                                      <td className={parseFloat(att.result || att.result_num || "0") >= 80 ? styles.quiz_attempts_result_passed : styles.quiz_attempts_result_failed}>
                                         {att.result || `${att.result_num || 0}%`}
                                       </td>
                                     </tr>
@@ -1165,27 +1484,27 @@ export default function LessonViewWrapper({
                         />
 
                         {/* Quiz Meta Information Card (Matching EduBlink / LearnPress Quiz detail design) */}
-                        <div className="my-8 p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl shadow-sm max-w-4xl mx-auto">
-                          <div className="flex flex-wrap items-center justify-around gap-4 sm:gap-8 pb-6 border-b border-slate-100 text-sm sm:text-base">
+                        <div className={styles.quiz_overview_card}>
+                          <div className={styles.quiz_overview_meta}>
                             {/* Questions count */}
-                            <div className="flex items-center gap-2.5 font-medium text-slate-800">
-                              <Puzzle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                            <div className={styles.quiz_overview_meta_item}>
+                              <Puzzle className={styles.quiz_meta_icon} />
                               <span>
                                 <strong>Questions:</strong> {activeQuizQuestions.length > 0 ? activeQuizQuestions.length : (extractQuestionsCount(activeItem?.questions_count || activeLesson?.questions_count) || activeQuizQuestions.length || 1)}
                               </span>
                             </div>
 
                             {/* Duration */}
-                            <div className="flex items-center gap-2.5 font-medium text-slate-800">
-                              <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                            <div className={styles.quiz_overview_meta_item}>
+                              <Clock className={styles.quiz_meta_icon} />
                               <span>
                                 <strong>Duration:</strong> {formatMetaDuration(activeItem?.duration || activeLesson?.duration)}
                               </span>
                             </div>
 
                             {/* Passing Grade */}
-                            <div className="flex items-center gap-2.5 font-medium text-slate-800">
-                              <BarChart2 className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                            <div className={styles.quiz_overview_meta_item}>
+                              <BarChart2 className={styles.quiz_meta_icon} />
                               <span>
                                 <strong>Passing grade:</strong> {passingGrade}%
                               </span>
@@ -1193,15 +1512,16 @@ export default function LessonViewWrapper({
                           </div>
 
                           {/* Start Button */}
-                          <div className="pt-6 flex justify-center">
+                          <div className={styles.quiz_start_btn_wrap}>
                             <button
                               type="button"
                               onClick={() => {
                                 setQuizStarted(true);
+                                setIsReviewing(false);
                                 setCurrentQuestionIndex(0);
                                 setQuizSubmitted(false);
                               }}
-                              className="px-10 py-3 bg-[#1ab69d] hover:bg-[#159681] text-white font-semibold rounded-xl text-base transition-all shadow-md shadow-[#1ab69d]/20 active:scale-95 cursor-pointer"
+                              className={styles.btn_start_quiz}
                             >
                               Start
                             </button>
@@ -1210,53 +1530,101 @@ export default function LessonViewWrapper({
                       </>
                     )
                   ) : (
-                    <div className="my-6 max-w-4xl mx-auto">
+                    <div className={styles.active_quiz_wrapper}>
                       {/* Yellow/Gold Header Bar */}
-                      <div className="bg-[#f59e0b] rounded-t-xl px-6 py-4 flex items-center justify-between text-slate-900 font-semibold shadow-sm">
-                        <div className="text-base sm:text-lg">
-                          Question <strong className="font-bold">{Math.min(currentQuestionIndex + 1, activeQuizQuestions.length)}</strong> of {activeQuizQuestions.length}
+                      <div className={`${styles.active_quiz_header} ${isReviewing ? styles.active_quiz_header_review : ""}`}>
+                        <div className={styles.active_quiz_header_title}>
+                          {isReviewing && (
+                            <span className={styles.badge_review_mode}>
+                              Review Mode
+                            </span>
+                          )}
+                          <span>Question <strong>{Math.min(currentQuestionIndex + 1, activeQuizQuestions.length)}</strong> of {activeQuizQuestions.length}</span>
                         </div>
 
-                        <div className="flex items-center gap-5">
-                          {timeLeft !== null && (
-                            <div className="flex items-center gap-1.5 text-base sm:text-lg font-bold">
+                        <div className={styles.active_quiz_timer_actions}>
+                          {!isReviewing && timeLeft !== null && (
+                            <div className={styles.active_quiz_timer}>
                               <Clock size={18} />
                               <span>{formatTimerSeconds(timeLeft)}</span>
                             </div>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => setShowSubmitQuizModal(true)}
-                            className="bg-white hover:bg-slate-100 text-slate-900 font-extrabold px-5 py-2 rounded-lg text-xs sm:text-sm tracking-wider uppercase transition-all shadow-sm active:scale-95 cursor-pointer"
-                          >
-                            FINISH QUIZ
-                          </button>
+                          {isReviewing ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuizStarted(false);
+                                setIsReviewing(false);
+                              }}
+                              className={styles.btn_exit_review}
+                            >
+                              Exit Review
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setShowSubmitQuizModal(true)}
+                              className={styles.btn_finish_quiz}
+                            >
+                              FINISH QUIZ
+                            </button>
+                          )}
                         </div>
                       </div>
 
                       {/* Current Question Box */}
-                      <div className="bg-white border-x border-b border-slate-200 rounded-b-xl p-6 sm:p-8 shadow-sm">
+                      <div className={styles.active_quiz_body}>
                         {(() => {
                           const currentQ = activeQuizQuestions[Math.min(currentQuestionIndex, activeQuizQuestions.length - 1)];
                           const qId = currentQ?.id;
                           const qType = currentQ?.type || currentQ?.question_type || "single_choice";
                           const isMultiChoice = qType === "multi_choice" || qType === "multiple_choice";
+                          const isTrueFalse = qType === "true_or_false" || qType === "true_false";
+
+                          const userAns = quizAnswers[qId];
+                          const isCorrect = isQuestionCorrect(currentQ, userAns);
+
+                          // Determine correct answer array for options
+                          let correctIndices: number[] = [];
+                          if (Array.isArray(currentQ?.correct)) {
+                            correctIndices = currentQ.correct.map(Number);
+                          } else if (currentQ?.correct !== undefined && currentQ?.correct !== null) {
+                            correctIndices = [Number(currentQ.correct)];
+                          }
 
                           return (
                             <>
-                              <div className="flex items-center justify-between mb-4">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${
-                                  isMultiChoice ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
-                                }`}>
-                                  {isMultiChoice ? "Multi Choice (Select multiple answers)" : "Single Choice"}
+                              <div className={styles.active_quiz_question_bar}>
+                                <span className={
+                                  isMultiChoice ? styles.badge_q_type_multi : isTrueFalse ? styles.badge_q_type_tf : styles.badge_q_type_single
+                                }>
+                                  {isMultiChoice ? "Multi Choice (Select multiple answers)" : isTrueFalse ? "True / False" : "Single Choice"}
                                 </span>
+
+                                {isReviewing && (
+                                  <span className={
+                                    userAns === undefined
+                                      ? styles.badge_review_skipped
+                                      : isCorrect
+                                      ? styles.badge_review_correct
+                                      : styles.badge_review_incorrect
+                                  }>
+                                    {userAns === undefined ? (
+                                      "Skipped"
+                                    ) : isCorrect ? (
+                                      <>✓ Correct</>
+                                    ) : (
+                                      <>✕ Incorrect</>
+                                    )}
+                                  </span>
+                                )}
                               </div>
 
-                              <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-6 leading-relaxed">
+                              <h3 className={styles.question_text}>
                                 {currentQ?.question}
                               </h3>
 
-                              <div className="space-y-3">
+                              <div className={styles.options_list}>
                                 {currentQ?.options?.map((opt: string, oIdx: number) => {
                                   const currentAns = quizAnswers[qId];
                                   const selectedArr: number[] = Array.isArray(currentAns)
@@ -1266,7 +1634,11 @@ export default function LessonViewWrapper({
                                     ? selectedArr.includes(oIdx)
                                     : currentAns === oIdx;
 
+                                  const isOptionCorrect = correctIndices.includes(oIdx);
+
                                   const handleToggleOption = () => {
+                                    if (isReviewing) return; // Disable clicking options in Review mode
+
                                     if (isMultiChoice) {
                                       setQuizAnswers((prev) => {
                                         const prevArr: number[] = Array.isArray(prev[qId])
@@ -1282,32 +1654,77 @@ export default function LessonViewWrapper({
                                     }
                                   };
 
+                                  // Review mode styling
+                                  let optionCardStyle = isReviewing ? "" : styles.option_card_clickable;
+                                  let badgeStyle = "";
+
+                                  if (isReviewing) {
+                                    if (isSelected && isOptionCorrect) {
+                                      optionCardStyle = styles.option_card_review_correct_sel;
+                                      badgeStyle = styles.option_badge_review_correct_sel;
+                                    } else if (isSelected && !isOptionCorrect) {
+                                      optionCardStyle = styles.option_card_review_incorrect_sel;
+                                      badgeStyle = styles.option_badge_review_incorrect_sel;
+                                    } else if (!isSelected && isOptionCorrect) {
+                                      optionCardStyle = styles.option_card_review_correct_unsel;
+                                      badgeStyle = styles.option_badge_review_correct_unsel;
+                                    } else {
+                                      optionCardStyle = styles.option_card_review_dimmed;
+                                      badgeStyle = "";
+                                    }
+                                  } else if (isSelected) {
+                                    optionCardStyle = styles.option_card_selected;
+                                    badgeStyle = styles.option_badge_selected;
+                                  }
+
                                   return (
                                     <label
                                       key={oIdx}
                                       onClick={handleToggleOption}
-                                      className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
-                                        isSelected
-                                          ? "border-amber-500 bg-amber-50/40 shadow-sm"
-                                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 bg-white"
-                                      }`}
+                                      className={`${styles.option_card} ${optionCardStyle}`}
                                     >
-                                      <div
-                                        className={`w-6 h-6 ${isMultiChoice ? "rounded-md" : "rounded-full"} border flex items-center justify-center flex-shrink-0 transition-colors ${
-                                          isSelected
-                                            ? "border-amber-500 bg-amber-500 text-white"
-                                            : "border-slate-300 bg-white"
-                                        }`}
-                                      >
-                                        {isSelected && (
-                                          isMultiChoice ? (
-                                            <Check size={14} className="text-white font-bold" />
+                                      <div className={styles.option_inner}>
+                                        <div
+                                          className={`${styles.option_badge} ${isMultiChoice ? styles.option_badge_multi : styles.option_badge_single} ${badgeStyle}`}
+                                        >
+                                          {isReviewing ? (
+                                            isSelected ? (
+                                              isOptionCorrect ? (
+                                                <Check size={14} style={{ color: "#ffffff", fontWeight: "bold" }} />
+                                              ) : (
+                                                <span style={{ color: "#ffffff", fontSize: "12px", fontWeight: "bold" }}>✕</span>
+                                              )
+                                            ) : isOptionCorrect ? (
+                                              <div className={styles.radio_dot_emerald} />
+                                            ) : null
                                           ) : (
-                                            <div className="w-2 h-2 rounded-full bg-white" />
-                                          )
-                                        )}
+                                            isSelected && (
+                                              isMultiChoice ? (
+                                                <Check size={14} style={{ color: "#ffffff", fontWeight: "bold" }} />
+                                              ) : (
+                                                <div className={styles.radio_dot_white} />
+                                              )
+                                            )
+                                          )}
+                                        </div>
+                                        <span className={styles.option_label}>{opt}</span>
                                       </div>
-                                      <span className="text-sm sm:text-base text-slate-700 font-medium">{opt}</span>
+
+                                      {isReviewing && isSelected && isOptionCorrect && (
+                                        <span className={styles.badge_choice_correct}>
+                                          ✓ Your Choice (Correct)
+                                        </span>
+                                      )}
+                                      {isReviewing && isSelected && !isOptionCorrect && (
+                                        <span className={styles.badge_choice_incorrect}>
+                                          ✕ Your Choice (Incorrect)
+                                        </span>
+                                      )}
+                                      {isReviewing && !isSelected && isOptionCorrect && (
+                                        <span className={styles.badge_choice_answer}>
+                                          Correct Answer
+                                        </span>
+                                      )}
                                     </label>
                                   );
                                 })}
@@ -1318,12 +1735,12 @@ export default function LessonViewWrapper({
                       </div>
 
                       {/* Bottom Pagination / Navigation Bar */}
-                      <div className="flex items-center justify-center gap-2 mt-8">
+                      <div className={styles.question_nav_bar}>
                         {currentQuestionIndex > 0 && (
                           <button
                             type="button"
                             onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
-                            className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm cursor-pointer"
+                            className={styles.btn_q_nav}
                           >
                             Prev
                           </button>
@@ -1332,17 +1749,36 @@ export default function LessonViewWrapper({
                         {activeQuizQuestions.map((q, qIdx) => {
                           const isCurrent = qIdx === currentQuestionIndex;
                           const isAnswered = quizAnswers[q.id] !== undefined;
+
+                          let navStyle = styles.btn_q_num;
+
+                          if (isReviewing) {
+                            const qUserAns = quizAnswers[q.id];
+                            const qCorrect = isQuestionCorrect(q, qUserAns);
+                            if (qUserAns === undefined) {
+                              navStyle = `${styles.btn_q_num} ${styles.btn_q_num_rev_skipped}`;
+                            } else if (qCorrect) {
+                              navStyle = `${styles.btn_q_num} ${styles.btn_q_num_rev_correct}`;
+                            } else {
+                              navStyle = `${styles.btn_q_num} ${styles.btn_q_num_rev_incorrect}`;
+                            }
+                            if (isCurrent) {
+                              navStyle += ` ${styles.btn_q_num_rev_active}`;
+                            }
+                          } else {
+                            if (isCurrent) {
+                              navStyle = `${styles.btn_q_num} ${styles.btn_q_num_current}`;
+                            } else if (isAnswered) {
+                              navStyle = `${styles.btn_q_num} ${styles.btn_q_num_answered}`;
+                            }
+                          }
+
                           return (
                             <button
                               key={q.id}
                               type="button"
                               onClick={() => setCurrentQuestionIndex(qIdx)}
-                              className={`w-10 h-10 rounded-lg border font-semibold text-sm transition-all cursor-pointer ${isCurrent
-                                  ? "border-amber-500 text-amber-600 bg-white shadow-sm ring-1 ring-amber-500"
-                                  : isAnswered
-                                    ? "border-slate-300 text-slate-700 bg-slate-100"
-                                    : "border-slate-200 text-slate-600 bg-white hover:bg-slate-50"
-                                }`}
+                              className={navStyle}
                             >
                               {qIdx + 1}
                             </button>
@@ -1353,7 +1789,7 @@ export default function LessonViewWrapper({
                           <button
                             type="button"
                             onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
-                            className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm cursor-pointer"
+                            className={styles.btn_q_nav}
                           >
                             Next
                           </button>
@@ -1370,7 +1806,7 @@ export default function LessonViewWrapper({
                   />
 
                   {/* Complete & Finish Buttons */}
-                  <div className="flex items-center gap-4 mb-10 flex-wrap">
+                  <div className={styles.lesson_actions_bar}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1385,7 +1821,7 @@ export default function LessonViewWrapper({
                       {isCompleting ? (
                         "Processing..."
                       ) : isCurrentCompleted ? (
-                        <span className="inline-flex items-center gap-1">
+                        <span className={styles.icon_label_group}>
                           <Check size={16} /> Completed
                         </span>
                       ) : (
@@ -1404,7 +1840,7 @@ export default function LessonViewWrapper({
                         {isFinishingCourse ? (
                           "Finishing..."
                         ) : isCourseFinished ? (
-                          <span className="inline-flex items-center gap-1">
+                          <span className={styles.icon_label_group}>
                             <Check size={16} /> Course Finished
                           </span>
                         ) : (
@@ -1427,7 +1863,7 @@ export default function LessonViewWrapper({
                       </h2>
 
                       {loadingComments ? (
-                        <div className="p-4 text-slate-500 text-sm italic">
+                        <div className={styles.no_comments_notice}>
                           Loading comments...
                         </div>
                       ) : commentsList.length > 0 ? (
@@ -1442,7 +1878,7 @@ export default function LessonViewWrapper({
                                       src={comment.avatar}
                                       height={50}
                                       width={50}
-                                      className="rounded-full"
+                                      className={styles.avatar_round}
                                     />
                                   </div>
 
@@ -1485,11 +1921,11 @@ export default function LessonViewWrapper({
                   <div id="respond" className={styles.comment_respond}>
                     <h3 className={styles.comments_title}>Leave a Reply</h3>
                     <p className={styles.logged_in_as}>
-                      Logged in as <strong>{user?.username || "student"}</strong>. <Link href="/my-account/personal-info">Edit your profile</Link>. Required fields are marked <span className="text-red-500">*</span>
+                      Logged in as <strong>{user?.username || "student"}</strong>. <Link href="/my-account/personal-info">Edit your profile</Link>. Required fields are marked <span className={styles.required_star}>*</span>
                     </p>
 
                     {commentPosted && (
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg mb-4 text-sm font-semibold">
+                      <div className={styles.comment_success_alert}>
                         ✅ Your comment has been posted successfully!
                       </div>
                     )}
@@ -1591,10 +2027,10 @@ export default function LessonViewWrapper({
               <h3 className={styles.modal_title}>🎉 Congratulations!</h3>
             </div>
             <div className={styles.modal_body}>
-              <p className="text-base font-semibold text-slate-800 mb-2">
+              <p className={styles.modal_finish_title}>
                 You have successfully completed <strong>{courseTitle}</strong>!
               </p>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <p className={styles.modal_finish_desc}>
                 Your learning progress reached <strong>{progressPercent}%</strong> (Passing grade: {passingGrade}%). Your completion status has been saved.
               </p>
             </div>
@@ -1611,18 +2047,18 @@ export default function LessonViewWrapper({
       {showSubmitQuizModal && (
         <div className={styles.modal_backdrop} onClick={() => setShowSubmitQuizModal(false)}>
           <div
-            className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4 text-center border border-slate-100"
+            className={styles.modal_quiz_card}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-slate-800 text-lg font-medium mb-8">
+            <div className={styles.modal_quiz_title}>
               Are you sure to submit the quiz?
             </div>
 
-            <div className="flex items-center justify-center gap-4">
+            <div className={styles.modal_quiz_actions}>
               <button
                 type="button"
                 onClick={() => setShowSubmitQuizModal(false)}
-                className="px-6 py-2 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+                className={styles.btn_modal_cancel}
               >
                 Cancel
               </button>
@@ -1632,7 +2068,46 @@ export default function LessonViewWrapper({
                   setShowSubmitQuizModal(false);
                   handleFinishQuizClick();
                 }}
-                className="px-8 py-2 border border-slate-200 rounded-lg text-slate-800 font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+                className={styles.btn_modal_ok}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Retake Quiz Confirmation Modal */}
+      {showRetakeModal && (
+        <div className={styles.modal_backdrop} onClick={() => setShowRetakeModal(false)}>
+          <div
+            className={styles.modal_quiz_card}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modal_quiz_title}>
+              Are you sure you want to retake the quiz?
+            </div>
+
+            <div className={styles.modal_quiz_actions}>
+              <button
+                type="button"
+                onClick={() => setShowRetakeModal(false)}
+                className={styles.btn_modal_cancel}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRetakeModal(false);
+                  setQuizStarted(true);
+                  setIsReviewing(false);
+                  setQuizSubmitted(false);
+                  setQuizAnswers({});
+                  setCurrentQuestionIndex(0);
+                  setTimeSpent(0);
+                }}
+                className={styles.btn_modal_ok}
               >
                 OK
               </button>

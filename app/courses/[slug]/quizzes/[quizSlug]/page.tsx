@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { fetchWPCourseBySlug } from "@/lib/api/courses";
-import { checkUserCourseEnrollment, getLearnDashUserProgress } from "@/lib/wordpress";
+import { checkUserCourseEnrollment, getLearnDashUserProgress, getQuizBySlug } from "@/lib/wordpress";
 import LessonViewWrapper from "../../lessons/[lessonId]/LessonViewWrapper";
 
 interface PageProps {
@@ -86,8 +86,7 @@ export default async function QuizDetailPage({ params }: PageProps) {
             return (
               rawId === quizSlug ||
               (it.slug && it.slug.toString() === quizSlug) ||
-              (cleanTitleSlug && cleanTitleSlug === quizSlug) ||
-              (it.item_type === "lp_quiz" || it.type === "lp_quiz")
+              (cleanTitleSlug && cleanTitleSlug === quizSlug)
             );
           });
           if (match) {
@@ -159,15 +158,16 @@ export default async function QuizDetailPage({ params }: PageProps) {
     }
 
     // Minimum fallback if still no activeLesson
-    if (!activeLesson) {
+    if (!activeLesson && foundSectionItem) {
+      const fallbackTitle = foundSectionItem.title || foundSectionItem.name || foundSectionItem.post_title || "Quiz";
       activeLesson = {
-        id: quizSlug,
-        slug: quizSlug,
+        id: foundSectionItem.item_id || foundSectionItem.id || quizSlug,
+        slug: foundSectionItem.slug || quizSlug,
         item_type: 'lp_quiz',
-        title: { rendered: `Practical Life Review` },
-        content: { rendered: `<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>` },
-        duration: '',
-        questions_count: '2',
+        title: { rendered: fallbackTitle },
+        content: { rendered: foundSectionItem.post_content || foundSectionItem.content || foundSectionItem.description || `<p>Quiz content...</p>` },
+        duration: foundSectionItem.duration || '',
+        questions_count: foundSectionItem.questions_count || '',
       };
     }
 
@@ -242,13 +242,15 @@ export default async function QuizDetailPage({ params }: PageProps) {
     );
   }
 
+  const targetQuizId = (activeLesson?.id || targetNumericId || quizSlug).toString();
+
   return (
     <LessonViewWrapper
       displayOptions={displayOptions}
       activeLesson={activeLesson}
       course={course}
       courseId={courseId}
-      lessonId={quizSlug}
+      lessonId={targetQuizId}
       completedLessons={completedLessons}
       user={user}
       slug={courseSlug}

@@ -2,41 +2,67 @@ import Image from 'next/image';
 import Link from 'next/link';
 import LazyLoad from '../common/LazyLoad';
 import styles from './LatestNews.module.css';
+import { getPosts } from '../../lib/wordpress';
 
-const newsArticles = [
-  {
-    id: 1,
-    title: 'Crafting Effective Learning Guide Line',
-    category: 'Science',
-    date: '15 Nov, 2023',
-    comments: 'Com 0',
-    excerpt: 'aConsectetur adipisicing elit, sed do eiusmod tempor inc...',
-    image: 'https://demo.edublink.co/wp-content/uploads/2023/11/course-79-750x750.jpg',
-    url: 'https://demo.edublink.co/crafting-effective-learning-paths-at-curriculum-corner/',
-  },
-  {
-    id: 2,
-    title: 'Exploring Learning Landscapes in Academic',
-    category: 'Technology',
-    date: '14 Nov, 2023',
-    comments: 'Com 3',
-    excerpt: 'Consectetur adipisicing elit, sed do eiusmod tempor inc idid unt ut labore et dolore magna aliqua enim ad...',
-    image: 'https://demo.edublink.co/wp-content/uploads/2023/03/course-09-750x750.jpg',
-    url: 'https://demo.edublink.co/exploring-learning-landscapes-in-academic-alcove/',
-  },
-  {
-    id: 3,
-    title: 'Voices from the Learning Education Hub',
-    category: 'Learning',
-    date: '13 Nov, 2023',
-    comments: 'Com 0',
-    excerpt: 'Consectetur adipisicing elit, sed do eiusmod tempor inc idid unt ut labore...',
-    image: 'https://demo.edublink.co/wp-content/uploads/2023/03/course-07-750x750.jpg',
-    url: 'https://demo.edublink.co/voices-from-the-learning-education-hub/',
-  },
-];
+export default async function LatestNews() {
+  const posts = await getPosts(3);
 
-export default function LatestNews() {
+  const newsArticles = posts.map((post: any) => {
+    // Extract categories
+    let categories: { name: string; slug: string }[] = [];
+    if (post._embedded && post._embedded['wp:term'] && post._embedded['wp:term'][0]) {
+      categories = post._embedded['wp:term'][0].map((cat: any) => ({
+        name: cat.name,
+        slug: cat.slug
+      })).filter((cat: any) => cat.name);
+    }
+    if (categories.length === 0) {
+      categories = [{ name: 'News', slug: '' }];
+    }
+
+    // Extract image
+    let imageUrl = '/images/course-01.jpg'; // fallback image
+    if (post._embedded && post._embedded['wp:featuredmedia'] && post._embedded['wp:featuredmedia'][0]) {
+      imageUrl = post._embedded['wp:featuredmedia'][0].source_url || imageUrl;
+    }
+
+    // Strip HTML from excerpt
+    let excerpt = post.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim() || '';
+    if (excerpt.length > 80) excerpt = excerpt.substring(0, 80) + '...';
+
+    // Format date
+    const dateObj = new Date(post.date);
+    const day = dateObj.getDate();
+    const month = dateObj.toLocaleDateString('en-US', { month: 'short' });
+    const year = dateObj.getFullYear();
+    const dateFormatted = `${day} ${month}, ${year}`;
+
+    // Extract comments count
+    const commentCount = post.comment_count ?? post._embedded?.replies?.[0]?.length ?? 0;
+    const commentsFormatted = `${commentCount} ${commentCount === 1 ? 'Comment' : 'Comments'}`;
+
+    // Decode title slightly
+    let title = post.title?.rendered || '';
+    title = title.replace(/&#(\d+);/g, (match: string, dec: number) => String.fromCharCode(dec))
+                 .replace(/&#x([0-9a-f]+);/ig, (match: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+                 .replace(/&amp;/g, '&')
+                 .replace(/&lt;/g, '<')
+                 .replace(/&gt;/g, '>')
+                 .replace(/&quot;/g, '"')
+                 .replace(/&#039;/g, "'");
+
+    return {
+      id: post.id,
+      title: title,
+      categories: categories,
+      date: dateFormatted,
+      comments: commentsFormatted,
+      excerpt: excerpt,
+      image: imageUrl,
+      url: `/${post.slug}`,
+    };
+  });
+
   return (
     <section className={styles.hn_latest_news}>
       <div className={styles.hn_latest_news__background_overlay}>
@@ -78,7 +104,7 @@ export default function LatestNews() {
                 <div className={styles.hn_latest_news__post_wrapper_outer}>
                   <div className={styles.hn_latest_news__blog_post_wrapper}>
 
-                    {newsArticles.map((article) => (
+                    {newsArticles.map((article: any) => (
                       <div key={article.id} className={styles.hn_latest_news__single_grid}>
                         <div className={styles.hn_latest_news__edu_blog}>
                           <div className={styles.hn_latest_news__inner}>
@@ -108,9 +134,19 @@ export default function LatestNews() {
 
                               {/* Category */}
                               <div className={styles.hn_latest_news__category_wrap}>
-                                <Link href="#" className={styles.hn_latest_news__category_link}>
-                                  {article.category}
-                                </Link>
+                                {article.categories.map((cat: any, idx: number) => (
+                                  <span key={cat.slug || idx}>
+                                    <Link 
+                                      href={cat.slug ? `/category/${cat.slug}` : '#'} 
+                                      className={styles.hn_latest_news__category_link}
+                                    >
+                                      {cat.name}
+                                    </Link>
+                                    {idx < article.categories.length - 1 && (
+                                      <span className={styles.hn_latest_news__category_separator}>, </span>
+                                    )}
+                                  </span>
+                                ))}
                               </div>
 
                               {/* Title */}

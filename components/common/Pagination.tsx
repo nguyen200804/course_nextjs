@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { MoveLeft, MoveRight } from "lucide-react";
 import styles from "./Pagination.module.css";

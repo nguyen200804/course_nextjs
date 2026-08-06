@@ -1,210 +1,118 @@
-<div class="edublink-col-lg-12">                                            <div id="post-12688" class="post-12688 lp_course type-lp_course status-publish has-post-thumbnail hentry course_category-business course_category-programming course_tag-development course">
-                                            <div class="edublink-single-course course-style-19"><div class="inner"><div class="thumbnail"><a class="course-thumb" href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/"><img decoding="async" class="w-100" src="https://demo.edublink.co/wp-content/uploads/2023/11/course-83-590x430.jpg" alt="course-83"></a><div class="time-top"><span class="duration"><i class="icon-61"></i>30 hours</span></div></div><div class="content main-content">
-<div class="course-price">
-	<span class="course-item-price"><span class="price">$35</span></span></div>
-<h6 class="title"><a href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/">The Complete Python Bootcamp From Zero to Hero</a></h6><div class="course-rating"><div class="edublink-course-review-wrapper"><div class="review-stars-rated" title="4 out of 5 stars">
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:0%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-	</div>
-<span>(4.0/ 2 Ratings)</span></div></div><p>Lorem ipsum dolor sit amet consectur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,...</p>
-<ul class="course-meta"><li><i class="icon-24"></i>7 Lessons</li><li><i class="icon-25"></i>674 Students</li></ul></div></div><div class="edublink-course-14-hover visible-bottom"><div class="inner"><div class="content"><span class="course-level"><a href="https://demo.edublink.co/course-category/business/">Business</a></span><h6 class="title"><a href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/">The Complete Python Bootcamp From Zero to Hero</a></h6><div class="course-rating"><div class="edublink-course-review-wrapper"><div class="review-stars-rated" title="4 out of 5 stars">
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:100%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-			<div class="review-star">
-			<span class="far">
-  				<svg width="17px" height="16px" viewBox="0 0 17 16" xmlns="http://www.w3.org/2000/svg">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<path d="M8.5,0 L10.9285714,6.15384615 L17,6.15384615 L11.5357143,9.84615385 L13.9642857,16 L8.5,12.3076923 L3.03571429,16 L5.46428571,9.84615385 L0,6.15384615 L6.07142857,6.15384615 L8.5,0 Z M8.46921775,3.53848077 L7.09419569,7.21637091 L3.96923077,7.21637091 L6.96923077,9.20675852 L5.63589261,12.5384808 L8.46921775,10.5710529 L11.3025689,12.5384808 L9.96921341,9.20675852 L12.9692308,7.21637091 L9.84423981,7.21637091 L8.46921775,3.53848077 Z"></path>
-						</g>
-					</g>
-				</svg>
- 			</span>
-			<span class="fas" style="width:0%;">
- 				<svg xmlns="http://www.w3.org/2000/svg" width="17px" height="16px" viewBox="0 0 17 16">
-					<g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-						<g fill="#FFB606" fill-rule="nonzero">
-							<polygon points="8.5 12.3076923 3.03571429 16 5.46428571 9.84615385 0 6.15384615 6.07142857 6.15384615 8.5 0 10.9285714 6.15384615 17 6.15384615 11.5357143 9.84615385 13.9642857 16"></polygon>
-						</g>
-					</g>
-				</svg>
-			</span>
-		</div>
-	</div>
-<span>(4.0)</span></div></div><ul class="course-meta"><li>7 Lessons</li><li class="course-meta-info">30 hours</li><li class="course-meta-info">Beginner</li></ul><div class="course-feature"><h6 class="feature-title">What You’ll Learn?</h6><ul><li class="course-list-item">Python Programming: A Beginner's Guide</li><li class="course-list-item">Mastering Python: From Novice to Expert</li><li class="course-list-item">Building Web Applications with Python</li></ul></div><div class="button-group"><a class="edu-btn btn-medium" href="https://demo.edublink.co/courses/the-complete-python-bootcamp-from-zero-to-hero/">Enroll Now</a><button class="edublink-wishlist-wrapper learn-press-course-wishlist-button-12688 course-wishlist" data-id="12688" data-nonce="1cdabed616" title="Add this course to your wishlist"></button></div></div></div></div></div></div></div>
+Để đồng bộ URL hai chiều giữa WordPress (LearnPress Quiz) và NextJS, bạn cần điều chỉnh hai phần chính: **WordPress Custom Rewrites/Filters** (cho phía WordPress redirect đúng cấu trúc NextJS) và **NextJS Routes & Components** (để xử lý tham số và gọi API chính xác).
+
+**Cấu trúc URL chuẩn đồng bộ:**
+`/courses/[course-slug]/quizzes/[quiz-slug]`
+
+---
+
+### 1. Cấu hình WordPress (`functions.php`)
+
+Thêm code hook vào `functions.php` để thay đổi permalink của Quiz LearnPress và hỗ trợ rewrite rule chuẩn:
+
+```php
+// 1. Đổi permalink của Quiz để WordPress trả về đúng đường dẫn NextJS
+add_filter('post_type_link', 'custom_lp_quiz_permalink', 10, 2);
+function custom_lp_quiz_permalink($post_link, $post) {
+    if ($post->post_type === 'lp_quiz') {
+        // Lấy course ID / slug liên quan đến quiz
+        $course_id = learn_press_get_item_course($post->ID);
+        if ($course_id) {
+            $course = get_post($course_id);
+            if ($course) {
+                return home_url("/courses/{$course->post_name}/quizzes/{$post->post_name}/");
+            }
+        }
+    }
+    return $post_link;
+}
+
+// 2. Thêm Rewrite Rules cho WordPress nhận diện URL này
+add_action('init', 'custom_lp_quiz_rewrite_rules');
+function custom_lp_quiz_rewrite_rules() {
+    add_rewrite_rule(
+        '^courses/([^/]+)/quizzes/([^/]+)/?$',
+        'index.php?post_type=lp_quiz&name=$matches[2]',
+        'top'
+    );
+}
+
+```
+
+*(Lưu ý: Sau khi thêm code này, bạn hãy vào **WordPress Dashboard -> Settings -> Permalinks** và nhấn **Save Changes** để flush rewrite rules)*.
+
+---
+
+### 2. Cấu hình Next.js (`app/courses/[slug]/quizzes/[quizSlug]/page.tsx`)
+
+Cập nhật file Route chính cho Quiz trong Next.js để nhận diện đúng `slug` (course) và `quizSlug` từ URL:
+
+```tsx
+import React from "react";
+import LessonViewWrapper from "../../lessons/[lessonId]/LessonViewWrapper";
+import { getQuizBySlug } from "@/lib/wordpress"; // Thêm function gọi API tương ứng
+
+interface PageProps {
+  params: Promise<{
+    slug: string;
+    quizSlug: string;
+  }>;
+}
+
+export default async function QuizPage({ params }: PageProps) {
+  const { slug, quizSlug } = await params;
+
+  // Lấy dữ liệu quiz thông qua quizSlug
+  const quizData = await getQuizBySlug(quizSlug);
+
+  return (
+    <LessonViewWrapper
+      courseSlug={slug}
+      itemId={quizData?.id}
+      itemType="lp_quiz"
+      itemSlug={quizSlug}
+    >
+      {/* NỘI DUNG QUIZ CỦA BẠN */}
+    </LessonViewWrapper>
+  );
+}
+
+```
+
+---
+
+### 3. Cập nhật `LessonViewWrapper.tsx`
+
+Cập nhật file `app/courses/[slug]/lessons/[lessonId]/LessonViewWrapper.tsx` để hỗ trợ chuyển đổi linh hoạt các tab Bài học (Lesson) và Bài tập (Quiz) đúng URL đồng bộ:
+
+```tsx
+// Trong LessonViewWrapper.tsx, cập nhật hàm xử lý chuyển bài/quiz:
+
+const handleItemClick = (item: { id: number; type: string; slug: string }) => {
+  if (item.type === "lp_quiz") {
+    // Điều hướng theo URL đồng bộ Quiz
+    router.push(`/courses/${courseSlug}/quizzes/${item.slug}`);
+  } else {
+    // Điều hướng bài học thông thường
+    router.push(`/courses/${courseSlug}/lessons/${item.id}`);
+  }
+};
+
+```
+
+---
+
+### 4. Bổ sung API helper (`lib/wordpress.ts`)
+
+Bổ sung hàm truy vấn dữ liệu Quiz theo `quizSlug` trong `lib/wordpress.ts`:
+
+```typescript
+export async function getQuizBySlug(quizSlug: string) {
+  const res = await fetch(
+    `${WORDPRESS_API_URL}/wp/v2/quizzes?slug=${quizSlug}`,
+    { next: { revalidate: 60 } }
+  );
+  const quizzes = await res.json();
+  return quizzes?.[0] || null;
+}
+
+```

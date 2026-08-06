@@ -5,15 +5,30 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import styles from '@/styles/my-account/PersonalInfo.module.css';
 
 export default function PersonalInfo() {
+    const [activeTab, setActiveTab] = useState<'general' | 'avatar' | 'password'>('general');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    const [formData, setFormData] = useState({
+    // General Form State
+    const [generalData, setGeneralData] = useState({
         firstName: '',
         lastName: '',
         displayName: '',
         email: '',
+        bio: '',
+        facebook: '',
+        xProfile: '',
+        youtube: '',
+        linkedin: '',
+    });
+
+    // Avatar State
+    const [avatarPreview, setAvatarPreview] = useState<string>('');
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+    // Password Form State
+    const [passwordData, setPasswordData] = useState({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
@@ -23,39 +38,59 @@ export default function PersonalInfo() {
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    // 1. Gọi hook lấy Account Details từ WordPress / WooCommerce API
+    // Fetch user profile info on mount
     useEffect(() => {
-        const fetchAccountDetails = async () => {
+        const fetchUserData = async () => {
             setLoading(true);
             try {
                 const res = await fetch('/api/user/account-details');
                 if (res.ok) {
                     const data = await res.json();
-                    setFormData((prev) => ({
-                        ...prev,
-                        firstName: data.firstName || '',
-                        lastName: data.lastName || '',
-                        displayName: data.displayName || '',
+                    setGeneralData({
+                        firstName: data.firstName || data.first_name || '',
+                        lastName: data.lastName || data.last_name || '',
+                        displayName: data.displayName || data.display_name || '',
                         email: data.email || '',
-                    }));
+                        bio: data.bio || data.description || '',
+                        facebook: data.facebook || '',
+                        xProfile: data.xProfile || data.x_twitter || '',
+                        youtube: data.youtube || '',
+                        linkedin: data.linkedin || '',
+                    });
+                    if (data.avatarUrl || data.avatar_url) {
+                        setAvatarPreview(data.avatarUrl || data.avatar_url);
+                    }
                 }
             } catch (err) {
-                console.error("Lỗi khi tải thông tin Account Details:", err);
+                console.error("Lỗi khi tải thông tin cá nhân:", err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchAccountDetails();
+        fetchUserData();
     }, []);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleGeneralChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+        setGeneralData((prev) => ({ ...prev, [name]: value }));
     };
 
-    // 2. Hook gửi yêu cầu lưu Account Details & Đổi mật khẩu lên WordPress
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setPasswordData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
+
+    // Submit General Info
+    const handleGeneralSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         setMessage(null);
@@ -64,26 +99,92 @@ export default function PersonalInfo() {
             const res = await fetch('/api/user/account-details', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
+                body: JSON.stringify(generalData),
             });
 
             const data = await res.json();
 
-            if (res.ok && data.success) {
-                setMessage({ type: 'success', text: data.message || 'Account details changed successfully.' });
-                // Reset ô nhập mật khẩu sau khi đổi thành công
-                setFormData((prev) => ({
-                    ...prev,
-                    currentPassword: '',
-                    newPassword: '',
-                    confirmPassword: '',
-                }));
+            if (res.ok && (data.success ?? true)) {
+                setMessage({ type: 'success', text: data.message || 'General information updated successfully.' });
             } else {
-                setMessage({ type: 'error', text: data.error || 'Could not update account details.' });
+                setMessage({ type: 'error', text: data.error || data.message || 'Could not update profile info.' });
             }
         } catch (err) {
-            console.error("Lỗi khi lưu Account Details:", err);
+            console.error("Lỗi khi lưu thông tin:", err);
             setMessage({ type: 'error', text: 'An error occurred while saving changes. Please try again.' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Submit Avatar Upload
+    const handleAvatarSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!avatarFile) {
+            setMessage({ type: 'error', text: 'Please select an image file to upload.' });
+            return;
+        }
+
+        setSaving(true);
+        setMessage(null);
+
+        try {
+            const formData = new FormData();
+            formData.append('avatar', avatarFile);
+
+            const res = await fetch('/api/user/profile', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await res.json();
+
+            if (res.ok && (data.success ?? true)) {
+                setMessage({ type: 'success', text: data.message || 'Avatar updated successfully.' });
+            } else {
+                setMessage({ type: 'error', text: data.error || data.message || 'Could not update avatar.' });
+            }
+        } catch (err) {
+            console.error("Lỗi khi upload avatar:", err);
+            setMessage({ type: 'error', text: 'An error occurred while uploading avatar.' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Submit Password Change
+    const handlePasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setMessage(null);
+
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setMessage({ type: 'error', text: 'New password and confirm password do not match.' });
+            return;
+        }
+
+        setSaving(true);
+
+        try {
+            const res = await fetch('/api/user/account-details', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentPassword: passwordData.currentPassword,
+                    newPassword: passwordData.newPassword,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok && (data.success ?? true)) {
+                setMessage({ type: 'success', text: data.message || 'Password changed successfully.' });
+                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            } else {
+                setMessage({ type: 'error', text: data.error || data.message || 'Could not change password.' });
+            }
+        } catch (err) {
+            console.error("Lỗi khi đổi mật khẩu:", err);
+            setMessage({ type: 'error', text: 'An error occurred while changing password.' });
         } finally {
             setSaving(false);
         }
@@ -91,116 +192,263 @@ export default function PersonalInfo() {
 
     if (loading) {
         return (
-            <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-                <Loader2 className="animate-spin" size={32} style={{ color: '#1ab69d' }} />
+            <div className={`${styles.container} ${styles.loaderWrapper}`}>
+                <Loader2 className={styles.spinner} size={32} />
             </div>
         );
     }
 
     return (
         <div className={styles.container}>
+            {/* Tab Navigation */}
+            <div className={styles.tabNav}>
+                <button
+                    type="button"
+                    onClick={() => { setActiveTab('general'); setMessage(null); }}
+                    className={`${styles.tabBtn} ${activeTab === 'general' ? styles.tabBtnActive : ''}`}
+                >
+                    <span>General</span>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => { setActiveTab('avatar'); setMessage(null); }}
+                    className={`${styles.tabBtn} ${activeTab === 'avatar' ? styles.tabBtnActive : ''}`}
+                >
+                    <span>Avatar</span>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => { setActiveTab('password'); setMessage(null); }}
+                    className={`${styles.tabBtn} ${activeTab === 'password' ? styles.tabBtnActive : ''}`}
+                >
+                    <span>Password</span>
+                </button>
+            </div>
+
             {/* Alert Message */}
             {message && (
-                <div style={{
-                    padding: '14px 18px',
-                    borderRadius: '6px',
-                    marginBottom: '24px',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    backgroundColor: message.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                    color: message.type === 'success' ? '#16a34a' : '#dc2626',
-                    border: message.type === 'success' ? '1px solid #bbf7d0' : '1px solid #fecaca'
-                }}>
+                <div className={`${styles.alert} ${message.type === 'success' ? styles.alertSuccess : styles.alertError}`}>
                     {message.text}
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className={styles.form}>
-                {/* Name Row: First Name & Last Name */}
-                <div className={styles.formGrid}>
-                    <div className={styles.formGroup}>
-                        <label htmlFor="firstName" className={styles.label}>
-                            First name <span className={styles.required}>*</span>
+            {/* TAB 1: GENERAL */}
+            {activeTab === 'general' && (
+                <form onSubmit={handleGeneralSubmit} className={styles.form}>
+                    <div className={styles.formGrid}>
+                        <div className={styles.formGroup}>
+                            <label htmlFor="firstName" className={styles.label}>
+                                First name
+                            </label>
+                            <input
+                                type="text"
+                                id="firstName"
+                                name="firstName"
+                                value={generalData.firstName}
+                                onChange={handleGeneralChange}
+                                className={styles.input}
+                            />
+                        </div>
+
+                        <div className={styles.formGroup}>
+                            <label htmlFor="lastName" className={styles.label}>
+                                Last name
+                            </label>
+                            <input
+                                type="text"
+                                id="lastName"
+                                name="lastName"
+                                value={generalData.lastName}
+                                onChange={handleGeneralChange}
+                                className={styles.input}
+                            />
+                        </div>
+                    </div>
+
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
+                        <label htmlFor="displayName" className={styles.label}>
+                            Display name <span className={styles.required}>*</span>
                         </label>
                         <input
                             type="text"
-                            id="firstName"
-                            name="firstName"
-                            value={formData.firstName}
-                            onChange={handleChange}
+                            id="displayName"
+                            name="displayName"
+                            value={generalData.displayName}
+                            onChange={handleGeneralChange}
                             className={styles.input}
                             required
                         />
                     </div>
 
-                    <div className={styles.formGroup}>
-                        <label htmlFor="lastName" className={styles.label}>
-                            Last name <span className={styles.required}>*</span>
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
+                        <label htmlFor="email" className={styles.label}>
+                            Email Address <span className={styles.required}>*</span>
                         </label>
                         <input
-                            type="text"
-                            id="lastName"
-                            name="lastName"
-                            value={formData.lastName}
-                            onChange={handleChange}
+                            type="email"
+                            id="email"
+                            name="email"
+                            value={generalData.email}
+                            onChange={handleGeneralChange}
                             className={styles.input}
                             required
                         />
                     </div>
-                </div>
 
-                {/* Display Name */}
-                <div className={styles.formGroup} style={{ marginTop: '20px' }}>
-                    <label htmlFor="displayName" className={styles.label}>
-                        Display name <span className={styles.required}>*</span>
-                    </label>
-                    <input
-                        type="text"
-                        id="displayName"
-                        name="displayName"
-                        value={formData.displayName}
-                        onChange={handleChange}
-                        className={styles.input}
-                        required
-                    />
-                    <span className={styles.fieldHint}>
-                        This will be how your name will be displayed in the account section and in reviews
-                    </span>
-                </div>
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
+                        <label htmlFor="bio" className={styles.label}>
+                            Biographical Info
+                        </label>
+                        <textarea
+                            id="bio"
+                            name="bio"
+                            rows={4}
+                            value={generalData.bio}
+                            onChange={handleGeneralChange}
+                            className={`${styles.input} ${styles.textareaInput}`}
+                        />
+                    </div>
 
-                {/* Email Address */}
-                <div className={styles.formGroup} style={{ marginTop: '20px' }}>
-                    <label htmlFor="email" className={styles.label}>
-                        Email address <span className={styles.required}>*</span>
-                    </label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className={styles.input}
-                        required
-                    />
-                </div>
+                    <p className={`${styles.fieldHint}`}>Share a little biographical information to fill out your profile. This may be shown publicly.</p>
 
-                {/* Password Change Fieldset */}
-                <fieldset className={styles.fieldset} style={{ marginTop: '30px' }}>
-                    <legend className={styles.legend}>Password change</legend>
 
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="facebook" className={styles.label}>
+                            Facebook Profile
+                        </label>
+                        <input
+                            type="url"
+                            id="facebook"
+                            name="facebook"
+                            placeholder="https://facebook.com/your-profile"
+                            value={generalData.facebook}
+                            onChange={handleGeneralChange}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
+                        <label htmlFor="xProfile" className={styles.label}>
+                            X Profile
+                        </label>
+                        <input
+                            type="url"
+                            id="xProfile"
+                            name="xProfile"
+                            placeholder="https://x.com/your-profile"
+                            value={generalData.xProfile}
+                            onChange={handleGeneralChange}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
+                        <label htmlFor="youtube" className={styles.label}>
+                            Youtube Channel
+                        </label>
+                        <input
+                            type="url"
+                            id="youtube"
+                            name="youtube"
+                            placeholder="https://youtube.com/c/your-channel"
+                            value={generalData.youtube}
+                            onChange={handleGeneralChange}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
+                        <label htmlFor="linkedin" className={styles.label}>
+                            Linkedin Profile
+                        </label>
+                        <input
+                            type="url"
+                            id="linkedin"
+                            name="linkedin"
+                            placeholder="https://linkedin.com/in/your-profile"
+                            value={generalData.linkedin}
+                            onChange={handleGeneralChange}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={styles.btnGroup}>
+                        <button type="submit" className={styles.saveChangesBtn} disabled={saving}>
+                            {saving ? (
+                                <>
+                                    <span>Saving...</span>
+                                    <Loader2 className={styles.spinner} size={16} />
+                                </>
+                            ) : (
+                                'Save changes'
+                            )}
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {/* TAB 2: AVATAR */}
+            {activeTab === 'avatar' && (
+                <form onSubmit={handleAvatarSubmit} className={styles.form}>
+                    <div className={styles.avatarWrapper}>
+                        {avatarPreview ? (
+                            <img
+                                src={avatarPreview}
+                                alt="Avatar Preview"
+                                className={styles.avatarImg}
+                            />
+                        ) : (
+                            <div className={styles.avatarPlaceholder}>
+                                No Avatar
+                            </div>
+                        )}
+
+                        <label className={styles.chooseImageBtn}>
+                            Choose Image
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleAvatarFileChange}
+                                className={styles.fileInput}
+                            />
+                        </label>
+                    </div>
+
+                    <div className={styles.btnGroupCenter}>
+                        <button type="submit" className={styles.saveChangesBtn} disabled={saving || !avatarFile}>
+                            {saving ? (
+                                <>
+                                    <span>Uploading...</span>
+                                    <Loader2 className={styles.spinner} size={16} />
+                                </>
+                            ) : (
+                                'Upload Avatar'
+                            )}
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {/* TAB 3: PASSWORD */}
+            {activeTab === 'password' && (
+                <form onSubmit={handlePasswordSubmit} className={styles.form}>
                     {/* Current Password */}
                     <div className={styles.formGroup}>
                         <label htmlFor="currentPassword" className={styles.label}>
-                            Current password (leave blank to leave unchanged)
+                            Current password <span className={styles.required}>*</span>
                         </label>
                         <div className={styles.passwordWrapper}>
                             <input
                                 type={showCurrentPassword ? 'text' : 'password'}
                                 id="currentPassword"
                                 name="currentPassword"
-                                value={formData.currentPassword}
-                                onChange={handleChange}
+                                value={passwordData.currentPassword}
+                                onChange={handlePasswordChange}
                                 className={styles.input}
+                                required
                             />
                             <button
                                 type="button"
@@ -213,18 +461,19 @@ export default function PersonalInfo() {
                     </div>
 
                     {/* New Password */}
-                    <div className={styles.formGroup} style={{ marginTop: '20px' }}>
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
                         <label htmlFor="newPassword" className={styles.label}>
-                            New password (leave blank to leave unchanged)
+                            New password <span className={styles.required}>*</span>
                         </label>
                         <div className={styles.passwordWrapper}>
                             <input
                                 type={showNewPassword ? 'text' : 'password'}
                                 id="newPassword"
                                 name="newPassword"
-                                value={formData.newPassword}
-                                onChange={handleChange}
+                                value={passwordData.newPassword}
+                                onChange={handlePasswordChange}
                                 className={styles.input}
+                                required
                             />
                             <button
                                 type="button"
@@ -237,18 +486,19 @@ export default function PersonalInfo() {
                     </div>
 
                     {/* Confirm New Password */}
-                    <div className={styles.formGroup} style={{ marginTop: '20px' }}>
+                    <div className={`${styles.formGroup} ${styles.formGroupMargin}`}>
                         <label htmlFor="confirmPassword" className={styles.label}>
-                            Confirm new password
+                            Confirm new password <span className={styles.required}>*</span>
                         </label>
                         <div className={styles.passwordWrapper}>
                             <input
                                 type={showConfirmPassword ? 'text' : 'password'}
                                 id="confirmPassword"
                                 name="confirmPassword"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
+                                value={passwordData.confirmPassword}
+                                onChange={handlePasswordChange}
                                 className={styles.input}
+                                required
                             />
                             <button
                                 type="button"
@@ -259,22 +509,21 @@ export default function PersonalInfo() {
                             </button>
                         </div>
                     </div>
-                </fieldset>
 
-                {/* Submit Button */}
-                <div style={{ marginTop: '24px' }}>
-                    <button type="submit" className={styles.saveChangesBtn} disabled={saving}>
-                        {saving ? (
-                            <>
-                                <span>Saving...</span>
-                                <Loader2 className="animate-spin" size={16} />
-                            </>
-                        ) : (
-                            'Save changes'
-                        )}
-                    </button>
-                </div>
-            </form>
+                    <div className={styles.btnGroup}>
+                        <button type="submit" className={styles.saveChangesBtn} disabled={saving}>
+                            {saving ? (
+                                <>
+                                    <span>Updating...</span>
+                                    <Loader2 className={styles.spinner} size={16} />
+                                </>
+                            ) : (
+                                'Change password'
+                            )}
+                        </button>
+                    </div>
+                </form>
+            )}
         </div>
     );
 }

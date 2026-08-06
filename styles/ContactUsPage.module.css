@@ -174,7 +174,11 @@
 }
 
 .hn__contactContent__textarea {
-    background-color: transparent;
+    width: 100%;
+    min-height: 150px;
+    border: none;
+    padding: 20px 0 10px;
+    outline: 0;
 }
 
 .hn__contactContent__submitBtn {

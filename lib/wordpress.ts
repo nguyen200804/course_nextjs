@@ -786,4 +786,201 @@ export async function toggleUserWishlist(userId: number | string, courseId: numb
   return { success: false, in_wishlist: false, wishlist: [] };
 }
 
+/**
+ * Lấy dữ liệu Quiz theo quizSlug từ WordPress REST API
+ */
+export async function getQuizBySlug(quizSlug: string) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/wp/v2/lp_quiz?slug=${quizSlug}&_embed=true`, {
+      next: { revalidate: 60 },
+    });
+    if (res.ok) {
+      const quizzes = await res.json();
+      return Array.isArray(quizzes) ? quizzes[0] || null : quizzes;
+    }
+  } catch (error) {
+    console.error("Lỗi khi lấy Quiz theo slug:", error);
+  }
+  return null;
+}
 
+/**
+ * -------------------------------------------------------------
+ * HỆ THỐNG XÁC THỰC JWT AUTHENTICATION FOR WP REST API & ĐÀO DỮ LIỆU LP_QUIZ / LP_QUESTION
+ * -------------------------------------------------------------
+ */
+
+/**
+ * 1. Đăng nhập lấy JWT Token từ Plugin "JWT Authentication for WP REST API"
+ */
+export async function getJWTAuthToken(username: string, password: string): Promise<{ token: string; user_email: string; user_nicename: string; user_display_name: string } | null> {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/jwt-auth/v1/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ username, password }),
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.token) {
+        return data;
+      }
+    }
+  } catch (error) {
+    console.error("Lỗi khi xác thực JWT token với WordPress:", error);
+  }
+  return null;
+}
+
+/**
+ * 2. Đào toàn bộ danh sách Bài kiểm tra (lp_quiz) từ LearnPress sang Next.js
+ */
+export async function getLPQuizzes(jwtToken?: string) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (jwtToken) {
+    headers["Authorization"] = `Bearer ${jwtToken}`;
+  }
+
+  try {
+    // Thử endpoint custom endpoint trước
+    const resCustom = await fetch(`${wpUrl}/wp-json/custom/v1/lp-quizzes`, {
+      headers,
+      next: { revalidate: 60 },
+    });
+    if (resCustom.ok) {
+      const data = await resCustom.json();
+      if (data && data.success && Array.isArray(data.quizzes)) {
+        return data.quizzes;
+      }
+    }
+
+    // Fallback sang WP REST API chuẩn (/wp-json/wp/v2/lp_quiz)
+    const resStandard = await fetch(`${wpUrl}/wp-json/wp/v2/lp_quiz?per_page=100&_embed=true`, {
+      headers,
+      next: { revalidate: 60 },
+    });
+    if (resStandard.ok) {
+      return await resStandard.json();
+    }
+  } catch (error) {
+    console.error("Lỗi khi đào dữ liệu lp_quiz:", error);
+  }
+  return [];
+}
+
+/**
+ * 3. Đào toàn bộ danh sách Câu hỏi (lp_question) từ LearnPress sang Next.js
+ */
+export async function getLPQuestions(jwtToken?: string) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (jwtToken) {
+    headers["Authorization"] = `Bearer ${jwtToken}`;
+  }
+
+  try {
+    // Thử custom endpoint lấy full options + answers
+    const resCustom = await fetch(`${wpUrl}/wp-json/custom/v1/lp-questions`, {
+      headers,
+      next: { revalidate: 60 },
+    });
+    if (resCustom.ok) {
+      const data = await resCustom.json();
+      if (data && data.success && Array.isArray(data.questions)) {
+        return data.questions;
+      }
+    }
+
+    // Fallback sang WP REST API chuẩn (/wp-json/wp/v2/lp_question)
+    const resStandard = await fetch(`${wpUrl}/wp-json/wp/v2/lp_question?per_page=100&_embed=true`, {
+      headers,
+      next: { revalidate: 60 },
+    });
+    if (resStandard.ok) {
+      return await resStandard.json();
+    }
+  } catch (error) {
+    console.error("Lỗi khi đào dữ liệu lp_question:", error);
+  }
+  return [];
+}
+
+/**
+ * 4. Đào danh sách câu hỏi và lựa chọn (options) thuộc một Quiz cụ thể
+ */
+export async function getLPQuizQuestions(quizIdOrSlug: string, jwtToken?: string) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (jwtToken) {
+    headers["Authorization"] = `Bearer ${jwtToken}`;
+  }
+
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/custom/v1/quiz-questions?quiz_id=${encodeURIComponent(quizIdOrSlug)}`, {
+      headers,
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.questions)) {
+        return data.questions;
+      }
+    }
+  } catch (error) {
+    console.error("Lỗi khi lấy câu hỏi cho Quiz:", error);
+  }
+  return [];
+}
+
+/**
+ * 5. Kiểm tra trực tiếp xem WordPress đã cấu hình thành công JWT Authentication hay chưa
+ */
+export async function checkJWTConfiguration(jwtToken?: string) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (jwtToken) {
+    headers["Authorization"] = `Bearer ${jwtToken}`;
+  }
+
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/custom/v1/check-jwt`, {
+      headers,
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (error) {
+    console.error("Lỗi khi kiểm tra cấu hình JWT:", error);
+  }
+  return { jwt_configured: false, message: "Không thể kết nối tới WordPress REST API" };
+}/**
+ * 6. Lấy danh sách bài viết (posts) từ WordPress
+ */
+export async function getPosts(limit: number = 3) {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL;
+  if (!wpUrl) return [];
+
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/wp/v2/posts?per_page=${limit}&_embed=true`, {
+      next: { revalidate: 60 },
+    });
+
+    if (res.ok) {
+      const posts = await res.json();
+      return Array.isArray(posts) ? posts : [];
+    }
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách bài viết:", error);
+  }
+  return [];
+}
