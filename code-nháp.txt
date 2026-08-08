@@ -1,16 +1,316 @@
-<section class="elementor-section elementor-top-section elementor-element elementor-element-a7d265d elementor-section-full_width elementor-section-height-default elementor-section-height-default" data-id="a7d265d" data-element_type="section">
-						<div class="elementor-container elementor-column-gap-no">
-					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-102888e" data-id="102888e" data-element_type="column">
-			<div class="elementor-widget-wrap elementor-element-populated">
-								<div class="elementor-element elementor-element-3ac55f1 elementor-widget elementor-widget-google_maps" data-id="3ac55f1" data-element_type="widget" data-widget_type="google_maps.default">
-				<div class="elementor-widget-container">
-			<style>/*! elementor - v3.17.0 - 25-10-2023 */
-.elementor-widget-google_maps .elementor-widget-container{overflow:hidden}.elementor-widget-google_maps .elementor-custom-embed{line-height:0}.elementor-widget-google_maps iframe{height:300px}</style>		<div class="elementor-custom-embed">
-			<iframe loading="lazy" src="https://maps.google.com/maps?q=London%20Eye%2C%20London%2C%20United%20Kingdom&amp;t=m&amp;z=10&amp;output=embed&amp;iwloc=near" title="London Eye, London, United Kingdom" aria-label="London Eye, London, United Kingdom"></iframe>
-		</div>
-				</div>
-				</div>
-					</div>
-		</div>
-							</div>
-		</section>
+{
+    "success": true,
+    "user_item_id": 196,
+    "parent_id": 169,
+    "graduation": "failed",
+    "result": {
+        "questions": {
+            "8096": {
+                "answered": "9b20d842e9",
+                "correct": true,
+                "mark": 1,
+                "user_mark": 1,
+                "explanation": ""
+            },
+            "8098": {
+                "answered": "addf3996cb",
+                "correct": true,
+                "mark": 1,
+                "user_mark": 1,
+                "explanation": ""
+            },
+            "8101": {
+                "answered": "6b6013a0b2",
+                "correct": false,
+                "mark": 1,
+                "user_mark": 0,
+                "explanation": ""
+            },
+            "8102": {
+                "answered": [
+                    "2fae9093",
+                    "b8ec6738"
+                ],
+                "correct": true,
+                "mark": 1,
+                "user_mark": 1,
+                "explanation": ""
+            }
+        },
+        "result": 75,
+        "user_mark": 3,
+        "mark": 4,
+        "question_correct": 3,
+        "question_wrong": 1,
+        "question_empty": 0,
+        "question_count": 4,
+        "question_answered": 4,
+        "time_spend": "00:00:07",
+        "time_spent": 7,
+        "graduation": "failed",
+        "status": "completed",
+        "passing_grade": "80%",
+        "pass": 0,
+        "finishing_type": "click",
+        "minus_point": 0
+    },
+    "debug_log": {
+        "8096": {
+            "q_type": "true_or_false",
+            "db_options_count": 2,
+            "db_options": [
+                {
+                    "question_answer_id": 0,
+                    "value": "9b20d842e9",
+                    "is_true": "yes",
+                    "title": "True"
+                },
+                {
+                    "question_answer_id": 1,
+                    "value": "a442b10b8b",
+                    "is_true": "no",
+                    "title": "False"
+                }
+            ],
+            "db_error": "",
+            "user_ans_indices": "0",
+            "user_answered_values": [
+                "9b20d842e9"
+            ],
+            "all_meta": {
+                "_lp_type": [
+                    "true_or_false"
+                ],
+                "_lp_mark": [
+                    "1"
+                ],
+                "_edit_lock": [
+                    "1785919779:1"
+                ]
+            }
+        },
+        "8098": {
+            "q_type": "true_or_false",
+            "db_options_count": 2,
+            "db_options": [
+                {
+                    "question_answer_id": 0,
+                    "value": "addf3996cb",
+                    "is_true": "yes",
+                    "title": "True"
+                },
+                {
+                    "question_answer_id": 1,
+                    "value": "5a153a79d8",
+                    "is_true": "no",
+                    "title": "False"
+                }
+            ],
+            "db_error": "",
+            "user_ans_indices": "0",
+            "user_answered_values": [
+                "addf3996cb"
+            ],
+            "all_meta": {
+                "_lp_type": [
+                    "true_or_false"
+                ],
+                "_lp_mark": [
+                    "1"
+                ],
+                "_edit_lock": [
+                    "1785920861:1"
+                ]
+            }
+        },
+        "8101": {
+            "q_type": "single_choice",
+            "db_options_count": 4,
+            "db_options": [
+                {
+                    "question_answer_id": 0,
+                    "value": "6b6013a0b2",
+                    "is_true": "no",
+                    "title": "A"
+                },
+                {
+                    "question_answer_id": 1,
+                    "value": "6d7bb99b1b",
+                    "is_true": "yes",
+                    "title": "B"
+                },
+                {
+                    "question_answer_id": 2,
+                    "value": "d715d27408",
+                    "is_true": "no",
+                    "title": "C"
+                },
+                {
+                    "question_answer_id": 3,
+                    "value": "b0013330",
+                    "is_true": "no",
+                    "title": "D"
+                }
+            ],
+            "db_error": "",
+            "user_ans_indices": "0",
+            "user_answered_values": [
+                "6b6013a0b2"
+            ],
+            "all_meta": {
+                "_lp_type": [
+                    "single_choice"
+                ],
+                "_lp_mark": [
+                    "1"
+                ],
+                "_edit_lock": [
+                    "1785916638:1"
+                ],
+                "_edit_last": [
+                    "1"
+                ]
+            }
+        },
+        "8102": {
+            "q_type": "multi_choice",
+            "db_options_count": 4,
+            "db_options": [
+                {
+                    "question_answer_id": 0,
+                    "value": "2fae9093",
+                    "is_true": "yes",
+                    "title": "First option"
+                },
+                {
+                    "question_answer_id": 1,
+                    "value": "b8ec6738",
+                    "is_true": "yes",
+                    "title": "Second option"
+                },
+                {
+                    "question_answer_id": 2,
+                    "value": "0b0fee05",
+                    "is_true": "no",
+                    "title": "Third option"
+                },
+                {
+                    "question_answer_id": 3,
+                    "value": "58d37537",
+                    "is_true": "no",
+                    "title": "Four option"
+                }
+            ],
+            "db_error": "",
+            "user_ans_indices": [
+                "0",
+                "1"
+            ],
+            "user_answered_values": [
+                "2fae9093",
+                "b8ec6738"
+            ],
+            "all_meta": {
+                "_lp_type": [
+                    "multi_choice"
+                ],
+                "_lp_mark": [
+                    "1"
+                ],
+                "_edit_lock": [
+                    "1785919753:1"
+                ]
+            }
+        }
+    },
+    "db_attempts": [
+        {
+            "user_item_id": "196",
+            "user_id": "3",
+            "item_id": "7912",
+            "item_type": "lp_quiz",
+            "status": "completed",
+            "graduation": "failed",
+            "parent_id": "169",
+            "ref_id": "7334"
+        }
+    ],
+    "db_meta": [
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "8096",
+            "meta_value": "a:1:{i:0;s:10:\"9b20d842e9\";}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "8098",
+            "meta_value": "a:1:{i:0;s:10:\"addf3996cb\";}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "8101",
+            "meta_value": "a:1:{i:0;s:10:\"6b6013a0b2\";}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "8102",
+            "meta_value": "a:2:{i:0;s:8:\"2fae9093\";i:1;s:8:\"b8ec6738\";}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "status",
+            "meta_value": "completed"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "_lp_user_item_status",
+            "meta_value": "completed"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "grade",
+            "meta_value": "failed"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "graduation",
+            "meta_value": "failed"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "_lp_user_item_graduation",
+            "meta_value": "failed"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "_lp_user_item_score",
+            "meta_value": "75"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "finishing_type",
+            "meta_value": "click"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "_lp_questions",
+            "meta_value": "a:4:{i:0;i:8096;i:1;i:8098;i:2;i:8101;i:3;i:8102;}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "_lp_question_answers",
+            "meta_value": "a:4:{i:8096;s:1:\"0\";i:8098;s:1:\"0\";i:8101;s:1:\"0\";i:8102;a:2:{i:0;s:1:\"0\";i:1;s:1:\"1\";}}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "question_answers",
+            "meta_value": "a:4:{i:8096;s:1:\"0\";i:8098;s:1:\"0\";i:8101;s:1:\"0\";i:8102;a:2:{i:0;s:1:\"0\";i:1;s:1:\"1\";}}"
+        },
+        {
+            "learnpress_user_item_id": "196",
+            "meta_key": "_lp_question_answers_json",
+            "meta_value": "{\"8096\":\"0\",\"8098\":\"0\",\"8101\":\"0\",\"8102\":[\"0\",\"1\"]}"
+        }
+    ],
+    "message": "Kết quả quiz đã được lưu vào WordPress thành công"
+}

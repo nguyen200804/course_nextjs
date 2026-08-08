@@ -74,9 +74,7 @@ export async function GET() {
 
     const counts = { total: 0, passed: 0, failed: 0, inprogress: 0 };
 
-    // ─── Step 3: Fetch title của từng quiz bằng wp/v2/lp_quiz/{id} ───
     const quizIdSet = [...new Set(allAttempts.map((a: any) => a.id))];
-
     const quizMeta: Record<string, { title: string; slug: string; courseId?: number; courseTitle?: string; courseSlug?: string }> = {};
 
     await Promise.all(
@@ -88,9 +86,31 @@ export async function GET() {
           );
           if (qRes.ok) {
             const qData = await qRes.json();
+            let parentCourseSlug = "";
+            let parentCourseTitle = "";
+
+            if (qData.parent) {
+              try {
+                const cRes = await fetch(
+                  `${wpUrl}/wp-json/wp/v2/lp_course/${qData.parent}?_fields=id,title,slug`,
+                  { headers: authHeaders, cache: "no-store" }
+                );
+                if (cRes.ok) {
+                  const cData = await cRes.json();
+                  if (cData) {
+                    parentCourseSlug = cData.slug || "";
+                    parentCourseTitle = cData.title?.rendered || "";
+                  }
+                }
+              } catch {}
+            }
+
             quizMeta[String(qid)] = {
               title: qData.title?.rendered || `Quiz #${qid}`,
               slug: qData.slug || `quiz-${qid}`,
+              courseId: qData.parent || undefined,
+              courseSlug: parentCourseSlug || undefined,
+              courseTitle: parentCourseTitle || undefined,
             };
           }
         } catch { /* best-effort */ }
@@ -126,7 +146,49 @@ export async function GET() {
       const resultStr = attempt.result || ""; // e.g. "100%"
 
       // Thời gian làm
-      const timeSpend = data.time_spend || null; // e.g. "00:00:27"
+      let timeSpend = attempt.time_spend || attempt.time_spent || attempt.results?.time_spend || attempt.results?.time_spent || data.time_spend || data.time_spent || null;
+
+      // Chuẩn hóa nếu timeSpend là số giây (number hoặc chuỗi số)
+      if (timeSpend !== null) {
+        let totalSecs = -1;
+        if (typeof timeSpend === "number") {
+          totalSecs = timeSpend;
+        } else if (typeof timeSpend === "string" && /^\d+$/.test(timeSpend)) {
+          totalSecs = parseInt(timeSpend, 10);
+        }
+        
+        if (totalSecs >= 0) {
+          const hrs = Math.floor(totalSecs / 3600);
+          const mins = Math.floor((totalSecs % 3600) / 60);
+          const secs = totalSecs % 60;
+          timeSpend = [
+            hrs.toString().padStart(2, '0'),
+            mins.toString().padStart(2, '0'),
+            secs.toString().padStart(2, '0')
+          ].join(':');
+        }
+      }
+
+      // Fallback: Tính toán từ start_time và end_time nếu không có hoặc không khớp
+      if ((!timeSpend || timeSpend === "00:00:00") && attempt.start_time && attempt.end_time) {
+        try {
+          const start = new Date(attempt.start_time).getTime();
+          const end = new Date(attempt.end_time).getTime();
+          if (!isNaN(start) && !isNaN(end)) {
+            const diffSeconds = Math.round((end - start) / 1000);
+            if (diffSeconds >= 0) {
+              const hrs = Math.floor(diffSeconds / 3600);
+              const mins = Math.floor((diffSeconds % 3600) / 60);
+              const secs = diffSeconds % 60;
+              timeSpend = [
+                hrs.toString().padStart(2, '0'),
+                mins.toString().padStart(2, '0'),
+                secs.toString().padStart(2, '0')
+              ].join(':');
+            }
+          }
+        } catch {}
+      }
 
       // Số câu hỏi
       const questionCount = data.question_count ?? null;
@@ -137,9 +199,9 @@ export async function GET() {
         quizId,
         title: meta?.title || `Quiz #${quizId}`,
         slug: meta?.slug || `quiz-${quizId}`,
-        courseTitle: attempt.course_title || null,
-        courseSlug: attempt.course_slug || null,
-        courseId: attempt.course_id || null,
+        courseTitle: attempt.course_title || meta?.courseTitle || null,
+        courseSlug: attempt.course_slug || meta?.courseSlug || null,
+        courseId: attempt.course_id || meta?.courseId || null,
         status,
         // Score
         score: userMark !== null ? Number(userMark) : null,

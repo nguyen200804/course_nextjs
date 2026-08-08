@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await fetch(`${wpUrl}/wp-json/custom/v1/submit-quiz`, {
+    const res = await fetch(`${wpUrl}/wp-json/custom/v1/retake-quiz`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(data, { status: res.status || (res.ok ? 200 : 500) });
   } catch (error: any) {
-    console.error("Lỗi API /api/submit-quiz:", error);
+    console.error("Lỗi API /api/retake-quiz:", error);
     return NextResponse.json(
       { success: false, message: error.message || "Lỗi máy chủ nội bộ" },
       { status: 500 }

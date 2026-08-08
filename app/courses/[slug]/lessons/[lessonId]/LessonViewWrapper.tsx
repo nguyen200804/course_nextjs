@@ -104,11 +104,13 @@ export default function LessonViewWrapper({
   canAccess = true,
   isUserPurchased = false,
   isQuizPage = false,
+  progress,
 }: LessonViewWrapperProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [completedList, setCompletedList] = useState<number[]>(completedLessons || []);
+  const [failedQuizzesList, setFailedQuizzesList] = useState<number[]>(progress?.failed_quizzes || []);
   const [isCompleting, setIsCompleting] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [isFinishingCourse, setIsFinishingCourse] = useState(false);
@@ -130,14 +132,42 @@ export default function LessonViewWrapper({
   const [timeSpent, setTimeSpent] = useState<number>(0);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, any>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [isSubmittingQuiz, setIsSubmittingQuiz] = useState(false);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [lastAttempt, setLastAttempt] = useState<any>(null);
   const [attemptsList, setAttemptsList] = useState<any[]>([]);
   const [loadingLastAttempt, setLoadingLastAttempt] = useState<boolean>(false);
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState<boolean>(false);
+  const [loadingQuestions, setLoadingQuestions] = useState<boolean>(isQuizPage);
   const [showSubmitQuizModal, setShowSubmitQuizModal] = useState(false);
   const [showRetakeModal, setShowRetakeModal] = useState(false);
+  const [showRepurchaseModal, setShowRepurchaseModal] = useState(false);
+  const [isRepurchasing, setIsRepurchasing] = useState(false);
+
+  const handleRepurchase = async (actionChoice: string) => {
+    setIsRepurchasing(true);
+    try {
+      const res = await fetch("/api/repurchase-course", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId: courseId || course?.id,
+          action: actionChoice,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowRepurchaseModal(false);
+        window.location.reload();
+      } else {
+        alert(data.message || "Lỗi khi thực hiện đăng ký học lại");
+      }
+    } catch (err: any) {
+      alert(err.message || "Lỗi khi kết nối máy chủ");
+    } finally {
+      setIsRepurchasing(false);
+    }
+  };
 
   useEffect(() => {
     if (quizStarted && !quizSubmitted) {
@@ -159,6 +189,12 @@ export default function LessonViewWrapper({
   }, [completedLessons]);
 
   useEffect(() => {
+    if (progress?.failed_quizzes && Array.isArray(progress.failed_quizzes)) {
+      setFailedQuizzesList(progress.failed_quizzes);
+    }
+  }, [progress?.failed_quizzes]);
+
+  useEffect(() => {
     if (user?.id && courseId) {
       const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL || process.env.WORDPRESS_URL || "https://test4.questx.com.vn";
       fetch(`${wpUrl}/wp-json/custom/v1/course-progress?user_id=${user.id}&course_id=${courseId}`)
@@ -168,6 +204,11 @@ export default function LessonViewWrapper({
             if (Array.isArray(data.completed_lessons) && data.completed_lessons.length > 0) {
               setCompletedList((prev) =>
                 Array.from(new Set([...prev, ...data.completed_lessons.map((id: any) => Number(id))]))
+              );
+            }
+            if (Array.isArray(data.failed_quizzes)) {
+              setFailedQuizzesList((prev) =>
+                Array.from(new Set([...prev, ...data.failed_quizzes.map((id: any) => Number(id))]))
               );
             }
             if (data.passing_grade) {
@@ -770,6 +811,45 @@ export default function LessonViewWrapper({
     }
   };
 
+  const [isRetakingQuiz, setIsRetakingQuiz] = useState(false);
+
+  const handleConfirmRetake = async () => {
+    setIsRetakingQuiz(true);
+    const targetId = (activeLesson?.id || activeItem?.id || lessonId).toString();
+    try {
+      const numericCourseId = !isNaN(Number(courseId))
+        ? Number(courseId)
+        : !isNaN(Number(course?.id))
+        ? Number(course?.id)
+        : 0;
+
+      const res = await fetch("/api/retake-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user?.id,
+          quiz_id: Number(targetId),
+          course_id: numericCourseId,
+        }),
+      });
+
+      if (res.ok) {
+        console.log("[NextJS] Retake sync successful.");
+      }
+    } catch (e) {
+      console.error("Error syncing retake with WordPress:", e);
+    } finally {
+      setIsRetakingQuiz(false);
+      setShowRetakeModal(false);
+      setQuizStarted(true);
+      setIsReviewing(false);
+      setQuizSubmitted(false);
+      setQuizAnswers({});
+      setCurrentQuestionIndex(0);
+      setTimeSpent(0);
+    }
+  };
+
   // Handle comment submit
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -837,6 +917,7 @@ export default function LessonViewWrapper({
   };
 
   const handleFinishQuizClick = async () => {
+    setIsSubmittingQuiz(true);
     let score = 0;
     const questionsToEvaluate = activeQuizQuestions;
     const pointPerQuestion = 100 / (questionsToEvaluate.length || 1);
@@ -847,17 +928,27 @@ export default function LessonViewWrapper({
     });
     const finalScore = Math.round(score);
     setQuizScore(finalScore);
-    setQuizSubmitted(true);
-    setQuizStarted(false);
 
     // Ưu tiên numeric ID từ WP (activeLesson.id) để đồng bộ đúng quiz
     const targetId = (activeLesson?.id || activeItem?.id || lessonId).toString();
     const numId = Number(targetId);
     setCompletedList((prev) => Array.from(new Set([...prev, ...(isNaN(numId) ? [] : [numId])])));
+    if (finalScore >= passingGrade) {
+      setFailedQuizzesList((prev) => prev.filter((id) => id !== numId));
+    } else {
+      setFailedQuizzesList((prev) => Array.from(new Set([...prev, numId])));
+    }
 
     const correctCount = activeQuizQuestions.filter((q) => isQuestionCorrect(q, quizAnswers[q.id])).length;
-    const wrongCount = activeQuizQuestions.filter((q) => quizAnswers[q.id] !== undefined && !isQuestionCorrect(q, quizAnswers[q.id])).length;
-    const skippedCount = activeQuizQuestions.filter((q) => quizAnswers[q.id] === undefined).length;
+    const wrongCount = activeQuizQuestions.filter((q) => {
+      const userAns = quizAnswers[q.id];
+      const hasAnswered = userAns !== undefined && userAns !== null && userAns !== "" && (!Array.isArray(userAns) || userAns.length > 0);
+      return hasAnswered && !isQuestionCorrect(q, userAns);
+    }).length;
+    const skippedCount = activeQuizQuestions.filter((q) => {
+      const userAns = quizAnswers[q.id];
+      return userAns === undefined || userAns === null || userAns === "" || (Array.isArray(userAns) && userAns.length === 0);
+    }).length;
     const totalCount = activeQuizQuestions.length || 1;
 
     const newAttemptRecord = {
@@ -976,6 +1067,12 @@ export default function LessonViewWrapper({
             if (myQuizzes.length > 0) {
               const latest = myQuizzes[myQuizzes.length - 1];
               const isPassed = (latest.status === "passed");
+              
+              if (isPassed) {
+                setFailedQuizzesList((prev) => prev.filter((id) => id !== Number(targetId)));
+              } else {
+                setFailedQuizzesList((prev) => Array.from(new Set([...prev, Number(targetId)])));
+              }
 
               let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined 
                 ? Number(latest.scorePercent) 
@@ -1056,6 +1153,10 @@ export default function LessonViewWrapper({
       }
     } catch (e) {
       console.error("Lỗi khi đồng bộ kết quả Quiz sang WordPress:", e);
+    } finally {
+      setIsSubmittingQuiz(false);
+      setQuizSubmitted(true);
+      setQuizStarted(false);
     }
   };
 
@@ -1090,11 +1191,18 @@ export default function LessonViewWrapper({
     : (lastAttempt?.correct !== undefined ? lastAttempt.correct : 0);
 
   const displayWrongCount = quizSubmitted
-    ? Math.max(0, Object.keys(quizAnswers).length - activeQuizQuestions.filter((q) => quizAnswers[q.id] === q.correct).length)
+    ? activeQuizQuestions.filter((q) => {
+        const userAns = quizAnswers[q.id];
+        const hasAnswered = userAns !== undefined && userAns !== null && userAns !== "" && (!Array.isArray(userAns) || userAns.length > 0);
+        return hasAnswered && !isQuestionCorrect(q, userAns);
+      }).length
     : (lastAttempt?.wrong !== undefined ? lastAttempt.wrong : 0);
 
   const displaySkippedCount = quizSubmitted
-    ? Math.max(0, (activeQuizQuestions.length || 1) - Object.keys(quizAnswers).length)
+    ? activeQuizQuestions.filter((q) => {
+        const userAns = quizAnswers[q.id];
+        return userAns === undefined || userAns === null || userAns === "" || (Array.isArray(userAns) && userAns.length === 0);
+      }).length
     : (lastAttempt?.skipped !== undefined ? lastAttempt.skipped : Math.max(0, Number(displayQuestionsCount) - Number(displayCorrectCount) - Number(displayWrongCount)));
 
   return (
@@ -1190,11 +1298,12 @@ export default function LessonViewWrapper({
                                   {isQuizType && (
                                     <span className={styles.badge_questions}>
                                       {(() => {
-                                        const isCurrent = activeQuizQuestions.length > 0 && (it.id === activeItem?.id || it.slug === activeItem?.slug);
-                                        if (isCurrent) {
-                                          return `${activeQuizQuestions.length} ${activeQuizQuestions.length === 1 ? "question" : "questions"}`;
+                                        const isCurrent = (it.id === activeItem?.id || it.slug === activeItem?.slug || it.id === activeLesson?.id || it.slug === activeLesson?.slug);
+                                        if (isCurrent && !loadingQuestions) {
+                                          const cnt = activeQuizQuestions.length;
+                                          return `${cnt} ${cnt === 1 ? "question" : "questions"}`;
                                         }
-                                        if (it.questions_count) {
+                                        if (it.questions_count !== undefined && it.questions_count !== null && it.questions_count !== "") {
                                           const raw = String(it.questions_count).trim();
                                           if (raw.toLowerCase().includes("question")) {
                                             return raw;
@@ -1205,10 +1314,10 @@ export default function LessonViewWrapper({
                                             return `${num} ${num === 1 ? "question" : "questions"}`;
                                           }
                                         }
-                                        if (activeQuizQuestions.length > 0) {
+                                        if (activeQuizQuestions.length > 0 && isCurrent) {
                                           return `${activeQuizQuestions.length} ${activeQuizQuestions.length === 1 ? "question" : "questions"}`;
                                         }
-                                        return "1 question";
+                                        return "0 questions";
                                       })()}
                                     </span>
                                   )}
@@ -1218,12 +1327,17 @@ export default function LessonViewWrapper({
                                       <LockKeyhole size={14} />
                                     </span>
                                   ) : (
-                                    <span
-                                      className={`${styles.badge_completed} ${!isDone ? styles.badge_uncompleted : ""}`}
-                                      title={isDone ? "Passed / Completed" : "Not completed"}
-                                    >
-                                      <Check size={16} />
-                                    </span>
+                                    (() => {
+                                      const isFailedQuiz = isQuizType && failedQuizzesList.includes(Number(it.id));
+                                      return (
+                                        <span
+                                          className={`${styles.badge_completed} ${!isDone ? styles.badge_uncompleted : ""} ${isFailedQuiz ? styles.badge_failed : ""}`}
+                                          title={isDone ? (isFailedQuiz ? "Failed" : "Passed / Completed") : "Not completed"}
+                                        >
+                                          {isFailedQuiz ? <XCircle size={16} /> : <Check size={16} />}
+                                        </span>
+                                      );
+                                    })()
                                   )}
                                 </div>
                               </Link>
@@ -1279,18 +1393,91 @@ export default function LessonViewWrapper({
           </header>
 
           <div className={styles.content_scroll_area}>
-            <div className={styles.content_inner}>
+            <div className={styles.content_inner} style={{ position: 'relative' }}>
+              {isSubmittingQuiz && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  flexDirection: 'column',
+                  borderRadius: '16px',
+                  minHeight: '400px',
+                }}>
+                  <div style={{
+                    width: '50px',
+                    height: '50px',
+                    border: '4px solid #e2e8f0',
+                    borderTop: '4px solid #f59e0b',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }} />
+                  <style>{`
+                    @keyframes spin {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <p style={{ marginTop: '16px', fontWeight: 600, color: '#1e293b' }}>
+                    Đang chấm điểm & đồng bộ kết quả lên hệ thống...
+                  </p>
+                </div>
+              )}
               {/* Success notification banner */}
-              {isCurrentCompleted && (
+              {isCurrentCompleted && !progress?.is_blocked && (
                 <div className={styles.completed_banner}>
                   <span>🔖</span> Congrats! You have completed &quot;{lessonTitle}&quot;.
                 </div>
               )}
 
-              <h1 className={styles.lesson_title}>{lessonTitle}</h1>
+              {!progress?.is_blocked && <h1 className={styles.lesson_title}>{lessonTitle}</h1>}
 
               {/* Lesson or Quiz Content */}
-              {!canAccess ? (
+              {progress?.is_blocked ? (
+                <div className={styles.lock_banner}>
+                  <div className={styles.lock_icon_circle}>
+                    🔒
+                  </div>
+                  <h3 className={styles.lock_banner_title}>
+                    {progress.block_reason === "duration_expired"
+                      ? "Course Duration Expired (Khóa học đã kết thúc thời hạn)"
+                      : "Course Blocked After Completion (Khóa học đã bị khóa sau khi hoàn thành)"}
+                  </h3>
+                  <p className={styles.lock_banner_desc}>
+                    {progress.block_reason === "duration_expired"
+                      ? `Thời lượng học cho khóa học này (${progress.duration_str || "theo quy định"}) đã hết hạn vào ${progress.expiration_time || "ngày kết thúc"}. Các bài học hiện tại đã bị đóng.`
+                      : "Bạn đã hoàn thành khóa học này. Hệ thống được thiết lập tự động khóa bài học sau khi học viên hoàn thành."}
+                  </p>
+
+                  {progress.allow_repurchase === "yes" ? (
+                    <button
+                      type="button"
+                      disabled={isRepurchasing}
+                      onClick={() => {
+                        if (progress.repurchase_option === "popup") {
+                          setShowRepurchaseModal(true);
+                        } else {
+                          handleRepurchase(progress.repurchase_option || "reset");
+                        }
+                      }}
+                      className={styles.btn_enroll_banner}
+                    >
+                      <span>🛒</span> {isRepurchasing ? "Đang xử lý..." : "Đăng ký học lại (Repurchase Course)"}
+                    </button>
+                  ) : (
+                    <div className="text-xs text-slate-400 mt-3 italic">
+                      Khóa học này hiện không cho phép đăng ký học lại.
+                    </div>
+                  )}
+                </div>
+              ) : !canAccess ? (
                 <div className={styles.lock_banner}>
                   <div className={styles.lock_icon_circle}>
                     🔒
@@ -1483,50 +1670,61 @@ export default function LessonViewWrapper({
                           dangerouslySetInnerHTML={{ __html: lessonContentHtml }}
                         />
 
-                        {/* Quiz Meta Information Card (Matching EduBlink / LearnPress Quiz detail design) */}
-                        <div className={styles.quiz_overview_card}>
-                          <div className={styles.quiz_overview_meta}>
-                            {/* Questions count */}
-                            <div className={styles.quiz_overview_meta_item}>
-                              <Puzzle className={styles.quiz_meta_icon} />
-                              <span>
-                                <strong>Questions:</strong> {activeQuizQuestions.length > 0 ? activeQuizQuestions.length : (extractQuestionsCount(activeItem?.questions_count || activeLesson?.questions_count) || activeQuizQuestions.length || 1)}
-                              </span>
+                        {/* Loading questions state */}
+                        {(isQuizPage || isQuiz) && loadingQuestions ? (
+                          <div className={styles.no_questions_box}>
+                            Loading quiz questions...
+                          </div>
+                        ) : (isQuizPage || isQuiz) && activeQuizQuestions.length === 0 ? (
+                          <div className={styles.no_questions_box}>
+                            You haven&apos;t any question!
+                          </div>
+                        ) : (
+                          /* Quiz Meta Information Card (Matching EduBlink / LearnPress Quiz detail design) */
+                          <div className={styles.quiz_overview_card}>
+                            <div className={styles.quiz_overview_meta}>
+                              {/* Questions count */}
+                              <div className={styles.quiz_overview_meta_item}>
+                                <Puzzle className={styles.quiz_meta_icon} />
+                                <span>
+                                  <strong>Questions:</strong> {activeQuizQuestions.length}
+                                </span>
+                              </div>
+
+                              {/* Duration */}
+                              <div className={styles.quiz_overview_meta_item}>
+                                <Clock className={styles.quiz_meta_icon} />
+                                <span>
+                                  <strong>Duration:</strong> {formatMetaDuration(activeItem?.duration || activeLesson?.duration)}
+                                </span>
+                              </div>
+
+                              {/* Passing Grade */}
+                              <div className={styles.quiz_overview_meta_item}>
+                                <BarChart2 className={styles.quiz_meta_icon} />
+                                <span>
+                                  <strong>Passing grade:</strong> {passingGrade}%
+                                </span>
+                              </div>
                             </div>
 
-                            {/* Duration */}
-                            <div className={styles.quiz_overview_meta_item}>
-                              <Clock className={styles.quiz_meta_icon} />
-                              <span>
-                                <strong>Duration:</strong> {formatMetaDuration(activeItem?.duration || activeLesson?.duration)}
-                              </span>
-                            </div>
-
-                            {/* Passing Grade */}
-                            <div className={styles.quiz_overview_meta_item}>
-                              <BarChart2 className={styles.quiz_meta_icon} />
-                              <span>
-                                <strong>Passing grade:</strong> {passingGrade}%
-                              </span>
+                            {/* Start Button */}
+                            <div className={styles.quiz_start_btn_wrap}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuizStarted(true);
+                                  setIsReviewing(false);
+                                  setCurrentQuestionIndex(0);
+                                  setQuizSubmitted(false);
+                                }}
+                                className={styles.btn_start_quiz}
+                              >
+                                Start
+                              </button>
                             </div>
                           </div>
-
-                          {/* Start Button */}
-                          <div className={styles.quiz_start_btn_wrap}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setQuizStarted(true);
-                                setIsReviewing(false);
-                                setCurrentQuestionIndex(0);
-                                setQuizSubmitted(false);
-                              }}
-                              className={styles.btn_start_quiz}
-                            >
-                              Start
-                            </button>
-                          </div>
-                        </div>
+                        )}
                       </>
                     )
                   ) : (
@@ -1852,8 +2050,8 @@ export default function LessonViewWrapper({
                 </>
               )}
 
-              {/* Comment Section ("Leave a Reply") - ONLY for Lessons, NOT for Quizzes */}
-              {!(isQuizPage || isQuiz) && (
+              {/* Comment Section ("Leave a Reply") - ONLY for Lessons, NOT for Quizzes, AND NOT when Blocked */}
+              {!(isQuizPage || isQuiz) && !progress?.is_blocked && (
                 <div className={styles.comments_section}>
                   {/* Lesson Comments List */}
                   <div className={styles.learn_press_comments}>
@@ -2096,20 +2294,72 @@ export default function LessonViewWrapper({
               >
                 Cancel
               </button>
-              <button
+               <button
                 type="button"
-                onClick={() => {
-                  setShowRetakeModal(false);
-                  setQuizStarted(true);
-                  setIsReviewing(false);
-                  setQuizSubmitted(false);
-                  setQuizAnswers({});
-                  setCurrentQuestionIndex(0);
-                  setTimeSpent(0);
-                }}
+                disabled={isRetakingQuiz}
+                onClick={handleConfirmRetake}
                 className={styles.btn_modal_ok}
               >
-                OK
+                {isRetakingQuiz ? "Processing..." : "OK"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRepurchaseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-slate-100 shadow-2xl space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg">
+                🛒
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Repurchase Course (Đăng ký học lại)</h3>
+                <p className="text-xs text-slate-400">Chọn tùy chọn tiến trình học tập của bạn:</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={isRepurchasing}
+                onClick={() => handleRepurchase("reset")}
+                className="w-full text-left p-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all hover:border-emerald-500/50 group"
+              >
+                <div className="flex items-center justify-between font-semibold text-emerald-400 text-sm">
+                  <span>1. Reset course progress</span>
+                  <span className="text-xs text-slate-400 group-hover:text-emerald-300">Tái khởi tạo →</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  The course progress and results of student will be removed. (Xóa toàn bộ kết quả cũ và học lại từ đầu).
+                </p>
+              </button>
+
+              <button
+                type="button"
+                disabled={isRepurchasing}
+                onClick={() => handleRepurchase("keep")}
+                className="w-full text-left p-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all hover:border-blue-500/50 group"
+              >
+                <div className="flex items-center justify-between font-semibold text-blue-400 text-sm">
+                  <span>2. Keep course progress</span>
+                  <span className="text-xs text-slate-400 group-hover:text-blue-300">Gia hạn →</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  The course progress and results of student will remain. (Giữ nguyên các bài đã học & mở lại khóa học).
+                </p>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                disabled={isRepurchasing}
+                onClick={() => setShowRepurchaseModal(false)}
+                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Hủy bỏ
               </button>
             </div>
           </div>

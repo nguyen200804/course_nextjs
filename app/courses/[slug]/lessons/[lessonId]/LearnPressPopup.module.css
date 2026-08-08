@@ -395,6 +395,10 @@
   color: #cbd5e1 !important;
 }
 
+.badge_failed {
+  color: #ef4444 !important;
+}
+
 .item_row_locked {
   opacity: 0.6;
   cursor: not-allowed !important;
@@ -2038,4 +2042,18 @@
   color: #f59e0b;
   stroke: currentColor;
   transition: all 0.7s ease-out;
+}
+
+/* LearnPress No Questions Notice Box */
+.no_questions_box {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background-color: #fbfbfb;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 15px;
+  font-weight: 400;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }

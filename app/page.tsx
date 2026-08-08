@@ -22,7 +22,18 @@ export default async function Home() {
   // Kiểm tra phiên đăng nhập của người dùng
   const cookieStore = await cookies();
   const userCookie = cookieStore.get("session_user");
-  const user = userCookie ? JSON.parse(userCookie.value) : null;
+  let user: any = null;
+  if (userCookie && userCookie.value) {
+    try {
+      user = JSON.parse(decodeURIComponent(userCookie.value));
+    } catch (e1) {
+      try {
+        user = JSON.parse(userCookie.value);
+      } catch (e2) {
+        user = null;
+      }
+    }
+  }
 
   // Kiểm tra cấu hình trước khi gọi API
   const username = process.env.WORDPRESS_API_USERNAME;

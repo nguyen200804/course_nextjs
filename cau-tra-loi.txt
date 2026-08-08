@@ -1,165 +1,177 @@
-Để tích hợp tính năng **Wishlist (Danh sách yêu thích)** của LearnPress giữa **WordPress (Backend)** và **Next.js (Frontend)**, bạn sẽ tương tác qua **REST API** được cung cấp bởi plugin *LearnPress – Course Wishlist*.
-
-Dưới đây là hướng dẫn chi tiết từ REST API endpoints đến cách viết code Custom Hook trong Next.js.
+Để xuất và đồng bộ dữ liệu Quiz giữa **WordPress (LearnPress)** và **Next.js** theo 2 chiều, giải pháp tối ưu nhất là sử dụng **LearnPress REST API** kết hợp với **Webhooks** hoặc **Server-Side Trigger / API Routes**.
 
 ---
 
-## 1. Hệ thống REST API của LearnPress Wishlist
+### Kiến trúc tổng quan đồng bộ 2 chiều
 
-LearnPress cung cấp các Endpoint REST API chính cho Wishlist:
-
-### A. Lấy danh sách khóa học Wishlist của User
-
-* **Method:** `GET`
-* **Endpoint:** `[https://your-domain.com/wp-json/learnpress/v1/wishlist](https://your-domain.com/wp-json/learnpress/v1/wishlist)` (hoặc `/wp-json/lp/v1/courses/wishlist`)
-* **Headers:**
-* `Authorization: Bearer <your_jwt_token>` (nếu dùng JWT Authentication)
-
-
-
-### B. Thêm hoặc Xóa khóa học khỏi Wishlist (Toggle)
-
-* **Method:** `POST`
-* **Endpoint:** `[https://your-domain.com/wp-json/learnpress/v1/wishlist/toggle](https://your-domain.com/wp-json/learnpress/v1/wishlist/toggle)`
-* **Headers:**
-* `Authorization: Bearer <your_jwt_token>`
-* `Content-Type: application/json`
-
-
-* **Body (JSON):**
-```json
-{
-  "course_id": 123
-}
-
-```
-
-
+* **Chiều 1: WordPress $\rightarrow$ Next.js (Khi Admin cập nhật Quiz/Câu hỏi)**
+Sử dụng Webhook hoặc Hook PHP trong WordPress để gửi tín hiệu/data sang Next.js qua Revalidation API (ISR) hoặc Endpoint trung gian.
+* **Chiều 2: Next.js $\rightarrow$ WordPress (Khi Học viên nộp bài / Retake Quiz)**
+Next.js gọi trực tiếp các REST API Endpoints của LearnPress để ghi nhận kết quả hoặc tạo lượt làm bài mới.
 
 ---
 
-## 2. Cách viết Custom Hook trong Next.js (`useWishlist`)
+### Chiều 1: WordPress $\rightarrow$ Next.js (Đồng bộ cấu trúc Quiz)
 
-Bạn có thể tạo một Custom Hook bằng **React / Next.js** để quản lý trạng thái Wishlist (lấy dữ liệu, thêm/xóa khóa học) một cách linh hoạt:
+#### Bước 1: Gọi LearnPress REST API từ Next.js
+
+LearnPress cung cấp sẵn REST API endpoint để lấy thông tin Quiz:
+
+* **GET Quiz detail:** `GET [https://your-site.com/wp-json/lp/v1/courses/](https://your-site.com/wp-json/lp/v1/courses/){course_id}` hoặc query qua Custom REST API endpoint.
+
+Trong Next.js (App Router), bạn lấy dữ liệu Quiz bằng `fetch` và cấu hình Revalidation:
 
 ```typescript
-// hooks/useWishlist.ts
-import { useState, useEffect } from 'react';
+// app/quiz/[id]/page.tsx
+async function getQuizData(quizId: string) {
+  const res = await fetch(`https://your-site.com/wp-json/wp/v2/lp_quiz/${quizId}`, {
+    headers: {
+      'Authorization': `Bearer ${process.env.WP_JWT_TOKEN}` // nếu cần authen
+    },
+    next: { tags: [`quiz-${quizId}`] } // Dùng On-Demand Revalidation
+  });
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_WORDPRESS_URL; // VD: https://your-domain.com
+  if (!res.ok) throw new Error('Failed to fetch quiz');
+  return res.json();
+}
 
-export function useWishlist(token?: string) {
-  const [wishlist, setWishlist] = useState<number[]>([]); // Lưu danh sách ID khóa học
-  const [loading, setLoading] = useState<boolean>(false);
+```
 
-  // 1. Fetch danh sách Wishlist
-  const fetchWishlist = async () => {
-    if (!token) return;
-    setLoading(true);
+#### Bước 2: Bắn Webhook từ WordPress khi Admin bấm "Save Quiz"
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/wp-json/learnpress/v1/wishlist`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      
-      // Giả sử API trả về mảng ID hoặc object chứa mảng khóa học
-      if (Array.isArray(data)) {
-        setWishlist(data.map((course: any) => course.id));
-      }
-    } catch (error) {
-      console.error('Lỗi khi tải Wishlist:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+Thêm đoạn code sau vào file `functions.php` của Theme WordPress để tự động báo cho Next.js xóa cache và cập nhật bài thi mới:
 
-  // 2. Thêm hoặc Xóa (Toggle) khóa học khỏi Wishlist
-  const toggleWishlist = async (courseId: number) => {
-    if (!token) {
-      alert('Vui lòng đăng nhập để thực hiện!');
-      return;
-    }
+```php
+add_action( 'save_post_lp_quiz', 'sync_quiz_to_nextjs', 10, 3 );
+function sync_quiz_to_nextjs( $post_id, $post, $update ) {
+    if ( wp_is_post_revision( $post_id ) ) return;
 
-    // Optimistic Update (Cập nhật UI ngay lập tức trước khi gọi API)
-    const isExist = wishlist.includes(courseId);
-    setWishlist((prev) =>
-      isExist ? prev.filter((id) => id !== courseId) : [...prev, courseId]
-    );
+    $nextjs_webhook_url = 'https://your-nextjs-app.com/api/revalidate';
+    
+    wp_remote_post( $nextjs_webhook_url, array(
+        'method'      => 'POST',
+        'headers'     => array('Content-Type' => 'application/json'),
+        'body'        => json_encode(array(
+            'secret'  => 'YOUR_MYSTERY_SECRET_KEY',
+            'quiz_id' => $post_id,
+            'tag'     => "quiz-{$post_id}"
+        )),
+    ));
+}
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/wp-json/learnpress/v1/wishlist/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ course_id: courseId }),
-      });
+```
 
-      if (!res.ok) {
-        // Rollback lại UI nếu API thất bại
-        setWishlist((prev) =>
-          isExist ? [...prev, courseId] : prev.filter((id) => id !== courseId)
-        );
-      }
-    } catch (error) {
-      console.error('Lỗi khi cập nhật Wishlist:', error);
-    }
-  };
+#### Bước 3: Handler Revalidate trong Next.js Route Handler
 
-  useEffect(() => {
-    fetchWishlist();
-  }, [token]);
+Tạo file `app/api/revalidate/route.ts`:
 
-  return { wishlist, toggleWishlist, loading, isWishlisted: (id: number) => wishlist.includes(id) };
+```typescript
+import { revalidateTag } from 'next/cache';
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  
+  if (body.secret !== process.env.MY_REVALIDATE_SECRET) {
+    return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
+  }
+
+  if (body.tag) {
+    revalidateTag(body.tag); // Xóa cache của Quiz tương ứng ngay lập tức
+    return NextResponse.json({ revalidated: true, now: Date.now() });
+  }
+
+  return NextResponse.json({ revalidated: false });
 }
 
 ```
 
 ---
 
-## 3. Sử dụng Hook trong Component Next.js
+### Chiều 2: Next.js $\rightarrow$ WordPress (Đồng bộ làm bài & nộp bài)
 
-Dưới đây là cách đưa Hook vừa tạo vào Nút Bookmark/Wishlist ở trang danh sách hoặc trang chi tiết khóa học:
+Khi học viên làm bài trên Next.js, dữ liệu (câu trả lời, lượt retake, thời gian) cần được push ngược về WordPress để ghi vào các bảng `wp_learnpress_user_items` và `wp_learnpress_user_itemmeta`.
 
-```tsx
-// components/CourseCard.tsx
-'use client';
+#### Bước 1: Tạo Custom REST API Endpoint trong WordPress
 
-import { useWishlist } from '@/hooks/useWishlist';
+Do endpoint gốc của LearnPress dùng session/nonce rất phức tạp, bạn nên viết 1 endpoint tùy chỉnh trong `functions.php` để nhận kết quả thi từ Next.js:
 
-interface CourseCardProps {
-  course: {
-    id: number;
-    title: string;
-    image: string;
-  };
-  userToken: string; // Token JWT từ người dùng đã đăng nhập
-}
+```php
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'custom-lp/v1', '/submit-quiz', array(
+        'methods'  => 'POST',
+        'callback' => 'handle_nextjs_quiz_submission',
+        'permission_callback' => '__return_true', // Nên bổ sung kiểm tra JWT token ở đây
+    ));
+});
 
-export default function CourseCard({ course, userToken }: CourseCardProps) {
-  const { isWishlisted, toggleWishlist } = useWishlist(userToken);
-  const active = isWishlisted(course.id);
+function handle_nextjs_quiz_submission( $request ) {
+    $params     = $request->get_json_params();
+    $user_id    = $params['user_id'];
+    $quiz_id    = $params['quiz_id'];
+    $course_id  = $params['course_id'];
+    $answers    = $params['answers']; // Mảng [ question_id => answer_value ]
 
-  return (
-    <div className="course-card border p-4 rounded-lg">
-      <img src={course.image} alt={course.title} className="w-full h-40 object-cover" />
-      <h3 className="font-bold my-2">{course.title}</h3>
+    // 1. Tạo hoặc Cập nhật bản ghi trong LearnPress
+    $user_item_id = learn_press_user_start_quiz( $quiz_id, $user_id, $course_id );
+    
+    // 2. Chấm điểm & Lưu câu trả lời vào database
+    if ( $user_item_id ) {
+        $user_quiz = learn_press_get_user_item( $user_item_id );
+        // Lưu thông tin chi tiết câu trả lời vào wp_learnpress_user_itemmeta
+        learn_press_update_user_item_meta( $user_item_id, 'question_answers', $answers );
+        
+        // Hoàn thành bài thi
+        $user_quiz->complete();
+        
+        return new WP_REST_Response( array( 'status' => 'success', 'item_id' => $user_item_id ), 200 );
+    }
 
-      {/* Nút Toggle Wishlist */}
-      <button
-        onClick={() => toggleWishlist(course.id)}
-        className={`px-4 py-2 rounded text-sm ${
-          active ? 'bg-red-500 text-white' : 'bg-gray-200 text-black'
-        }`}
-      >
-        {active ? '♥ Đã lưu vào Yêu thích' : '♡ Thêm vào Yêu thích'}
-      </button>
-    </div>
-  );
+    return new WP_REST_Response( array( 'status' => 'error' ), 400 );
 }
 
 ```
+
+#### Bước 2: Gửi dữ liệu nộp bài / Retake từ Next.js
+
+Tại giao diện Next.js, khi người dùng bấm **Submit** hoặc **Retake**:
+
+```typescript
+// components/QuizForm.tsx
+async function handleSubmitQuiz(userAnswers: Record<number, any>) {
+  const res = await fetch('/api/quiz/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: 12, // ID user hiện tại
+      quizId: 456,
+      courseId: 101,
+      answers: userAnswers,
+    }),
+  });
+
+  const data = await res.json();
+  if (data.status === 'success') {
+    alert('Nộp bài thành công!');
+  }
+}
+
+```
+
+---
+
+### Quy trình tổng kết
+
+```
+[ WordPress Admin ] --(1. Sửa Quiz)--> [ Webhook ] --------> [ Next.js Revalidate Tag ]
+                                                                      |
+[ Frontend Next.js ] <--(2. Get Quiz Data via REST API)---------------
+         |
+  (3. Học viên nộp bài)
+         |
+         v
+[ Route Handler Next.js ] --(4. POST Submit API)--> [ WP Custom REST Route ] --> [ Write to DB ]
+
+```
+
+* **Xác thực (Authentication):** Khuyên dùng plugin **JWT Authentication for WP REST API** để đảm bảo request gửi từ Next.js đến WordPress có đính kèm `Bearer Token` chính chủ của user đang đăng nhập.

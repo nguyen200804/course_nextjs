@@ -1,3 +1,39 @@
+export async function safeResponseJson(res: Response) {
+  try {
+    const text = await res.text();
+    
+    // First try normal parsing
+    try {
+      return JSON.parse(text);
+    } catch (e1) {
+      // If it fails, try to extract JSON
+      const jsonStart = text.indexOf('{');
+      const jsonArrayStart = text.indexOf('[');
+      let startIdx = -1;
+      
+      if (jsonStart !== -1 && jsonArrayStart !== -1) {
+        startIdx = Math.min(jsonStart, jsonArrayStart);
+      } else if (jsonStart !== -1) {
+        startIdx = jsonStart;
+      } else if (jsonArrayStart !== -1) {
+        startIdx = jsonArrayStart;
+      }
+      
+      if (startIdx !== -1) {
+        const cleanJsonStr = text.substring(startIdx);
+        try {
+          return JSON.parse(cleanJsonStr);
+        } catch (e2) {
+          // completely silent
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore fetch errors silently
+  }
+  return null;
+}
+
 /**
  * Hàm lấy danh sách khóa học từ LearnDash sử dụng Basic Auth (Application Password)
  */
@@ -31,7 +67,7 @@ export async function getLearnDashCourses() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeResponseJson(res);
         if (Array.isArray(data) && data.length > 0) {
           return data;
         }
@@ -534,7 +570,7 @@ export async function getWooCommercePaymentGateways() {
  */
 export async function getLearnDashUserProgress(userId: string | number, courseId: string | number) {
   const wpUrl = process.env.WORDPRESS_URL;
-  if (!wpUrl) return { completed_lessons: [], completed_topics: [], passing_grade: 80, user_course_status: "enrolled" };
+  if (!wpUrl) return { completed_lessons: [], completed_topics: [], failed_quizzes: [], passing_grade: 80, user_course_status: "enrolled" };
 
   try {
     // Gọi Custom API lấy dữ liệu tiến trình học tập
@@ -553,15 +589,76 @@ export async function getLearnDashUserProgress(userId: string | number, courseId
         completed_topics: Array.isArray(data?.completed_topics)
           ? data.completed_topics.map((id: any) => Number(id))
           : [],
+        failed_quizzes: Array.isArray(data?.failed_quizzes)
+          ? data.failed_quizzes.map((id: any) => Number(id))
+          : [],
         passing_grade: data?.passing_grade ? Number(data.passing_grade) : 80,
         user_course_status: data?.user_course_status || "enrolled",
+        block_expire_duration: data?.block_expire_duration || "no",
+        block_finished_course: data?.block_finished_course || "no",
+        allow_repurchase: data?.allow_repurchase || "no",
+        repurchase_option: data?.repurchase_option || "reset",
+        is_expired: !!data?.is_expired,
+        is_blocked: !!data?.is_blocked,
+        block_reason: data?.block_reason || "",
+        start_time: data?.start_time || null,
+        expiration_time: data?.expiration_time || null,
+        duration_str: data?.duration_str || "",
       };
     }
   } catch (error) {
     console.error("Lỗi khi lấy tiến trình học tập của người dùng:", error);
   }
 
-  return { completed_lessons: [], completed_topics: [], passing_grade: 80, user_course_status: "enrolled" };
+  return {
+    completed_lessons: [],
+    completed_topics: [],
+    failed_quizzes: [],
+    passing_grade: 80,
+    user_course_status: "enrolled",
+    block_expire_duration: "no",
+    block_finished_course: "no",
+    allow_repurchase: "no",
+    repurchase_option: "reset",
+    is_expired: false,
+    is_blocked: false,
+    block_reason: "",
+    start_time: null,
+    expiration_time: null,
+    duration_str: "",
+  };
+}
+
+/**
+ * Đăng ký học lại (Repurchase) khóa học LearnPress
+ */
+export async function repurchaseLearnPressCourse(userId: string | number, courseId: string | number, action: string = "reset") {
+  const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+  if (!wpUrl || !userId || !courseId) return { success: false, message: "Thiếu thông tin người dùng hoặc khóa học" };
+
+  try {
+    const res = await fetch(`${wpUrl}/wp-json/custom/v1/repurchase-course`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        course_id: courseId,
+        action: action,
+      }),
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (error: any) {
+    console.error("Lỗi khi thực hiện đăng ký học lại khóa học:", error);
+    return { success: false, message: error.message };
+  }
+
+  return { success: false, message: "Không thể thực hiện yêu cầu học lại khóa học" };
 }
 
 /**
@@ -581,7 +678,7 @@ export async function getWooCommerceCurrency() {
       return await res.json();
     }
   } catch (error) {
-    console.error("Lỗi khi lấy thông tin tiền tệ WooCommerce:", error);
+    // Ignore error silently to prevent Next.js dev overlay
   }
 
   return { currency: "VND", symbol: "₫", position: "right_space" };
@@ -957,13 +1054,16 @@ export async function checkJWTConfiguration(jwtToken?: string) {
     });
 
     if (res.ok) {
-      return await res.json();
+      const data = await safeResponseJson(res);
+      return data || { jwt_configured: false };
     }
   } catch (error) {
     console.error("Lỗi khi kiểm tra cấu hình JWT:", error);
   }
   return { jwt_configured: false, message: "Không thể kết nối tới WordPress REST API" };
-}/**
+}
+
+/**
  * 6. Lấy danh sách bài viết (posts) từ WordPress
  */
 export async function getPosts(limit: number = 3) {
@@ -976,7 +1076,7 @@ export async function getPosts(limit: number = 3) {
     });
 
     if (res.ok) {
-      const posts = await res.json();
+      const posts = await safeResponseJson(res);
       return Array.isArray(posts) ? posts : [];
     }
   } catch (error) {

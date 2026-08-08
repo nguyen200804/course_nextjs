@@ -161,13 +161,76 @@ export async function POST(request: Request) {
 
     let sessionUser: { id: number; username: string; email?: string; name?: string } | null = null;
     try {
-      sessionUser = JSON.parse(sessionUserCookie);
+      sessionUser = JSON.parse(decodeURIComponent(sessionUserCookie));
     } catch {
-      return NextResponse.json({ error: "Phiên đăng nhập không hợp lệ." }, { status: 401 });
+      try {
+        sessionUser = JSON.parse(sessionUserCookie);
+      } catch {
+        return NextResponse.json({ error: "Phiên đăng nhập không hợp lệ." }, { status: 401 });
+      }
     }
 
     if (!sessionUser?.id) {
       return NextResponse.json({ error: "Thông tin người dùng không hợp lệ." }, { status: 401 });
+    }
+
+    const contentType = request.headers.get("content-type") || "";
+
+    // Xử lý Upload Avatar (multipart/form-data)
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const avatarFile = formData.get("avatar") as File | null;
+
+      if (!avatarFile) {
+        return NextResponse.json({ error: "Vui lòng chọn ảnh đại diện để tải lên." }, { status: 400 });
+      }
+
+      const arrayBuffer = await avatarFile.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64Str = `data:${avatarFile.type || "image/png"};base64,${buffer.toString("base64")}`;
+
+      const wpUrl = process.env.WORDPRESS_URL || process.env.NEXT_PUBLIC_WORDPRESS_URL || "https://test4.questx.com.vn";
+      const username = process.env.WORDPRESS_API_USERNAME;
+      const password = process.env.WORDPRESS_API_APPLICATION_PASSWORD;
+
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (username && password) {
+        headers["Authorization"] = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+      }
+
+      const uploadRes = await fetch(`${wpUrl}/wp-json/custom/v1/upload-avatar`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          user_id: sessionUser.id,
+          avatar_base64: base64Str,
+        }),
+      });
+
+      if (uploadRes.ok) {
+        const uploadData = await uploadRes.json();
+        const avatarUrl = uploadData.avatar_url;
+
+        const updatedSession = { ...sessionUser, avatarUrl: avatarUrl, avatar: avatarUrl };
+        const response = NextResponse.json({
+          success: true,
+          message: "Avatar updated successfully!",
+          avatarUrl: avatarUrl,
+        });
+
+        response.cookies.set("session_user", JSON.stringify(updatedSession), {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 30,
+        });
+
+        return response;
+      } else {
+        const errData = await uploadRes.json().catch(() => ({}));
+        return NextResponse.json({ error: errData.message || "Không thể tải ảnh đại diện lên máy chủ." }, { status: 500 });
+      }
     }
 
     const body = await request.json();

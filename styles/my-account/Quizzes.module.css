@@ -219,6 +219,20 @@
     line-height: 1.4;
 }
 
+.quizTitleLink {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.4;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.quizTitleLink:hover {
+    color: #1ab69d;
+    text-decoration: underline;
+}
+
 .courseLabel {
     font-size: 12px;
     color: #94a3b8;

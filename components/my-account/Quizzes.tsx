@@ -269,7 +269,16 @@ export default function Quizzes() {
                                     {/* Quiz Title */}
                                     <td>
                                         <div className={styles.quizTitleBox}>
-                                            <span className={styles.quizTitle}>{quiz.title}</span>
+                                            {quiz.slug || quiz.quizId ? (
+                                                <Link
+                                                    href={`/courses/${quiz.courseSlug || 'unknown'}/quizzes/${quiz.slug || quiz.quizId}`}
+                                                    className={styles.quizTitleLink}
+                                                >
+                                                    {quiz.title}
+                                                </Link>
+                                            ) : (
+                                                <span className={styles.quizTitle}>{quiz.title}</span>
+                                            )}
                                             {quiz.passingGrade && (
                                                 <span className={styles.courseLabel}>
                                                     Passing grade: {quiz.passingGrade}

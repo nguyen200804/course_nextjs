@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import styles from '@/styles/my-account/PersonalInfo.module.css';
+import ImageCropperModal from './ImageCropperModal';
 
 export default function PersonalInfo() {
     const [activeTab, setActiveTab] = useState<'general' | 'avatar' | 'password'>('general');
@@ -26,6 +27,8 @@ export default function PersonalInfo() {
     // Avatar State
     const [avatarPreview, setAvatarPreview] = useState<string>('');
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [tempRawImage, setTempRawImage] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Password Form State
     const [passwordData, setPasswordData] = useState({
@@ -84,8 +87,8 @@ export default function PersonalInfo() {
     const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setAvatarFile(file);
-            setAvatarPreview(URL.createObjectURL(file));
+            const tempUrl = URL.createObjectURL(file);
+            setTempRawImage(tempUrl);
         }
     };
 
@@ -141,6 +144,10 @@ export default function PersonalInfo() {
 
             if (res.ok && (data.success ?? true)) {
                 setMessage({ type: 'success', text: data.message || 'Avatar updated successfully.' });
+                if (data.avatarUrl) {
+                    setAvatarPreview(data.avatarUrl);
+                }
+                setAvatarFile(null);
             } else {
                 setMessage({ type: 'error', text: data.error || data.message || 'Could not update avatar.' });
             }
@@ -409,6 +416,7 @@ export default function PersonalInfo() {
                         <label className={styles.chooseImageBtn}>
                             Choose Image
                             <input
+                                ref={fileInputRef}
                                 type="file"
                                 accept="image/*"
                                 onChange={handleAvatarFileChange}
@@ -430,6 +438,27 @@ export default function PersonalInfo() {
                         </button>
                     </div>
                 </form>
+            )}
+
+            {/* Image Cropper Modal (Locked to 1:1 Square Ratio) */}
+            {tempRawImage && (
+                <ImageCropperModal
+                    imageSrc={tempRawImage}
+                    onCropSave={(croppedFile, croppedPreviewUrl) => {
+                        setAvatarFile(croppedFile);
+                        setAvatarPreview(croppedPreviewUrl);
+                        setTempRawImage(null);
+                    }}
+                    onReplace={() => {
+                        if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                            fileInputRef.current.click();
+                        }
+                    }}
+                    onCancel={() => {
+                        setTempRawImage(null);
+                    }}
+                />
             )}
 
             {/* TAB 3: PASSWORD */}

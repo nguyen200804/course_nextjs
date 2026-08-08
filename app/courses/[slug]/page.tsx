@@ -76,6 +76,46 @@ export default function CourseDetailsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'curriculum' | 'instructor' | 'reviews'>('overview');
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [user, setUser] = useState<{ id: number; username: string } | null>(null);
+  const [courseProgress, setCourseProgress] = useState<any>(null);
+  const [showRepurchaseModal, setShowRepurchaseModal] = useState<boolean>(false);
+  const [isRepurchasing, setIsRepurchasing] = useState<boolean>(false);
+
+  const handleRepurchase = async (actionChoice: string) => {
+    if (!course?.id) return;
+    setIsRepurchasing(true);
+    try {
+      const res = await fetch('/api/repurchase-course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId: course.id,
+          action: actionChoice,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowRepurchaseModal(false);
+        window.location.reload();
+      } else {
+        alert(data.message || 'Lỗi khi đăng ký học lại khóa học');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Lỗi kết nối máy chủ');
+    } finally {
+      setIsRepurchasing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (course?.id && user?.id) {
+      fetch(`/api/course-progress?course_id=${course.id}&user_id=${user.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) setCourseProgress(data);
+        })
+        .catch(() => {});
+    }
+  }, [course?.id, user?.id]);
 
   useEffect(() => {
     const checkUser = () => {
@@ -890,6 +930,53 @@ export default function CourseDetailsPage() {
                         }
                       };
 
+                      if (courseProgress?.is_blocked) {
+                        return (
+                          <div className={styles.hn_course_details_sidebar_buttons}>
+                            <div className={styles.hn_course_details_lp_buttons} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs leading-relaxed text-center">
+                                🔒 <strong>{courseProgress.block_reason === 'duration_expired' ? 'Khóa học đã hết thời hạn' : 'Khóa học đã bị khóa sau khi hoàn thành'}</strong>
+                                <p className="mt-1 text-slate-400">
+                                  {courseProgress.block_reason === 'duration_expired'
+                                    ? `Thời lượng học cho khóa học này (${courseProgress.duration_str || 'theo quy định'}) đã hết hạn.`
+                                    : 'Bạn đã hoàn thành khóa học này và nội dung hiện tại đã đóng.'}
+                                </p>
+                              </div>
+
+                              {courseProgress.allow_repurchase === 'yes' ? (
+                                <button
+                                  type="button"
+                                  disabled={isRepurchasing}
+                                  onClick={() => {
+                                    if (courseProgress.repurchase_option === 'popup') {
+                                      setShowRepurchaseModal(true);
+                                    } else {
+                                      handleRepurchase(courseProgress.repurchase_option || 'reset');
+                                    }
+                                  }}
+                                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2"
+                                >
+                                  <span>🛒</span> {isRepurchasing ? 'Đang xử lý...' : 'Đăng ký học lại (Repurchase Course)'}
+                                </button>
+                              ) : (
+                                <div className="text-xs text-slate-400 text-center italic py-2">
+                                  Khóa học này không hỗ trợ đăng ký học lại.
+                                </div>
+                              )}
+
+                              {user && course?.id && (
+                                <WishlistButton
+                                  courseId={Number(course.id)}
+                                  showText={true}
+                                  text="Add to Wishlist"
+                                  activeText="Remove from Wishlist"
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
                       let buttonText = 'Buy Now';
                       if (isEnrolled) {
                         buttonText = 'Continue';
@@ -1028,6 +1115,65 @@ export default function CourseDetailsPage() {
           </div>
         </div>
       </div>
+
+      {showRepurchaseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-slate-100 shadow-2xl space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg">
+                🛒
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Repurchase Course (Đăng ký học lại)</h3>
+                <p className="text-xs text-slate-400">Chọn tùy chọn tiến trình học tập của bạn:</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={isRepurchasing}
+                onClick={() => handleRepurchase('reset')}
+                className="w-full text-left p-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all hover:border-emerald-500/50 group"
+              >
+                <div className="flex items-center justify-between font-semibold text-emerald-400 text-sm">
+                  <span>1. Reset course progress</span>
+                  <span className="text-xs text-slate-400 group-hover:text-emerald-300">Tái khởi tạo →</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  The course progress and results of student will be removed. (Xóa toàn bộ kết quả cũ và học lại từ đầu).
+                </p>
+              </button>
+
+              <button
+                type="button"
+                disabled={isRepurchasing}
+                onClick={() => handleRepurchase('keep')}
+                className="w-full text-left p-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all hover:border-blue-500/50 group"
+              >
+                <div className="flex items-center justify-between font-semibold text-blue-400 text-sm">
+                  <span>2. Keep course progress</span>
+                  <span className="text-xs text-slate-400 group-hover:text-blue-300">Gia hạn →</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  The course progress and results of student will remain. (Giữ nguyên các bài đã học & mở lại khóa học).
+                </p>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                disabled={isRepurchasing}
+                onClick={() => setShowRepurchaseModal(false)}
+                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

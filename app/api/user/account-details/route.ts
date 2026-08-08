@@ -49,6 +49,8 @@ export async function GET() {
             lastName: customData.last_name || "",
             displayName: customData.display_name || customData.name || accountDetails.displayName,
             email: customData.email || accountDetails.email,
+            bio: customData.bio || customData.description || "",
+            avatarUrl: customData.avatar_url || (sessionUser as any).avatarUrl || (sessionUser as any).avatar || "",
           });
         }
       } catch {
@@ -69,6 +71,7 @@ export async function GET() {
             accountDetails.lastName = data.last_name || "";
             accountDetails.displayName = data.name || data.slug || accountDetails.displayName;
             accountDetails.email = data.email || accountDetails.email;
+            (accountDetails as any).avatarUrl = data.avatar_urls?.['96'] || data.avatar_urls?.['48'] || (sessionUser as any).avatarUrl || "";
           }
         } catch (err) {
           console.error("Lỗi tải account details WP:", err);
@@ -110,6 +113,7 @@ export async function POST(request: Request) {
       lastName,
       displayName,
       email,
+      bio,
       currentPassword,
       newPassword,
       confirmPassword,
@@ -164,6 +168,7 @@ export async function POST(request: Request) {
           last_name: lastName,
           display_name: displayName,
           email: email,
+          bio: bio || "",
           current_password: currentPassword || "",
           new_password: newPassword || "",
         }),
