@@ -3692,30 +3692,7 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	$map_answer_to_lp_value = function ($question_id, $raw_ans) use ($wpdb) {
 		if ($raw_ans === null || $raw_ans === '') return null;
 
-		// Xác định loại câu hỏi
-		$q_type = '';
-		if (function_exists('learn_press_get_question')) {
-			$q_obj = learn_press_get_question($question_id);
-			if ($q_obj) {
-				$q_type = method_exists($q_obj, 'get_type') ? $q_obj->get_type() : '';
-			}
-		}
-		if (!$q_type) {
-			$q_type = get_post_meta($question_id, '_lp_type', true) ?: '';
-		}
-
-		// CHỈ true_or_false mới map true/false
-		if ($q_type === 'true_or_false') {
-			if ($raw_ans === 0 || $raw_ans === '0' || $raw_ans === true || $raw_ans === 'true' || $raw_ans === 'True') {
-				return 'true';
-			}
-			if ($raw_ans === 1 || $raw_ans === '1' || $raw_ans === false || $raw_ans === 'false' || $raw_ans === 'False') {
-				return 'false';
-			}
-			return (string) $raw_ans;
-		}
-
-		// single_choice / multi_choice: map index hoặc title → value hash
+		// Lấy options thật từ DB
 		$answers_table = $wpdb->prefix . 'learnpress_question_answers';
 		$meta_table    = $wpdb->prefix . 'learnpress_question_answermeta';
 
@@ -3723,7 +3700,8 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 			"SELECT qa.question_answer_id,
                 MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
                 MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
-                MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text
+                MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text,
+                MAX(CASE WHEN qam.meta_key = 'is_true' THEN qam.meta_value END) as is_true
          FROM {$answers_table} qa
          LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
          WHERE qa.question_id = %d
@@ -3732,17 +3710,17 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 			$question_id
 		));
 
-		// Fallback qua LP_Question
+		// Fallback LP_Question object
 		if (empty($rows) && function_exists('learn_press_get_question')) {
 			$q = learn_press_get_question($question_id);
 			if ($q) {
-				$opts = $q->get_answers();
 				$list = [];
-				foreach ($opts as $opt) {
+				foreach ($q->get_answers() as $opt) {
 					$data = method_exists($opt, 'get_data') ? $opt->get_data() : (array) $opt;
-					$list[] = (object)[
-						'value' => $data['value'] ?? '',
-						'title' => $data['title'] ?? ($data['text'] ?? ''),
+					$list[] = (object) [
+						'value'   => $data['value'] ?? '',
+						'title'   => $data['title'] ?? ($data['text'] ?? ''),
+						'is_true' => $data['is_true'] ?? '',
 					];
 				}
 				$rows = $list;
@@ -3750,6 +3728,9 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		}
 
 		if (empty($rows)) {
+			// Fallback cuối cho true/false
+			if ($raw_ans === 0 || $raw_ans === '0' || $raw_ans === true || $raw_ans === 'true' || $raw_ans === 'True') return 'true';
+			if ($raw_ans === 1 || $raw_ans === '1' || $raw_ans === false || $raw_ans === 'false' || $raw_ans === 'False') return 'false';
 			return is_array($raw_ans) ? $raw_ans : (string) $raw_ans;
 		}
 
@@ -3761,7 +3742,12 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 				foreach ($rows as $row) {
 					$val   = $row->value ?? '';
 					$title = $row->title ?? ($row->text ?? '');
-					if ((string)$one === (string)$idx || (string)$one === (string)$val || strcasecmp((string)$one, (string)$title) === 0) {
+					if ((string)$one === (string)$idx
+						|| (string)$one === (string)$val
+						|| strcasecmp((string)$one, (string)$title) === 0
+						|| (strtolower((string)$one) === 'true' && strtolower($title) === 'true')
+						|| (strtolower((string)$one) === 'false' && strtolower($title) === 'false')
+					   ) {
 						if ($val !== '') $mapped[] = $val;
 						break;
 					}
@@ -3771,12 +3757,19 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 			return $mapped;
 		}
 
-		// single_choice
+		// single / true_or_false: map theo index, value, title
 		$idx = 0;
 		foreach ($rows as $row) {
 			$val   = $row->value ?? '';
 			$title = $row->title ?? ($row->text ?? '');
-			if ((string)$raw_ans === (string)$idx || (string)$raw_ans === (string)$val || strcasecmp((string)$raw_ans, (string)$title) === 0) {
+			$match = (
+				(string)$raw_ans === (string)$idx
+				|| (string)$raw_ans === (string)$val
+				|| strcasecmp((string)$raw_ans, (string)$title) === 0
+				|| (strtolower((string)$raw_ans) === 'true'  && (strtolower($title) === 'true'  || $val === 'true'))
+				|| (strtolower((string)$raw_ans) === 'false' && (strtolower($title) === 'false' || $val === 'false'))
+			);
+			if ($match) {
 				return $val !== '' ? $val : (string)$raw_ans;
 			}
 			$idx++;
@@ -3787,127 +3780,127 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 
 	// ===== Chuẩn hóa answers =====
 	// ===== Map answers → LP value hash (giữ nguyên helper $map_answer_to_lp_value) =====
-$lp_answered = [];
-foreach ($answered as $qid => $ans) {
-    $qid = absint($qid);
-    if (!$qid) continue;
-    $lp_answered[$qid] = $map_answer_to_lp_value($qid, $ans);
-}
-foreach ($questions_detail as $qid => $detail) {
-    $qid = absint($qid);
-    if (!$qid || isset($lp_answered[$qid])) continue;
-    $lp_answered[$qid] = $map_answer_to_lp_value($qid, $detail['answered'] ?? null);
-}
+	$lp_answered = [];
+	foreach ($answered as $qid => $ans) {
+		$qid = absint($qid);
+		if (!$qid) continue;
+		$lp_answered[$qid] = $map_answer_to_lp_value($qid, $ans);
+	}
+	foreach ($questions_detail as $qid => $detail) {
+		$qid = absint($qid);
+		if (!$qid || isset($lp_answered[$qid])) continue;
+		$lp_answered[$qid] = $map_answer_to_lp_value($qid, $detail['answered'] ?? null);
+	}
 
-// ===== user_item =====
-$user_item_id = $wpdb->get_var($wpdb->prepare(
-    "SELECT user_item_id FROM {$table}
+	// ===== user_item =====
+	$user_item_id = $wpdb->get_var($wpdb->prepare(
+		"SELECT user_item_id FROM {$table}
      WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND ref_id = %d
      ORDER BY user_item_id DESC LIMIT 1",
-    $user_id, $quiz_id, $course_id
-));
+		$user_id, $quiz_id, $course_id
+	));
 
-if (!$user_item_id) {
-    $wpdb->insert($table, [
-        'user_id'    => $user_id,
-        'item_id'    => $quiz_id,
-        'item_type'  => 'lp_quiz',
-        'ref_id'     => $course_id,
-        'ref_type'   => 'lp_course',
-        'status'     => 'started',
-        'graduation' => '',
-        'start_time' => current_time('mysql'),
-    ]);
-    $user_item_id = $wpdb->insert_id;
-}
+	if (!$user_item_id) {
+		$wpdb->insert($table, [
+			'user_id'    => $user_id,
+			'item_id'    => $quiz_id,
+			'item_type'  => 'lp_quiz',
+			'ref_id'     => $course_id,
+			'ref_type'   => 'lp_course',
+			'status'     => 'started',
+			'graduation' => '',
+			'start_time' => current_time('mysql'),
+		]);
+		$user_item_id = $wpdb->insert_id;
+	}
 
-if (!$user_item_id) {
-    return new WP_REST_Response(['success' => false, 'message' => 'Không tạo được user_item'], 500);
-}
+	if (!$user_item_id) {
+		return new WP_REST_Response(['success' => false, 'message' => 'Không tạo được user_item'], 500);
+	}
 
-// ===== Build result – ƯU TIÊN điểm từ Next.js =====
-$grade = ($graduation === 'passed') ? 'passed' : 'failed';
-$pass  = ($grade === 'passed') ? 1 : 0;
+	// ===== Build result – ƯU TIÊN điểm từ Next.js =====
+	$grade = ($graduation === 'passed') ? 'passed' : 'failed';
+	$pass  = ($grade === 'passed') ? 1 : 0;
 
-$result_data = [
-    'questions'          => [],
-    'mark'               => $total_mark > 0 ? $total_mark : 4,
-    'user_mark'          => $user_mark,
-    'question_count'     => $total_mark > 0 ? $total_mark : 4,
-    'question_correct'   => $correct,
-    'question_wrong'     => $wrong,
-    'question_empty'     => $skipped,
-    'question_answered'  => $correct + $wrong,
-    'status'             => 'completed',
-    'grade'              => $grade,
-    'result'             => $result_percent,   // 75 từ Next.js
-    'pass'               => $pass,
-    'time_spend'         => $time_spent,
-];
+	$result_data = [
+		'questions'          => [],
+		'mark'               => $total_mark > 0 ? $total_mark : 4,
+		'user_mark'          => $user_mark,
+		'question_count'     => $total_mark > 0 ? $total_mark : 4,
+		'question_correct'   => $correct,
+		'question_wrong'     => $wrong,
+		'question_empty'     => $skipped,
+		'question_answered'  => $correct + $wrong,
+		'status'             => 'completed',
+		'grade'              => $grade,
+		'result'             => $result_percent,   // 75 từ Next.js
+		'pass'               => $pass,
+		'time_spend'         => $time_spent,
+	];
 
-// Gắn answered (hash) + đúng/sai từ Next.js
-foreach ($lp_answered as $qid => $ans) {
-    $detail = $questions_detail[$qid] ?? $questions_detail[(string)$qid] ?? [];
-    $is_correct = !empty($detail['correct']);
-    $result_data['questions'][$qid] = [
-        'answered'  => $ans,
-        'correct'   => $is_correct,
-        'mark'      => isset($detail['mark']) ? floatval($detail['mark']) : 1,
-        'user_mark' => isset($detail['user_mark']) ? floatval($detail['user_mark']) : ($is_correct ? 1 : 0),
-    ];
-}
+	// Gắn answered (hash) + đúng/sai từ Next.js
+	foreach ($lp_answered as $qid => $ans) {
+		$detail = $questions_detail[$qid] ?? $questions_detail[(string)$qid] ?? [];
+		$is_correct = !empty($detail['correct']);
+		$result_data['questions'][$qid] = [
+			'answered'  => $ans,
+			'correct'   => $is_correct,
+			'mark'      => isset($detail['mark']) ? floatval($detail['mark']) : 1,
+			'user_mark' => isset($detail['user_mark']) ? floatval($detail['user_mark']) : ($is_correct ? 1 : 0),
+		];
+	}
 
-// Lưu results
-if (class_exists('LP_User_Items_Result_DB')) {
-    LP_User_Items_Result_DB::instance()->update($user_item_id, wp_json_encode($result_data));
-} else {
-    learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
-}
+	// Lưu results
+	if (class_exists('LP_User_Items_Result_DB')) {
+		LP_User_Items_Result_DB::instance()->update($user_item_id, wp_json_encode($result_data));
+	} else {
+		learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
+	}
 
-// Meta answers để review tick radio
-learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
-learn_press_update_user_item_meta($user_item_id, '_question_answers', $lp_answered);
-learn_press_update_user_item_meta($user_item_id, 'grade', $grade);
-if ($time_spent) {
-    learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spent);
-}
+	// Meta answers để review tick radio
+	learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
+	learn_press_update_user_item_meta($user_item_id, '_question_answers', $lp_answered);
+	learn_press_update_user_item_meta($user_item_id, 'grade', $grade);
+	if ($time_spent) {
+		learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spent);
+	}
 
-// Update user_items
-$wpdb->update(
-    $table,
-    [
-        'status'     => 'completed',
-        'graduation' => $grade,
-        'end_time'   => current_time('mysql'),
-    ],
-    ['user_item_id' => $user_item_id],
-    ['%s', '%s', '%s'],
-    ['%d']
-);
+	// Update user_items
+	$wpdb->update(
+		$table,
+		[
+			'status'     => 'completed',
+			'graduation' => $grade,
+			'end_time'   => current_time('mysql'),
+		],
+		['user_item_id' => $user_item_id],
+		['%s', '%s', '%s'],
+		['%d']
+	);
 
-// complete() nếu có
-try {
-    $user_quiz = $user->get_item_data($quiz_id, $course_id);
-    if ($user_quiz) {
-        if (method_exists($user_quiz, 'set_graduation')) {
-            $user_quiz->set_graduation($grade);
-        }
-        if (method_exists($user_quiz, 'complete')) {
-            $user_quiz->complete();
-        }
-    }
-} catch (Throwable $e) {}
+	// complete() nếu có
+	try {
+		$user_quiz = $user->get_item_data($quiz_id, $course_id);
+		if ($user_quiz) {
+			if (method_exists($user_quiz, 'set_graduation')) {
+				$user_quiz->set_graduation($grade);
+			}
+			if (method_exists($user_quiz, 'complete')) {
+				$user_quiz->complete();
+			}
+		}
+	} catch (Throwable $e) {}
 
-do_action('learn-press/user/quiz-finished', $quiz_id, $course_id, $user_id);
+	do_action('learn-press/user/quiz-finished', $quiz_id, $course_id, $user_id);
 
-return new WP_REST_Response([
-    'success'      => true,
-    'user_item_id' => $user_item_id,
-    'graduation'   => $grade,
-    'result'       => $result_percent,
-    'answered'     => $lp_answered,
-    'message'      => 'Nộp bài thành công',
-], 200);
+	return new WP_REST_Response([
+		'success'      => true,
+		'user_item_id' => $user_item_id,
+		'graduation'   => $grade,
+		'result'       => $result_percent,
+		'answered'     => $lp_answered,
+		'message'      => 'Nộp bài thành công',
+	], 200);
 }
 
 function handle_submit_quiz_result($request) {
