@@ -449,8 +449,8 @@ export default function LessonViewWrapper({
           const latest = myQuizzes[myQuizzes.length - 1];
           const isPassed = (latest.status === "passed");
 
-          let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined 
-            ? Number(latest.scorePercent) 
+          let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined
+            ? Number(latest.scorePercent)
             : parseFloat(String(latest.resultLabel || "0").replace("%", ""));
           if (isNaN(resNum)) resNum = 0;
           if (isPassed && resNum < 80) resNum = 100;
@@ -820,8 +820,8 @@ export default function LessonViewWrapper({
       const numericCourseId = !isNaN(Number(courseId))
         ? Number(courseId)
         : !isNaN(Number(course?.id))
-        ? Number(course?.id)
-        : 0;
+          ? Number(course?.id)
+          : 0;
 
       const res = await fetch("/api/retake-quiz", {
         method: "POST",
@@ -1011,20 +1011,21 @@ export default function LessonViewWrapper({
         };
       });
 
-      const numericCourseId = !isNaN(Number(courseId))
-        ? Number(courseId)
-        : !isNaN(Number(activeCourse?.id))
-        ? Number(activeCourse?.id)
-        : !isNaN(Number(course?.id))
-        ? Number(course?.id)
-        : 0;
+      const targetId = Number(activeLesson?.id || activeItem?.id || lessonId);
+      const numericCourseId = Number(courseId || course?.id || 0);
+
+      if (!targetId || isNaN(targetId)) {
+        console.error("quiz_id không hợp lệ");
+        setIsSubmittingQuiz(false);
+        return;
+      }
 
       const submitRes = await fetch("/api/submit-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: user?.id,
-          quiz_id: Number(targetId),
+          user_id: Number(user?.id),
+          quiz_id: targetId,
           course_id: numericCourseId,
           result: finalScore,
           correct: correctCount,
@@ -1035,7 +1036,7 @@ export default function LessonViewWrapper({
           time_spent: formatTimerSeconds(timeSpent) || "00:00:00",
           time_spent_seconds: timeSpent,
           graduation: finalScore >= passingGrade ? "passed" : "failed",
-          answers: Object.keys(answersPayload).length > 0 ? answersPayload : undefined,
+          answers: Object.keys(answersPayload).length > 0 ? answersPayload : {},
           questions_detail: questionsDetailPayload,
         }),
       });
@@ -1067,15 +1068,15 @@ export default function LessonViewWrapper({
             if (myQuizzes.length > 0) {
               const latest = myQuizzes[myQuizzes.length - 1];
               const isPassed = (latest.status === "passed");
-              
+
               if (isPassed) {
                 setFailedQuizzesList((prev) => prev.filter((id) => id !== Number(targetId)));
               } else {
                 setFailedQuizzesList((prev) => Array.from(new Set([...prev, Number(targetId)])));
               }
 
-              let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined 
-                ? Number(latest.scorePercent) 
+              let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined
+                ? Number(latest.scorePercent)
                 : (finalScore ?? 0);
               if (isNaN(resNum)) resNum = finalScore;
               if (isPassed && resNum < 80) resNum = 100;
@@ -1192,17 +1193,17 @@ export default function LessonViewWrapper({
 
   const displayWrongCount = quizSubmitted
     ? activeQuizQuestions.filter((q) => {
-        const userAns = quizAnswers[q.id];
-        const hasAnswered = userAns !== undefined && userAns !== null && userAns !== "" && (!Array.isArray(userAns) || userAns.length > 0);
-        return hasAnswered && !isQuestionCorrect(q, userAns);
-      }).length
+      const userAns = quizAnswers[q.id];
+      const hasAnswered = userAns !== undefined && userAns !== null && userAns !== "" && (!Array.isArray(userAns) || userAns.length > 0);
+      return hasAnswered && !isQuestionCorrect(q, userAns);
+    }).length
     : (lastAttempt?.wrong !== undefined ? lastAttempt.wrong : 0);
 
   const displaySkippedCount = quizSubmitted
     ? activeQuizQuestions.filter((q) => {
-        const userAns = quizAnswers[q.id];
-        return userAns === undefined || userAns === null || userAns === "" || (Array.isArray(userAns) && userAns.length === 0);
-      }).length
+      const userAns = quizAnswers[q.id];
+      return userAns === undefined || userAns === null || userAns === "" || (Array.isArray(userAns) && userAns.length === 0);
+    }).length
     : (lastAttempt?.skipped !== undefined ? lastAttempt.skipped : Math.max(0, Number(displayQuestionsCount) - Number(displayCorrectCount) - Number(displayWrongCount)));
 
   return (
@@ -1538,9 +1539,8 @@ export default function LessonViewWrapper({
                         {/* Status Pill Badge */}
                         <div className={styles.quiz_status_icon_wrap}>
                           <div
-                            className={`${styles.quiz_status_badge} ${
-                              isQuizPassed ? styles.quiz_status_badge_passed : styles.quiz_status_badge_failed
-                            }`}
+                            className={`${styles.quiz_status_badge} ${isQuizPassed ? styles.quiz_status_badge_passed : styles.quiz_status_badge_failed
+                              }`}
                           >
                             {isQuizPassed ? (
                               <>
@@ -1804,8 +1804,8 @@ export default function LessonViewWrapper({
                                     userAns === undefined
                                       ? styles.badge_review_skipped
                                       : isCorrect
-                                      ? styles.badge_review_correct
-                                      : styles.badge_review_incorrect
+                                        ? styles.badge_review_correct
+                                        : styles.badge_review_incorrect
                                   }>
                                     {userAns === undefined ? (
                                       "Skipped"
@@ -2294,7 +2294,7 @@ export default function LessonViewWrapper({
               >
                 Cancel
               </button>
-               <button
+              <button
                 type="button"
                 disabled={isRetakingQuiz}
                 onClick={handleConfirmRetake}
