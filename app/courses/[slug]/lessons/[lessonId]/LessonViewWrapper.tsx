@@ -446,82 +446,94 @@ export default function LessonViewWrapper({
         });
 
         if (myQuizzes.length > 0) {
-          const latest = myQuizzes[myQuizzes.length - 1];
-          const isPassed = (latest.status === "passed");
+          // Normalize tất cả attempts (giống logic sau submit)
+          const attempts = myQuizzes
+            .map((att: any, i: number) => {
+              const resNum =
+                att.scorePercent !== null && att.scorePercent !== undefined
+                  ? Number(att.scorePercent)
+                  : parseFloat(String(att.resultLabel || "0").replace("%", "")) || 0;
 
-          let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined
-            ? Number(latest.scorePercent)
-            : parseFloat(String(latest.resultLabel || "0").replace("%", ""));
-          if (isNaN(resNum)) resNum = 0;
-          if (isPassed && resNum < 80) resNum = 100;
+              const isPassed =
+                att.status === "passed" ||
+                att.graduation === "passed" ||
+                resNum >= 80;
 
-          let qCount = latest.questionCount || 0;
-          if (qCount === 0 && quizQuestions && quizQuestions.length > 0) {
-            qCount = quizQuestions.length;
-          }
-          if (qCount === 0) qCount = 1;
+              let qCount = att.questionCount || 0;
+              if (qCount === 0 && quizQuestions?.length > 0) qCount = quizQuestions.length;
+              if (qCount === 0) qCount = 1;
 
-          let totMark = latest.totalScore !== null && latest.totalScore !== undefined && Number(latest.totalScore) > 0 ? Number(latest.totalScore) : qCount;
+              const totMark =
+                att.totalScore !== null && att.totalScore !== undefined && Number(att.totalScore) > 0
+                  ? Number(att.totalScore)
+                  : qCount;
 
-          let uMark: number;
-          if (latest.score !== null && latest.score !== undefined) {
-            uMark = Number(latest.score);
-          } else if (resNum > 0) {
-            uMark = Math.round((resNum / 100) * totMark);
-          } else if (isPassed) {
-            uMark = totMark;
-          } else {
-            uMark = 0;
-          }
+              let uMark: number;
+              if (att.score !== null && att.score !== undefined) {
+                uMark = Number(att.score);
+              } else if (resNum > 0) {
+                uMark = Math.round((resNum / 100) * totMark);
+              } else if (isPassed) {
+                uMark = totMark;
+              } else {
+                uMark = 0;
+              }
 
-          let qCorrect = latest.questionCorrect !== null && latest.questionCorrect !== undefined ? Number(latest.questionCorrect) : uMark;
-          let qWrong = Math.max(0, totMark - qCorrect);
+              const qCorrect =
+                att.questionCorrect !== null && att.questionCorrect !== undefined
+                  ? Number(att.questionCorrect)
+                  : uMark;
+              const qWrong = Math.max(0, totMark - qCorrect);
 
-          const normalized = {
-            user_item_id: latest.id || `lp-${targetQuizId}`,
-            status: "completed",
-            graduation: isPassed ? "passed" : "failed",
-            start_time: latest.startedAt,
-            end_time: latest.completedAt,
-            time_spent: latest.duration || "00:00:03",
-            questions_count: qCount,
-            correct: qCorrect,
-            wrong: qWrong,
-            skipped: 0,
-            points: `${uMark} / ${totMark}`,
-            user_mark: uMark,
-            mark: totMark,
-            passing_grade: latest.passingGrade || "80%",
-            result: `${resNum.toFixed(2)}%`,
-            result_num: resNum,
-            questionsData: latest.questionsData || latest.data?.questions || latest.results?.questions || latest.questions || {},
-          };
-          setLastAttempt(normalized);
-
-          // Build previous attempts list (latest.attempt) excluding current attempt
-          const rawAttempts = Array.isArray(latest.attempt) ? latest.attempt : [];
-          const previousAttemptsList: any[] = [];
-
-          rawAttempts.forEach((attItem: any, i: number) => {
-            const attScore = attItem.result !== undefined ? Number(attItem.result) : 0;
-            const attPassed = (attItem.pass === 1 || attItem.graduation === "passed" || attScore >= 80);
-            const attTotal = attItem.mark || attItem.question_count || qCount;
-            const attUser = attItem.user_mark !== undefined ? Number(attItem.user_mark) : (attPassed ? attTotal : 0);
-
-            previousAttemptsList.push({
-              user_item_id: attItem.user_item_id || `att-${i}`,
-              questions: `${attUser} / ${attTotal}`,
-              time_spent: attItem.time_spend || attItem.time_spent || "00:00:00",
-              points: `${attUser} / ${attTotal}`,
-              passing_grade: attItem.passing_grade || "80%",
-              result: `${attScore.toFixed(2)}%`,
-              result_num: attScore,
-              graduation: attPassed ? "passed" : "failed",
+              return {
+                user_item_id: att.id || att.user_item_id || `att-${i}`,
+                status: "completed",
+                graduation: isPassed ? "passed" : "failed",
+                start_time: att.startedAt,
+                end_time: att.completedAt,
+                time_spent: att.duration || "00:00:00",
+                questions_count: qCount,
+                correct: qCorrect,
+                wrong: qWrong,
+                skipped: 0,
+                points: `${uMark} / ${totMark}`,
+                user_mark: uMark,
+                mark: totMark,
+                passing_grade: att.passingGrade || "80%",
+                result: `${resNum.toFixed(2)}%`,
+                result_num: resNum,
+                questionsData: att.questionsData || att.data?.questions || {},
+                // dùng cho table
+                questions: `${uMark} / ${totMark}`,
+              };
+            })
+            // Bỏ dòng rác 0 điểm + 0 giây
+            .filter((a) => {
+              const isZeroTime =
+                !a.time_spent ||
+                a.time_spent === "00:00:00" ||
+                a.time_spent === "00:00" ||
+                a.time_spent === "--:--";
+              const isZeroScore = !a.result_num || a.result_num === 0;
+              return !(isZeroScore && isZeroTime);
             });
+
+          // Sort theo thời gian / id
+          const sorted = [...attempts].sort((a, b) => {
+            const timeA = new Date(a.start_time || a.user_item_id || 0).getTime();
+            const timeB = new Date(b.start_time || b.user_item_id || 0).getTime();
+            return timeA - timeB;
           });
 
-          setAttemptsList(previousAttemptsList);
-          logQuizAttemptsNextJS([normalized, ...previousAttemptsList], activeItem?.title || activeLesson?.title?.rendered);
+          // Kết quả chính = lần mới nhất
+          const current = sorted[sorted.length - 1] || null;
+          setLastAttempt(current);
+
+          // Bảng Last Attempt = chỉ các lần trước (1 → n-1)
+          const previous = sorted.slice(0, -1);
+          setAttemptsList(previous);
+
+          logQuizAttemptsNextJS(sorted, activeItem?.title || activeLesson?.title?.rendered);
         } else {
           setLastAttempt(null);
           setAttemptsList([]);
