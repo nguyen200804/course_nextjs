@@ -20,6 +20,7 @@ export default async function QuizDetailPage({ params }: PageProps) {
   let displayOptions: any = null;
   let error: string | null = null;
   let courseId = "";
+  let targetNumericId = "";
 
   // Kiểm tra phiên đăng nhập của người dùng
   const cookieStore = await cookies();
@@ -97,7 +98,7 @@ export default async function QuizDetailPage({ params }: PageProps) {
       }
     }
 
-    const targetNumericId = foundSectionItem ? (foundSectionItem.item_id || foundSectionItem.id || "").toString() : (/^\d+$/.test(quizSlug) ? quizSlug : "");
+    targetNumericId = foundSectionItem ? (foundSectionItem.item_id || foundSectionItem.id || "").toString() : (/^\d+$/.test(quizSlug) ? quizSlug : "");
 
     // 3. Tải thông tin chi tiết bài quiz từ REST API theo ID hoặc Slug
     try {
