@@ -3645,10 +3645,159 @@ function handle_get_all_lp_questions($request) {
 add_action('rest_api_init', function () {
     register_rest_route('custom/v1', '/submit-quiz', [
         'methods'             => 'POST',
-        'callback'            => 'handle_submit_quiz_result',
+        'callback'            => 'custom_lp_submit_quiz',
         'permission_callback' => '__return_true',
     ]);
 });
+
+function custom_lp_submit_quiz(WP_REST_Request $request) {
+    $p = $request->get_json_params();
+    $user_id   = absint($p['user_id'] ?? 0);
+    $quiz_id   = absint($p['quiz_id'] ?? 0);
+    $course_id = absint($p['course_id'] ?? 0);
+    $answered  = (array) ($p['answers'] ?? []);
+    $graduation = sanitize_text_field($p['graduation'] ?? 'failed');
+    $result_percent = floatval($p['result'] ?? 0);
+    $user_mark = floatval($p['user_mark'] ?? 0);
+    $total_mark = floatval($p['total_mark'] ?? 0);
+    $time_spent = sanitize_text_field($p['time_spent'] ?? '');
+    $correct = absint($p['correct'] ?? 0);
+    $wrong = absint($p['wrong'] ?? 0);
+    $skipped = absint($p['skipped'] ?? 0);
+
+    if (!$user_id || !$quiz_id) {
+        return new WP_REST_Response(['success' => false, 'message' => 'Thiếu user_id hoặc quiz_id'], 400);
+    }
+
+    if (!function_exists('learn_press_get_user')) {
+        return new WP_REST_Response(['success' => false, 'message' => 'LearnPress chưa kích hoạt'], 500);
+    }
+
+    $user = learn_press_get_user($user_id);
+    if (!$user) {
+        return new WP_REST_Response(['success' => false, 'message' => 'User không tồn tại'], 404);
+    }
+
+    if (!$course_id) {
+        $course_id = learn_press_get_item_course_id($quiz_id, 'lp_quiz');
+    }
+    if (!$course_id) {
+        return new WP_REST_Response(['success' => false, 'message' => 'Không tìm thấy course_id'], 400);
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'learnpress_user_items';
+
+    // 1. Tìm user_item quiz hiện tại
+    $user_item_id = $wpdb->get_var($wpdb->prepare(
+        "SELECT user_item_id FROM {$table}
+         WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND ref_id = %d
+         ORDER BY user_item_id DESC LIMIT 1",
+        $user_id, $quiz_id, $course_id
+    ));
+
+    // 2. Chưa có → tạo mới (start)
+    if (!$user_item_id) {
+        $wpdb->insert($table, [
+            'user_id'    => $user_id,
+            'item_id'    => $quiz_id,
+            'item_type'  => 'lp_quiz',
+            'ref_id'     => $course_id,
+            'ref_type'   => 'lp_course',
+            'status'     => 'started',
+            'graduation' => '',
+            'start_time' => current_time('mysql'),
+            'end_time'   => null,
+        ]);
+        $user_item_id = $wpdb->insert_id;
+    }
+
+    if (!$user_item_id) {
+        return new WP_REST_Response(['success' => false, 'message' => 'Không tạo được user_item'], 500);
+    }
+
+    // 3. Cập nhật completed + graduation
+    $grade = ($graduation === 'passed') ? 'passed' : 'failed';
+    $wpdb->update(
+        $table,
+        [
+            'status'     => 'completed',
+            'graduation' => $grade,
+            'end_time'   => current_time('mysql'),
+        ],
+        ['user_item_id' => $user_item_id],
+        ['%s', '%s', '%s'],
+        ['%d']
+    );
+
+    $questions_detail = (array) ($p['questions_detail'] ?? []);
+
+$result_data = [
+    'questions'        => [],
+    'mark'             => $total_mark,
+    'user_mark'        => $user_mark,
+    'question_count'   => $total_mark,
+    'question_correct' => $correct,
+    'question_wrong'   => $wrong,
+    'question_empty'   => $skipped,
+    'status'           => 'completed',
+    'grade'            => $grade,
+    'result'           => $result_percent,
+    'time_spend'       => $time_spent,
+];
+
+// Ưu tiên questions_detail từ Next.js (có đúng/sai)
+if (!empty($questions_detail)) {
+    foreach ($questions_detail as $qid => $detail) {
+        $qid = absint($qid);
+        if (!$qid) continue;
+        $result_data['questions'][$qid] = [
+            'answered'  => $detail['answered'] ?? null,
+            'correct'   => !empty($detail['correct']),
+            'mark'      => isset($detail['mark']) ? floatval($detail['mark']) : 1,
+            'user_mark' => isset($detail['user_mark']) ? floatval($detail['user_mark']) : 0,
+        ];
+    }
+} else {
+    // Fallback: chỉ có answers
+    foreach ($answered as $qid => $ans) {
+        $qid = absint($qid);
+        if (!$qid) continue;
+        $result_data['questions'][$qid] = [
+            'answered'  => $ans,
+            'correct'   => false,
+            'mark'      => 1,
+            'user_mark' => 0,
+        ];
+    }
+}
+
+if (class_exists('LP_User_Items_Result_DB')) {
+    LP_User_Items_Result_DB::instance()->update($user_item_id, wp_json_encode($result_data));
+} else {
+    learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
+}
+
+// Lưu thêm meta answers riêng (một số theme/plugin đọc chỗ này)
+learn_press_update_user_item_meta($user_item_id, 'question_answers', $answered);
+learn_press_update_user_item_meta($user_item_id, '_question_answers', $answered);
+
+    learn_press_update_user_item_meta($user_item_id, 'grade', $grade);
+    if ($time_spent) {
+        learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spent);
+    }
+
+    // 5. Trigger hook
+    do_action('learn-press/user/quiz-finished', $quiz_id, $course_id, $user_id);
+
+    return new WP_REST_Response([
+        'success'      => true,
+        'user_item_id' => $user_item_id,
+        'graduation'   => $grade,
+        'result'       => $result_percent,
+        'message'      => 'Nộp bài thành công',
+    ], 200);
+}
 
 function handle_submit_quiz_result($request) {
     try {
