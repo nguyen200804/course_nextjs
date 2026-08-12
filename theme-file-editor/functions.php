@@ -5108,7 +5108,7 @@ function handle_custom_retake_quiz($request) {
 			'question_count'   => $questions_count,
 		];
 
-		$existing_retakes[] = $new_retake_record;
+		$existing_retakes[] = $new_retake_record; 
 
 		// Lưu vào meta của bản ghi COURSE (parent_id) và QUIZ mới
 		if ($parent_id) {
