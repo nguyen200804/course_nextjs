@@ -975,12 +975,12 @@ export default function LessonViewWrapper({
       result_num: finalScore,
     };
 
-    setLastAttempt(newAttemptRecord);
-    setAttemptsList((prev) => {
-      const updated = [...prev, newAttemptRecord];
-      logQuizAttemptsNextJS(updated, activeItem?.title || activeLesson?.title?.rendered);
-      return updated;
-    });
+    // setLastAttempt(newAttemptRecord);
+    // setAttemptsList((prev) => {
+    //   const updated = [...prev, newAttemptRecord];
+    //   logQuizAttemptsNextJS(updated, activeItem?.title || activeLesson?.title?.rendered);
+    //   return updated;
+    // });
 
     try {
       const answersPayload: Record<string, string | string[]> = {};
@@ -1050,9 +1050,67 @@ export default function LessonViewWrapper({
         }),
       });
 
-      // ... phần if (submitRes.ok) giữ nguyên ...
-      // Chỉ đổi 1 chỗ trong normalized (nếu có):
-      // time_spent: latest.duration || formatTimerSeconds(finalTimeSpent) || "00:00:03",
+      if (submitRes.ok) {
+        const submitData = await submitRes.json();
+        console.log("[NextJS] Quiz result submitted to WordPress:", submitData);
+
+        try {
+          await new Promise((r) => setTimeout(r, 500));
+          const lpRes = await fetch("/api/user/quizzes", { cache: "no-store" });
+          if (lpRes.ok) {
+            const lpData = await lpRes.json();
+            const allQuizzes: any[] = lpData?.quizzes ?? [];
+            const myQuizzes = allQuizzes.filter((q: any) => {
+              const qIdStr = String(q.quizId);
+              return (
+                qIdStr === String(targetIdNum) ||
+                qIdStr === String(activeItem?.id) ||
+                qIdStr === String(lessonId)
+              );
+            });
+
+            if (myQuizzes.length > 0) {
+              const attempts = myQuizzes.map((att: any, i: number) => {
+                const resNum = Number(att.scorePercent ?? att.result ?? 0);
+                const isPassed =
+                  att.status === "passed" ||
+                  att.graduation === "passed" ||
+                  resNum >= passingGrade;
+                const totMark =
+                  Number(att.totalScore ?? att.mark ?? totalCount) || totalCount;
+                const uMark = Number(
+                  att.score ?? att.user_mark ?? (isPassed ? totMark : 0)
+                );
+                return {
+                  user_item_id: att.id || att.user_item_id || `att-${i}`,
+                  questions: `${uMark} / ${totMark}`,
+                  time_spent:
+                    att.duration || att.time_spend || att.time_spent || "00:00:00",
+                  points: `${uMark} / ${totMark}`,
+                  passing_grade: att.passingGrade || `${passingGrade}%`,
+                  result: `${resNum.toFixed(2)}%`,
+                  result_num: resNum,
+                  graduation: isPassed ? "passed" : "failed",
+                };
+              });
+
+              const sorted = [...attempts].sort(
+                (a, b) => Number(a.user_item_id) - Number(b.user_item_id)
+              );
+              setAttemptsList(sorted);
+              setLastAttempt(sorted[sorted.length - 1] || null);
+              logQuizAttemptsNextJS(
+                sorted,
+                activeItem?.title || activeLesson?.title?.rendered
+              );
+            }
+          }
+        } catch (syncErr) {
+          console.warn("[NextJS] Could not sync attempts from WP:", syncErr);
+        }
+      } else {
+        console.warn("[NextJS] submit-quiz returned error:", await submitRes.text());
+      }
 
     } catch (e) {
       console.error("Lỗi khi đồng bộ kết quả Quiz sang WordPress:", e);
