@@ -1022,6 +1022,7 @@ export default function LessonViewWrapper({
 
       const targetId = Number(activeLesson?.id || activeItem?.id || lessonId);
       const numericCourseId = Number(courseId || course?.id || 0);
+      console.log("[submit-quiz] quiz_id=", targetId, "course_id=", numericCourseId, "answers=", answersPayload);
 
       if (!targetId || isNaN(targetId)) {
         console.error("quiz_id không hợp lệ");
