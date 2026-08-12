@@ -3219,9 +3219,14 @@ function handle_get_custom_quiz_attempts($request) {
 						$raw_retakes = maybe_unserialize($raw_retakes);
 					}
 					if (is_array($raw_retakes) && count($raw_retakes) > 0) {
+						$existing_ids = array_column($attempts_list, 'user_item_id');
 						foreach ($raw_retakes as $r_idx => $r_item) {
 							if (is_array($r_item) || is_object($r_item)) {
 								$r_arr   = (array)$r_item;
+								$r_uid   = isset($r_arr['user_item_id']) ? $r_arr['user_item_id'] : ($u_item->user_item_id . '_r' . $r_idx);
+								if (in_array($r_uid, $existing_ids, false)) {
+									continue; // Skip existing DB attempts to prevent duplication
+								}
 								$r_score = isset($r_arr['result']) ? floatval($r_arr['result']) : (isset($r_arr['user_mark']) && isset($r_arr['mark']) && floatval($r_arr['mark']) > 0 ? (floatval($r_arr['user_mark']) / floatval($r_arr['mark'])) * 100 : 0);
 								$r_mark  = isset($r_arr['mark']) ? intval($r_arr['mark']) : $q_count;
 								$r_umark = isset($r_arr['user_mark']) ? intval($r_arr['user_mark']) : round(($r_score / 100) * $r_mark);
@@ -3229,7 +3234,7 @@ function handle_get_custom_quiz_attempts($request) {
 								$r_minus = isset($r_arr['minus_point']) ? floatval($r_arr['minus_point']) : ($minus_point_val * $r_wrong);
 
 								$attempts_list[] = [
-									'user_item_id'    => isset($r_arr['user_item_id']) ? $r_arr['user_item_id'] : ($u_item->user_item_id . '_r' . $r_idx),
+									'user_item_id'    => $r_uid,
 									'status'          => isset($r_arr['status']) ? $r_arr['status'] : 'completed',
 									'graduation'      => isset($r_arr['graduation']) ? $r_arr['graduation'] : ($r_score >= floatval($pg_val) ? 'passed' : 'failed'),
 									'start_time'      => isset($r_arr['start_time']) ? $r_arr['start_time'] : $u_item->start_time,
@@ -3249,6 +3254,7 @@ function handle_get_custom_quiz_attempts($request) {
 									'result_num'      => $r_score,
 									'results'         => $r_arr,
 								];
+								$existing_ids[] = $r_uid;
 							}
 						}
 					}
@@ -3256,6 +3262,23 @@ function handle_get_custom_quiz_attempts($request) {
 			}
 		}
 	}
+
+	// Khử trùng lặp cuối cùng theo user_item_id
+	$seen_uids = [];
+	$unique_attempts = [];
+	foreach ($attempts_list as $att_item) {
+		$uid_key = strval($att_item['user_item_id']);
+		if (!isset($seen_uids[$uid_key])) {
+			$seen_uids[$uid_key] = true;
+			$unique_attempts[] = $att_item;
+		}
+	}
+	$attempts_list = $unique_attempts;
+
+	// Sắp xếp theo ID / thời gian tăng dần (từ lượt 1 -> n)
+	usort($attempts_list, function($a, $b) {
+		return intval($a['user_item_id']) - intval($b['user_item_id']);
+	});
 
 	// Chọn Lượt làm trước đó đã HOÀN THÀNH (Completed) làm last_attempt, tránh việc click Retakes / tạo mới làm đè 0 điểm
 	$last_attempt = null;
@@ -3347,7 +3370,7 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 		$ts        = trim((string)($old_result['time_spend'] ?? $old_result['time_spent'] ?? ''));
 
 		$is_zero_score = ($r <= 0 && $user_mark <= 0);
-		$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00','00:00','0','00:00:01','00:00:09'], true) || preg_match('/^00:00:0[0-9]$/', $ts);
+		$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0'], true);
 		if ($is_zero_score && $is_zero_time) continue;
 
 		$attempts_history[] = array_merge($old_result, [
@@ -3883,22 +3906,57 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	$end_ts   = current_time('timestamp');
 	$start_ts = $end_ts - max($time_spent_seconds, 1);
 
+	// Tìm hoặc tự động tạo parent_id (user_item_id của course record)
+	$parent_id = 0;
+	if ($course_id) {
+		$course_item = $wpdb->get_row($wpdb->prepare(
+			"SELECT user_item_id FROM {$table}
+             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+             ORDER BY user_item_id DESC LIMIT 1",
+			$user_id,
+			$course_id
+		));
+		if ($course_item) {
+			$parent_id = intval($course_item->user_item_id);
+		} else {
+			$now_time = current_time('mysql');
+			$wpdb->insert($table, [
+				'user_id'    => $user_id,
+				'item_id'    => $course_id,
+				'start_time' => $now_time,
+				'item_type'  => 'lp_course',
+				'status'     => 'enrolled',
+				'graduation' => 'in-progress',
+			]);
+			$parent_id = intval($wpdb->insert_id);
+		}
+	}
+
 	$wpdb->insert($table, [
 		'user_id'    => $user_id,
 		'item_id'    => $quiz_id,
 		'item_type'  => 'lp_quiz',
+		'parent_id'  => $parent_id,
 		'ref_id'     => $course_id,
 		'ref_type'   => 'lp_course',
 		'status'     => 'completed',
 		'graduation' => ($graduation === 'passed') ? 'passed' : 'failed',
 		'start_time' => date('Y-m-d H:i:s', $start_ts),
 		'end_time'   => date('Y-m-d H:i:s', $end_ts),
-		'parent_id'  => 0,
 	]);
 	$user_item_id = $wpdb->insert_id;
 
 	if (!$user_item_id) {
 		return new WP_REST_Response(['success' => false, 'message' => 'Không tạo được user_item'], 500);
+	}
+
+	// Cập nhật parent_id cho các bản ghi mồ côi cũ của quiz này
+	if ($parent_id > 0) {
+		$wpdb->query($wpdb->prepare(
+			"UPDATE {$table} SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
+             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND (parent_id = 0 OR parent_id IS NULL)",
+			$parent_id, $course_id, $user_id, $quiz_id
+		));
 	}
 
 	// ===== Build result – ƯU TIÊN điểm từ Next.js =====
@@ -3941,19 +3999,12 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	}
 
 
-	// Lưu vào history attempts (để LP / theme đọc được)
-	$history = learn_press_get_user_item_meta($user_item_id, 'attempts', true);
-	if (!is_array($history)) {
-		$history = [];
-	}
-
-	// Lấy các attempt cũ cùng quiz (trừ cái vừa insert)
+	// Lấy tất cả các attempt đã completed cùng quiz
 	$old_ids = $wpdb->get_col($wpdb->prepare(
 		"SELECT user_item_id FROM {$table}
      WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-       AND user_item_id < %d
      ORDER BY user_item_id ASC",
-		$user_id, $quiz_id, $user_item_id
+		$user_id, $quiz_id
 	));
 
 	$attempts_history = [];
@@ -3968,25 +4019,26 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 			$old_result = learn_press_get_user_item_meta($oid, 'results', true);
 		}
 		if (!$old_result || !is_array($old_result)) {
-			continue;
+			if ($oid === $user_item_id) {
+				$old_result = $result_data;
+			} else {
+				continue;
+			}
 		}
 
-		// ===== Lọc attempt rác mạnh hơn =====
+		// ===== Lọc attempt rác =====
 		$r          = floatval($old_result['result'] ?? 0);
-		$user_mark  = floatval($old_result['user_mark'] ?? 0);
+		$user_m     = floatval($old_result['user_mark'] ?? 0);
 		$ts         = $old_result['time_spend'] ?? ($old_result['time_spent'] ?? '');
 		$ts_clean   = trim((string) $ts);
 
-		// Bỏ nếu điểm = 0 VÀ thời gian quá ngắn / rỗng
-		$is_zero_score = ($r <= 0 && $user_mark <= 0);
+		// Bỏ nếu điểm = 0 VÀ thời gian rỗng/0
+		$is_zero_score = ($r <= 0 && $user_m <= 0);
 		$is_zero_time  = (
 			empty($ts_clean) ||
 			$ts_clean === '00:00:00' ||
 			$ts_clean === '00:00' ||
-			$ts_clean === '0' ||
-			$ts_clean === '00:00:01' ||
-			$ts_clean === '00:00:09' ||   // case đang bị hiện ở screenshot
-			preg_match('/^00:00:0[0-9]$/', $ts_clean)
+			$ts_clean === '0'
 		);
 
 		if ($is_zero_score && $is_zero_time) {
@@ -3997,14 +4049,14 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		$attempts_history[] = array_merge($old_result, [
 			'user_item_id'   => $oid,
 			'result'         => $r,
-			'user_mark'      => $user_mark,
+			'user_mark'      => $user_m,
 			'mark'           => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
 			'time_spend'     => $ts_clean ?: '00:00:00',
 			'time_spent'     => $ts_clean ?: '00:00:00',
 			'graduation'     => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 'passed' : 'failed',
 			'pass'           => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 1 : 0,
 			'question_count' => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
-			'question_correct' => intval($old_result['question_correct'] ?? $user_mark),
+			'question_correct' => intval($old_result['question_correct'] ?? $user_m),
 		]);
 	}
 	
@@ -4017,7 +4069,6 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		return true;
 	}));
 
-	// Ghi vào user_item MỚI NHẤT
 	// Ghi vào user_item MỚI NHẤT + các key mà theme LearnPress gốc đọc
 	$keys_to_write = [
 		'attempts',
@@ -4027,19 +4078,26 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		'_lp_user_item_retakes',
 	];
 
+	// 1) Ghi vào bản ghi Quiz mới
 	foreach ($keys_to_write as $key) {
 		learn_press_update_user_item_meta($user_item_id, $key, $attempts_history);
 	}
 
-	// Copy history sang TẤT CẢ record cũ + ép status = completed
-	// (để WordPress gốc và Next.js đều thấy cùng history)
+	// 2) Ghi vào bản ghi Khóa học cha (parent_id) — Rất quan trọng để Theme WP hiển thị bảng Last Attempt
+	if ($parent_id > 0) {
+		foreach ($keys_to_write as $key) {
+			learn_press_update_user_item_meta($parent_id, $key, $attempts_history);
+		}
+	}
+
+	// 3) Copy history sang TẤT CẢ record cũ + ép status = completed
 	foreach ($old_ids as $oid) {
 		$oid = absint($oid);
 		$wpdb->update(
 			$table,
-			['status' => 'completed'],
+			['status' => 'completed', 'parent_id' => $parent_id],
 			['user_item_id' => $oid],
-			['%s'],
+			['%s', '%d'],
 			['%d']
 		);
 		foreach ($keys_to_write as $key) {
