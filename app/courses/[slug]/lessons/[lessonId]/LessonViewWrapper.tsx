@@ -1111,8 +1111,15 @@ export default function LessonViewWrapper({
               const sorted = [...attempts].sort(
                 (a, b) => Number(a.user_item_id) - Number(b.user_item_id)
               );
-              setAttemptsList(sorted);
-              setLastAttempt(sorted[sorted.length - 1] || null);
+
+              // Kết quả chính = lần mới nhất
+              const current = sorted[sorted.length - 1] || null;
+              setLastAttempt(current);
+
+              // Bảng Last Attempt = chỉ lần 1 → n-1 (lần 1 thì mảng rỗng → ẩn bảng)
+              const previous = sorted.slice(0, -1);
+              setAttemptsList(previous);
+
               logQuizAttemptsNextJS(
                 sorted,
                 activeItem?.title || activeLesson?.title?.rendered
@@ -1399,11 +1406,11 @@ export default function LessonViewWrapper({
                     animation: 'spin 1s linear infinite',
                   }} />
                   <style>{`
-                    @keyframes spin {
-                      0% { transform: rotate(0deg); }
-                      100% { transform: rotate(360deg); }
-                    }
-                  `}</style>
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}</style>
                   <p style={{ marginTop: '16px', fontWeight: 600, color: '#1e293b' }}>
                     Đang chấm điểm & đồng bộ kết quả lên hệ thống...
                   </p>

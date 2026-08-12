@@ -3863,6 +3863,50 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
 	}
 
+
+    // Lưu vào history attempts (để LP / theme đọc được)
+$history = learn_press_get_user_item_meta($user_item_id, 'attempts', true);
+if (!is_array($history)) {
+    $history = [];
+}
+
+// Lấy các attempt cũ cùng quiz (trừ cái vừa insert)
+$old_ids = $wpdb->get_col($wpdb->prepare(
+    "SELECT user_item_id FROM {$table}
+     WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND ref_id = %d
+       AND user_item_id < %d
+     ORDER BY user_item_id ASC",
+    $user_id, $quiz_id, $course_id, $user_item_id
+));
+
+$attempts_history = [];
+foreach ($old_ids as $oid) {
+    $oid = absint($oid);
+    $old_result = null;
+    if (class_exists('LP_User_Items_Result_DB')) {
+        $old_result = LP_User_Items_Result_DB::instance()->get_result($oid);
+    }
+    if (!$old_result) {
+        $old_result = learn_press_get_user_item_meta($oid, 'results', true);
+    }
+    if (!$old_result || !is_array($old_result)) continue;
+
+    // Bỏ attempt rác
+    $r = floatval($old_result['result'] ?? 0);
+    $ts = $old_result['time_spend'] ?? '';
+    if ($r <= 0 && (empty($ts) || $ts === '00:00:00')) continue;
+
+    $attempts_history[] = array_merge($old_result, [
+        'user_item_id' => $oid,
+    ]);
+}
+
+// Ghi vào user_item MỚI NHẤT
+learn_press_update_user_item_meta($user_item_id, 'attempts', $attempts_history);
+
+// Một số bản LP đọc từ quiz meta theo user
+learn_press_update_user_item_meta($user_item_id, '_attempts', $attempts_history);
+
 	// Meta answers để review tick radio
 	learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
 	learn_press_update_user_item_meta($user_item_id, '_question_answers', $lp_answered);
