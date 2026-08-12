@@ -3275,6 +3275,15 @@ function handle_get_custom_quiz_attempts($request) {
 	}
 	$attempts_list = $unique_attempts;
 
+
+    $attempts_list = array_values(array_filter($attempts_list, function($att) {
+		$status = $att['status'] ?? '';
+		if ($status === 'started' || $status === 'in-progress') return false;
+		$score = floatval($att['result_num'] ?? 0);
+		$mark  = intval($att['user_mark'] ?? 0);
+		return $score > 0 || $mark > 0 || $status === 'completed';
+	}));
+
 	// Sắp xếp theo ID / thời gian tăng dần (từ lượt 1 -> n)
 	usort($attempts_list, function($a, $b) {
 		return intval($a['user_item_id']) - intval($b['user_item_id']);
