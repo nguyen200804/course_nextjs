@@ -842,12 +842,16 @@ export default function LessonViewWrapper({
     } finally {
       setIsRetakingQuiz(false);
       setShowRetakeModal(false);
+
+      // Reset toàn bộ state quiz
       setQuizStarted(true);
       setIsReviewing(false);
       setQuizSubmitted(false);
       setQuizAnswers({});
       setCurrentQuestionIndex(0);
-      setTimeSpent(0);
+      setTimeSpent(0);        // ← bắt buộc
+      setTimeLeft(null);      // ← để useEffect set lại duration
+      setQuizScore(null);
     }
   };
 
@@ -1070,29 +1074,39 @@ export default function LessonViewWrapper({
             });
 
             if (myQuizzes.length > 0) {
-              const attempts = myQuizzes.map((att: any, i: number) => {
-                const resNum = Number(att.scorePercent ?? att.result ?? 0);
-                const isPassed =
-                  att.status === "passed" ||
-                  att.graduation === "passed" ||
-                  resNum >= passingGrade;
-                const totMark =
-                  Number(att.totalScore ?? att.mark ?? totalCount) || totalCount;
-                const uMark = Number(
-                  att.score ?? att.user_mark ?? (isPassed ? totMark : 0)
-                );
-                return {
-                  user_item_id: att.id || att.user_item_id || `att-${i}`,
-                  questions: `${uMark} / ${totMark}`,
-                  time_spent:
-                    att.duration || att.time_spend || att.time_spent || "00:00:00",
-                  points: `${uMark} / ${totMark}`,
-                  passing_grade: att.passingGrade || `${passingGrade}%`,
-                  result: `${resNum.toFixed(2)}%`,
-                  result_num: resNum,
-                  graduation: isPassed ? "passed" : "failed",
-                };
-              });
+              const attempts = myQuizzes
+                .map((att: any, i: number) => {
+                  const resNum = Number(att.scorePercent ?? att.result ?? 0);
+                  const isPassed =
+                    att.status === "passed" ||
+                    att.graduation === "passed" ||
+                    resNum >= passingGrade;
+                  const totMark = Number(att.totalScore ?? att.mark ?? totalCount) || totalCount;
+                  const uMark = Number(att.score ?? att.user_mark ?? 0);
+                  const timeStr = att.duration || att.time_spend || att.time_spent || "00:00:00";
+
+                  return {
+                    user_item_id: att.id || att.user_item_id || `att-${i}`,
+                    questions: `${uMark} / ${totMark}`,
+                    time_spent: timeStr,
+                    points: `${uMark} / ${totMark}`,
+                    passing_grade: att.passingGrade || `${passingGrade}%`,
+                    result: `${resNum.toFixed(2)}%`,
+                    result_num: resNum,
+                    graduation: isPassed ? "passed" : "failed",
+                  };
+                })
+                // Bỏ dòng rác: 0 điểm + 0 giây
+                .filter((a) => {
+                  const isZeroTime =
+                    !a.time_spent ||
+                    a.time_spent === "00:00:00" ||
+                    a.time_spent === "00:00" ||
+                    a.time_spent === "--:--";
+                  const isZeroScore = !a.result_num || a.result_num === 0;
+                  // Chỉ bỏ nếu CẢ điểm = 0 VÀ thời gian = 0
+                  return !(isZeroScore && isZeroTime);
+                });
 
               const sorted = [...attempts].sort(
                 (a, b) => Number(a.user_item_id) - Number(b.user_item_id)
