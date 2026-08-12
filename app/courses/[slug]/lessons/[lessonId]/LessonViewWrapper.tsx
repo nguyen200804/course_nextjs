@@ -1142,8 +1142,8 @@ export default function LessonViewWrapper({
   );
 
   const displayQuizScore = quizSubmitted
-    ? (quizScore !== null ? quizScore : currentCalculatedScore)
-    : (lastAttempt ? Math.round(parseFloat(lastAttempt.result_num !== undefined ? lastAttempt.result_num : (lastAttempt.result || 0))) : 0);
+    ? (quizScore !== null && !isNaN(Number(quizScore)) ? Number(quizScore) : currentCalculatedScore)
+    : (lastAttempt ? Math.round(parseFloat(String(lastAttempt.result_num !== undefined ? lastAttempt.result_num : (lastAttempt.result || 0)))) : 0);
 
   const isQuizPassed = quizSubmitted
     ? displayQuizScore >= passingGrade
@@ -1155,15 +1155,15 @@ export default function LessonViewWrapper({
 
   const displayPoints = quizSubmitted
     ? `${activeQuizQuestions.filter((q) => isQuestionCorrect(q, quizAnswers[q.id])).length} / ${activeQuizQuestions.length || 1}`
-    : (lastAttempt?.points || `${lastAttempt?.correct || 0} / ${lastAttempt?.questions || activeQuizQuestions.length || 2}`);
+    : (lastAttempt?.points || `${lastAttempt?.correct || 0} / ${lastAttempt?.questions_count || lastAttempt?.questions || activeQuizQuestions.length || 0}`);
 
   const displayQuestionsCount = quizSubmitted
     ? (activeQuizQuestions.length || 1)
-    : (lastAttempt?.questions || activeQuizQuestions.length || 2);
+    : (lastAttempt?.questions_count || lastAttempt?.questions || activeQuizQuestions.length || 0);
 
   const displayCorrectCount = quizSubmitted
     ? activeQuizQuestions.filter((q) => isQuestionCorrect(q, quizAnswers[q.id])).length
-    : (lastAttempt?.correct !== undefined ? lastAttempt.correct : 0);
+    : (lastAttempt?.correct !== undefined && !isNaN(Number(lastAttempt.correct)) ? Number(lastAttempt.correct) : 0);
 
   const displayWrongCount = quizSubmitted
     ? activeQuizQuestions.filter((q) => {
@@ -1171,14 +1171,18 @@ export default function LessonViewWrapper({
       const hasAnswered = userAns !== undefined && userAns !== null && userAns !== "" && (!Array.isArray(userAns) || userAns.length > 0);
       return hasAnswered && !isQuestionCorrect(q, userAns);
     }).length
-    : (lastAttempt?.wrong !== undefined ? lastAttempt.wrong : 0);
+    : (lastAttempt?.wrong !== undefined && !isNaN(Number(lastAttempt.wrong)) ? Number(lastAttempt.wrong) : 0);
 
-  const displaySkippedCount = quizSubmitted
+  const rawSkipped = quizSubmitted
     ? activeQuizQuestions.filter((q) => {
       const userAns = quizAnswers[q.id];
       return userAns === undefined || userAns === null || userAns === "" || (Array.isArray(userAns) && userAns.length === 0);
     }).length
-    : (lastAttempt?.skipped !== undefined ? lastAttempt.skipped : Math.max(0, Number(displayQuestionsCount) - Number(displayCorrectCount) - Number(displayWrongCount)));
+    : (lastAttempt?.skipped !== undefined && !isNaN(Number(lastAttempt.skipped))
+      ? Number(lastAttempt.skipped)
+      : Math.max(0, Number(displayQuestionsCount || 0) - Number(displayCorrectCount || 0) - Number(displayWrongCount || 0)));
+
+  const displaySkippedCount = isNaN(Number(rawSkipped)) ? 0 : Number(rawSkipped);
 
   return (
     <div className={styles.popup_wrapper}>
