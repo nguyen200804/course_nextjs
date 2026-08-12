@@ -3861,22 +3861,46 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
 	learn_press_update_user_item_meta($user_item_id, '_question_answers', $lp_answered);
 	learn_press_update_user_item_meta($user_item_id, 'grade', $grade);
-	if ($time_spent) {
-		learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spent);
-	}
+// 	if ($time_spent) {
+// 		learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spent);
+// 	}
 
 	// Update user_items
-	$wpdb->update(
-		$table,
-		[
-			'status'     => 'completed',
-			'graduation' => $grade,
-			'end_time'   => current_time('mysql'),
-		],
-		['user_item_id' => $user_item_id],
-		['%s', '%s', '%s'],
-		['%d']
-	);
+	// Tính start/end theo time_spent_seconds để LP hiển thị đúng
+$time_spent_seconds = absint($p['time_spent_seconds'] ?? 0);
+if ($time_spent_seconds <= 0 && !empty($time_spent)) {
+    $parts = array_map('intval', explode(':', $time_spent));
+    if (count($parts) === 3) {
+        $time_spent_seconds = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
+    } elseif (count($parts) === 2) {
+        $time_spent_seconds = $parts[0] * 60 + $parts[1];
+    }
+}
+
+$end_ts   = current_time('timestamp');
+$start_ts = $end_ts - max($time_spent_seconds, 1);
+$start_mysql = date('Y-m-d H:i:s', $start_ts);
+$end_mysql   = date('Y-m-d H:i:s', $end_ts);
+
+$h = floor($time_spent_seconds / 3600);
+$m = floor(($time_spent_seconds % 3600) / 60);
+$s = $time_spent_seconds % 60;
+$time_spend_formatted = sprintf('%02d:%02d:%02d', $h, $m, $s);
+
+$wpdb->update(
+    $table,
+    [
+        'status'     => 'completed',
+        'graduation' => $grade,
+        'start_time' => $start_mysql,
+        'end_time'   => $end_mysql,
+    ],
+    ['user_item_id' => $user_item_id],
+    ['%s', '%s', '%s', '%s'],
+    ['%d']
+);
+
+learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spend_formatted);
 
 	// complete() nếu có
 	try {
