@@ -4949,7 +4949,7 @@ function handle_custom_retake_quiz($request) {
 			$questions_count = is_array($old_meta_map['questions']) ? count($old_meta_map['questions']) : 0;
 			foreach ($old_meta_map['questions'] as $q) {
 				if (isset($q['correct']) && $q['correct']) $correct++;
-			}
+			} 
 		}
 
 		$result_percent = isset($old_meta_map['result']) ? floatval($old_meta_map['result']) : 0;
