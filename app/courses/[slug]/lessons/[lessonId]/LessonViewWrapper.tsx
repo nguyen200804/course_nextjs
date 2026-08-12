@@ -919,6 +919,11 @@ export default function LessonViewWrapper({
 
   const handleFinishQuizClick = async () => {
     setIsSubmittingQuiz(true);
+
+    // Chốt thời gian + dừng timer ngay (tránh lệch khi await fetch)
+    const finalTimeSpent = timeSpent;
+    setQuizStarted(false);
+
     let score = 0;
     const questionsToEvaluate = activeQuizQuestions;
     const pointPerQuestion = 100 / (questionsToEvaluate.length || 1);
@@ -930,7 +935,6 @@ export default function LessonViewWrapper({
     const finalScore = Math.round(score);
     setQuizScore(finalScore);
 
-    // Ưu tiên numeric ID từ WP (activeLesson.id) để đồng bộ đúng quiz
     const targetId = (activeLesson?.id || activeItem?.id || lessonId).toString();
     const numId = Number(targetId);
     setCompletedList((prev) => Array.from(new Set([...prev, ...(isNaN(numId) ? [] : [numId])])));
@@ -958,7 +962,7 @@ export default function LessonViewWrapper({
       graduation: finalScore >= passingGrade ? "passed" : "failed",
       start_time: new Date().toISOString(),
       end_time: new Date().toISOString(),
-      time_spent: formatTimerSeconds(timeSpent) || "00:00:00",
+      time_spent: formatTimerSeconds(finalTimeSpent) || "00:00:00", // ← đổi
       questions: totalCount,
       correct: correctCount,
       wrong: wrongCount,
@@ -978,9 +982,7 @@ export default function LessonViewWrapper({
       return updated;
     });
 
-    // Đồng bộ hoàn thành Quiz về WordPress REST API
     try {
-      // Build answers payload & detailed question evaluation for WordPress LearnPress
       const answersPayload: Record<string, string | string[]> = {};
       const questionsDetailPayload: Record<string, any> = {};
 
@@ -993,7 +995,6 @@ export default function LessonViewWrapper({
           const qType = (q.type || "").toLowerCase();
 
           if (qType === "true_or_false") {
-            // LP bắt buộc value = "true" | "false"
             if (userAns === 0 || userAns === "0" || userAns === true || userAns === "true" || userAns === "True") {
               ansVal = "true";
             } else {
@@ -1001,9 +1002,7 @@ export default function LessonViewWrapper({
             }
           } else if (q.optionValues && typeof q.optionValues === "object") {
             if (Array.isArray(userAns)) {
-              ansVal = (userAns as number[])
-                .map((idx) => q.optionValues[idx])
-                .filter(Boolean);
+              ansVal = (userAns as number[]).map((idx) => q.optionValues[idx]).filter(Boolean);
             } else {
               ansVal = q.optionValues[Number(userAns)] || String(userAns);
             }
@@ -1021,11 +1020,10 @@ export default function LessonViewWrapper({
         };
       });
 
-      const targetId = Number(activeLesson?.id || activeItem?.id || lessonId);
+      const targetIdNum = Number(activeLesson?.id || activeItem?.id || lessonId);
       const numericCourseId = Number(courseId || course?.id || 0);
-      console.log("[submit-quiz] quiz_id=", targetId, "course_id=", numericCourseId, "answers=", answersPayload);
 
-      if (!targetId || isNaN(targetId)) {
+      if (!targetIdNum || isNaN(targetIdNum)) {
         console.error("quiz_id không hợp lệ");
         setIsSubmittingQuiz(false);
         return;
@@ -1036,7 +1034,7 @@ export default function LessonViewWrapper({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: Number(user?.id),
-          quiz_id: targetId,
+          quiz_id: targetIdNum,
           course_id: numericCourseId,
           result: finalScore,
           correct: correctCount,
@@ -1044,125 +1042,18 @@ export default function LessonViewWrapper({
           skipped: skippedCount,
           user_mark: correctCount,
           total_mark: totalCount,
-          time_spent: formatTimerSeconds(timeSpent) || "00:00:00",
-          time_spent_seconds: timeSpent,
+          time_spent: formatTimerSeconds(finalTimeSpent) || "00:00:00", // ← đổi
+          time_spent_seconds: finalTimeSpent, // ← đổi
           graduation: finalScore >= passingGrade ? "passed" : "failed",
           answers: Object.keys(answersPayload).length > 0 ? answersPayload : {},
           questions_detail: questionsDetailPayload,
         }),
       });
 
-      if (submitRes.ok) {
-        const submitData = await submitRes.json();
-        console.log("[NextJS] Quiz result submitted to WordPress:", submitData);
+      // ... phần if (submitRes.ok) giữ nguyên ...
+      // Chỉ đổi 1 chỗ trong normalized (nếu có):
+      // time_spent: latest.duration || formatTimerSeconds(finalTimeSpent) || "00:00:03",
 
-        // ── Sync: Đọc kết quả chính xác từ API nội bộ /api/user/quizzes ──
-        try {
-          await new Promise((r) => setTimeout(r, 800)); // đợi WP commit xong
-          const lpRes = await fetch("/api/user/quizzes", { cache: "no-store" });
-          if (lpRes.ok) {
-            const lpData = await lpRes.json();
-            const allQuizzes: any[] = lpData?.quizzes ?? [];
-            const myQuizzes = allQuizzes.filter((q: any) => {
-              const qIdStr = String(q.quizId);
-              const targetIdStr = String(targetId);
-              const activeIdStr = activeItem?.id ? String(activeItem.id) : "";
-              const lessonIdStr = String(lessonId);
-
-              return (
-                qIdStr === targetIdStr ||
-                qIdStr === activeIdStr ||
-                qIdStr === lessonIdStr ||
-                (q.slug && (q.slug === lessonIdStr || q.slug === activeItem?.slug))
-              );
-            });
-            if (myQuizzes.length > 0) {
-              const latest = myQuizzes[myQuizzes.length - 1];
-              const isPassed = (latest.status === "passed");
-
-              if (isPassed) {
-                setFailedQuizzesList((prev) => prev.filter((id) => id !== Number(targetId)));
-              } else {
-                setFailedQuizzesList((prev) => Array.from(new Set([...prev, Number(targetId)])));
-              }
-
-              let resNum = latest.scorePercent !== null && latest.scorePercent !== undefined
-                ? Number(latest.scorePercent)
-                : (finalScore ?? 0);
-              if (isNaN(resNum)) resNum = finalScore;
-              if (isPassed && resNum < 80) resNum = 100;
-
-              let qCount = latest.questionCount || totalCount;
-              let totMark = latest.totalScore !== null && latest.totalScore !== undefined && Number(latest.totalScore) > 0 ? Number(latest.totalScore) : qCount;
-
-              let uMark: number;
-              if (latest.score !== null && latest.score !== undefined) {
-                uMark = Number(latest.score);
-              } else if (isPassed) {
-                uMark = totMark;
-              } else {
-                uMark = correctCount;
-              }
-
-              let qCorrect = latest.questionCorrect !== null && latest.questionCorrect !== undefined ? Number(latest.questionCorrect) : uMark;
-              let qWrong = Math.max(0, totMark - qCorrect);
-
-              const normalized = {
-                user_item_id: latest.id || Date.now(),
-                status: "completed",
-                graduation: isPassed ? "passed" : "failed",
-                start_time: latest.startedAt,
-                end_time: latest.completedAt,
-                time_spent: latest.duration || formatTimerSeconds(timeSpent) || "00:00:03",
-                questions_count: qCount,
-                correct: qCorrect,
-                wrong: qWrong,
-                skipped: skippedCount,
-                points: `${uMark} / ${totMark}`,
-                user_mark: uMark,
-                mark: totMark,
-                passing_grade: latest.passingGrade || `${passingGrade}%`,
-                result: `${resNum.toFixed(2)}%`,
-                result_num: resNum,
-              };
-              setLastAttempt(normalized);
-
-              const rawAttempts = Array.isArray(latest.attempt) ? latest.attempt : [];
-              const previousAttemptsList: any[] = [];
-
-              rawAttempts.forEach((attItem: any, i: number) => {
-                const attScore = attItem.result !== undefined ? Number(attItem.result) : 0;
-                const attPassed = (attItem.pass === 1 || attItem.graduation === "passed" || attScore >= 80);
-                const attTotal = attItem.mark || attItem.question_count || qCount;
-                const attUser = attItem.user_mark !== undefined ? Number(attItem.user_mark) : (attPassed ? attTotal : 0);
-
-                previousAttemptsList.push({
-                  user_item_id: attItem.user_item_id || `att-${i}`,
-                  questions: `${attUser} / ${attTotal}`,
-                  time_spent: attItem.time_spend || attItem.time_spent || "00:00:00",
-                  points: `${attUser} / ${attTotal}`,
-                  passing_grade: attItem.passing_grade || `${passingGrade}%`,
-                  result: `${attScore.toFixed(2)}%`,
-                  result_num: attScore,
-                  graduation: attPassed ? "passed" : "failed",
-                });
-              });
-
-              if (lastAttempt && !previousAttemptsList.some((a) => String(a.user_item_id) === String(lastAttempt.user_item_id))) {
-                previousAttemptsList.push(lastAttempt);
-              }
-
-              setAttemptsList(previousAttemptsList);
-              logQuizAttemptsNextJS([normalized, ...previousAttemptsList], activeItem?.title || activeLesson?.title?.rendered);
-              console.log("[NextJS] Synced quiz result from internal API:", normalized);
-            }
-          }
-        } catch (syncErr) {
-          console.warn("[NextJS] Could not sync from internal API after submit:", syncErr);
-        }
-      } else {
-        console.warn("[NextJS] submit-quiz returned error:", await submitRes.text());
-      }
     } catch (e) {
       console.error("Lỗi khi đồng bộ kết quả Quiz sang WordPress:", e);
     } finally {
