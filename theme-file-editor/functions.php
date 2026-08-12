@@ -3296,6 +3296,11 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 	$ui = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_ui} WHERE user_item_id = %d", $user_item_id));
 	if (!$ui || $ui->item_type !== 'lp_quiz') return;
 
+	$quiz_id   = $quiz_id   ?: intval($ui->item_id);
+	$course_id = $course_id ?: intval($ui->ref_id);
+	$user_id   = $user_id   ?: intval($ui->user_id);
+
+	// 1. Sync results meta (giữ)
 	if (function_exists('learn_press_get_user_item')) {
 		try {
 			$user_item_quiz = learn_press_get_user_item($user_item_id);
@@ -3314,6 +3319,78 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 				}
 			}
 		} catch (Throwable $e) {}
+	}
+
+	// 2. Rebuild history GIỐNG HỆT custom_lp_submit_quiz
+	$old_ids = $wpdb->get_col($wpdb->prepare(
+		"SELECT user_item_id FROM {$table_ui}
+		 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+		   AND user_item_id < %d
+		 ORDER BY user_item_id ASC",
+		$user_id, $quiz_id, $user_item_id
+	));
+
+	$attempts_history = [];
+	foreach ($old_ids as $oid) {
+		$oid = absint($oid);
+		$old_result = null;
+		if (class_exists('LP_User_Items_Result_DB')) {
+			$old_result = LP_User_Items_Result_DB::instance()->get_result($oid);
+		}
+		if (!$old_result) {
+			$old_result = learn_press_get_user_item_meta($oid, 'results', true);
+		}
+		if (!$old_result || !is_array($old_result)) continue;
+
+		$r         = floatval($old_result['result'] ?? 0);
+		$user_mark = floatval($old_result['user_mark'] ?? 0);
+		$ts        = trim((string)($old_result['time_spend'] ?? $old_result['time_spent'] ?? ''));
+
+		$is_zero_score = ($r <= 0 && $user_mark <= 0);
+		$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00','00:00','0','00:00:01','00:00:09'], true) || preg_match('/^00:00:0[0-9]$/', $ts);
+		if ($is_zero_score && $is_zero_time) continue;
+
+		$attempts_history[] = array_merge($old_result, [
+			'user_item_id'     => $oid,
+			'result'           => $r,
+			'user_mark'        => $user_mark,
+			'mark'             => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
+			'time_spend'       => $ts ?: '00:00:00',
+			'time_spent'       => $ts ?: '00:00:00',
+			'graduation'       => ($r >= 80 || !empty($old_result['pass'])) ? 'passed' : 'failed',
+			'pass'             => ($r >= 80 || !empty($old_result['pass'])) ? 1 : 0,
+			'question_count'   => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
+			'question_correct' => intval($old_result['question_correct'] ?? $user_mark),
+		]);
+	}
+	
+	
+	
+	$seen = [];
+	$attempts_history = array_values(array_filter($attempts_history, function($a) use (&$seen) {
+		$id = $a['user_item_id'] ?? 0;
+		if (!$id || isset($seen[$id])) return false;
+		$seen[$id] = true;
+		return true;
+	}));
+	
+	
+	
+
+	$keys = ['attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'];
+
+	// Ghi vào record hiện tại
+	foreach ($keys as $key) {
+		learn_press_update_user_item_meta($user_item_id, $key, $attempts_history);
+	}
+
+	// Copy sang mọi record cũ
+	foreach ($old_ids as $oid) {
+		$oid = absint($oid);
+		$wpdb->update($table_ui, ['status' => 'completed'], ['user_item_id' => $oid], ['%s'], ['%d']);
+		foreach ($keys as $key) {
+			learn_press_update_user_item_meta($oid, $key, $attempts_history);
+		}
 	}
 }
 
@@ -3873,10 +3950,10 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	// Lấy các attempt cũ cùng quiz (trừ cái vừa insert)
 	$old_ids = $wpdb->get_col($wpdb->prepare(
 		"SELECT user_item_id FROM {$table}
-     WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND ref_id = %d
+     WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
        AND user_item_id < %d
      ORDER BY user_item_id ASC",
-		$user_id, $quiz_id, $course_id, $user_item_id
+		$user_id, $quiz_id, $user_item_id
 	));
 
 	$attempts_history = [];
@@ -3930,6 +4007,15 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 			'question_correct' => intval($old_result['question_correct'] ?? $user_mark),
 		]);
 	}
+	
+	
+	$seen = [];
+	$attempts_history = array_values(array_filter($attempts_history, function($a) use (&$seen) {
+		$id = $a['user_item_id'] ?? 0;
+		if (!$id || isset($seen[$id])) return false;
+		$seen[$id] = true;
+		return true;
+	}));
 
 	// Ghi vào user_item MỚI NHẤT
 	// Ghi vào user_item MỚI NHẤT + các key mà theme LearnPress gốc đọc
@@ -5108,7 +5194,7 @@ function handle_custom_retake_quiz($request) {
 			'question_count'   => $questions_count,
 		];
 
-		$existing_retakes[] = $new_retake_record; 
+		$existing_retakes[] = $new_retake_record;
 
 		// Lưu vào meta của bản ghi COURSE (parent_id) và QUIZ mới
 		if ($parent_id) {
