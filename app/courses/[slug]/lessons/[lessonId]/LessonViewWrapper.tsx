@@ -446,11 +446,11 @@ export default function LessonViewWrapper({
         });
 
         if (myQuizzes.length > 0) {
-          // Normalize tất cả attempts (giống logic sau submit)
+          // Lấy TẤT CẢ attempts cùng quiz (giống logic sau submit)
           const attempts = myQuizzes
             .map((att: any, i: number) => {
               const resNum =
-                att.scorePercent !== null && att.scorePercent !== undefined
+                att.scorePercent != null
                   ? Number(att.scorePercent)
                   : parseFloat(String(att.resultLabel || "0").replace("%", "")) || 0;
 
@@ -459,31 +459,22 @@ export default function LessonViewWrapper({
                 att.graduation === "passed" ||
                 resNum >= 80;
 
-              let qCount = att.questionCount || 0;
-              if (qCount === 0 && quizQuestions?.length > 0) qCount = quizQuestions.length;
+              let qCount = Number(att.questionCount) || 0;
+              if (qCount === 0 && quizQuestions?.length) qCount = quizQuestions.length;
               if (qCount === 0) qCount = 1;
 
               const totMark =
-                att.totalScore !== null && att.totalScore !== undefined && Number(att.totalScore) > 0
+                att.totalScore != null && Number(att.totalScore) > 0
                   ? Number(att.totalScore)
                   : qCount;
 
-              let uMark: number;
-              if (att.score !== null && att.score !== undefined) {
-                uMark = Number(att.score);
-              } else if (resNum > 0) {
-                uMark = Math.round((resNum / 100) * totMark);
-              } else if (isPassed) {
-                uMark = totMark;
-              } else {
-                uMark = 0;
-              }
+              let uMark = 0;
+              if (att.score != null) uMark = Number(att.score);
+              else if (resNum > 0) uMark = Math.round((resNum / 100) * totMark);
+              else if (isPassed) uMark = totMark;
 
               const qCorrect =
-                att.questionCorrect !== null && att.questionCorrect !== undefined
-                  ? Number(att.questionCorrect)
-                  : uMark;
-              const qWrong = Math.max(0, totMark - qCorrect);
+                att.questionCorrect != null ? Number(att.questionCorrect) : uMark;
 
               return {
                 user_item_id: att.id || att.user_item_id || `att-${i}`,
@@ -494,7 +485,7 @@ export default function LessonViewWrapper({
                 time_spent: att.duration || "00:00:00",
                 questions_count: qCount,
                 correct: qCorrect,
-                wrong: qWrong,
+                wrong: Math.max(0, totMark - qCorrect),
                 skipped: 0,
                 points: `${uMark} / ${totMark}`,
                 user_mark: uMark,
@@ -502,34 +493,35 @@ export default function LessonViewWrapper({
                 passing_grade: att.passingGrade || "80%",
                 result: `${resNum.toFixed(2)}%`,
                 result_num: resNum,
-                questionsData: att.questionsData || att.data?.questions || {},
-                // dùng cho table
+                questionsData: att.questionsData || {},
                 questions: `${uMark} / ${totMark}`,
               };
             })
-            // Bỏ dòng rác 0 điểm + 0 giây
-            .filter((a) => {
+            // Lọc mạnh hơn attempt rác
+            .filter((a: any) => {
               const isZeroTime =
                 !a.time_spent ||
                 a.time_spent === "00:00:00" ||
                 a.time_spent === "00:00" ||
-                a.time_spent === "--:--";
+                a.time_spent === "--:--" ||
+                a.time_spent === "00:00:01" ||
+                a.time_spent === "00:00:09"; // lọc luôn case 9 giây như screenshot
               const isZeroScore = !a.result_num || a.result_num === 0;
               return !(isZeroScore && isZeroTime);
             });
 
-          // Sort theo thời gian / id
-          const sorted = [...attempts].sort((a, b) => {
-            const timeA = new Date(a.start_time || a.user_item_id || 0).getTime();
-            const timeB = new Date(b.start_time || b.user_item_id || 0).getTime();
-            return timeA - timeB;
+          // Sort theo thời gian
+          const sorted = [...attempts].sort((a: any, b: any) => {
+            const tA = new Date(a.start_time || a.user_item_id || 0).getTime();
+            const tB = new Date(b.start_time || b.user_item_id || 0).getTime();
+            return tA - tB;
           });
 
-          // Kết quả chính = lần mới nhất
+          // Current = lần mới nhất
           const current = sorted[sorted.length - 1] || null;
           setLastAttempt(current);
 
-          // Bảng Last Attempt = chỉ các lần trước (1 → n-1)
+          // Bảng Last Attempt = chỉ các lần TRƯỚC
           const previous = sorted.slice(0, -1);
           setAttemptsList(previous);
 

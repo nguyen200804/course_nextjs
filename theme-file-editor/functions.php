@@ -3864,48 +3864,77 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	}
 
 
-    // Lưu vào history attempts (để LP / theme đọc được)
-$history = learn_press_get_user_item_meta($user_item_id, 'attempts', true);
-if (!is_array($history)) {
-    $history = [];
-}
+	// Lưu vào history attempts (để LP / theme đọc được)
+	$history = learn_press_get_user_item_meta($user_item_id, 'attempts', true);
+	if (!is_array($history)) {
+		$history = [];
+	}
 
-// Lấy các attempt cũ cùng quiz (trừ cái vừa insert)
-$old_ids = $wpdb->get_col($wpdb->prepare(
-    "SELECT user_item_id FROM {$table}
+	// Lấy các attempt cũ cùng quiz (trừ cái vừa insert)
+	$old_ids = $wpdb->get_col($wpdb->prepare(
+		"SELECT user_item_id FROM {$table}
      WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND ref_id = %d
        AND user_item_id < %d
      ORDER BY user_item_id ASC",
-    $user_id, $quiz_id, $course_id, $user_item_id
-));
+		$user_id, $quiz_id, $course_id, $user_item_id
+	));
 
-$attempts_history = [];
+	$attempts_history = [];
 foreach ($old_ids as $oid) {
     $oid = absint($oid);
     $old_result = null;
+
     if (class_exists('LP_User_Items_Result_DB')) {
         $old_result = LP_User_Items_Result_DB::instance()->get_result($oid);
     }
     if (!$old_result) {
         $old_result = learn_press_get_user_item_meta($oid, 'results', true);
     }
-    if (!$old_result || !is_array($old_result)) continue;
+    if (!$old_result || !is_array($old_result)) {
+        continue;
+    }
 
-    // Bỏ attempt rác
-    $r = floatval($old_result['result'] ?? 0);
-    $ts = $old_result['time_spend'] ?? '';
-    if ($r <= 0 && (empty($ts) || $ts === '00:00:00')) continue;
+    // ===== Lọc attempt rác mạnh hơn =====
+    $r          = floatval($old_result['result'] ?? 0);
+    $user_mark  = floatval($old_result['user_mark'] ?? 0);
+    $ts         = $old_result['time_spend'] ?? ($old_result['time_spent'] ?? '');
+    $ts_clean   = trim((string) $ts);
 
+    // Bỏ nếu điểm = 0 VÀ thời gian quá ngắn / rỗng
+    $is_zero_score = ($r <= 0 && $user_mark <= 0);
+    $is_zero_time  = (
+        empty($ts_clean) ||
+        $ts_clean === '00:00:00' ||
+        $ts_clean === '00:00' ||
+        $ts_clean === '0' ||
+        $ts_clean === '00:00:01' ||
+        $ts_clean === '00:00:09' ||   // case đang bị hiện ở screenshot
+        preg_match('/^00:00:0[0-9]$/', $ts_clean)
+    );
+
+    if ($is_zero_score && $is_zero_time) {
+        continue;
+    }
+
+    // Chuẩn hóa dữ liệu trước khi đưa vào history
     $attempts_history[] = array_merge($old_result, [
-        'user_item_id' => $oid,
+        'user_item_id'   => $oid,
+        'result'         => $r,
+        'user_mark'      => $user_mark,
+        'mark'           => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
+        'time_spend'     => $ts_clean ?: '00:00:00',
+        'time_spent'     => $ts_clean ?: '00:00:00',
+        'graduation'     => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 'passed' : 'failed',
+        'pass'           => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 1 : 0,
+        'question_count' => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
+        'question_correct' => intval($old_result['question_correct'] ?? $user_mark),
     ]);
 }
 
 // Ghi vào user_item MỚI NHẤT
 learn_press_update_user_item_meta($user_item_id, 'attempts', $attempts_history);
-
-// Một số bản LP đọc từ quiz meta theo user
 learn_press_update_user_item_meta($user_item_id, '_attempts', $attempts_history);
+
 
 	// Meta answers để review tick radio
 	learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
