@@ -3664,6 +3664,18 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
     $correct = absint($p['correct'] ?? 0);
     $wrong = absint($p['wrong'] ?? 0);
     $skipped = absint($p['skipped'] ?? 0);
+	
+	
+	$normalized_answers = [];
+    foreach ($answered as $qid => $ans) {
+        $qid = absint($qid);
+        if (!$qid) continue;
+        if ($ans === 0 || $ans === '0' || $ans === true || $ans === 'True') $ans = 'true';
+        if ($ans === 1 || $ans === '1' || $ans === false || $ans === 'False') $ans = 'false';
+        $normalized_answers[$qid] = $ans;
+    }
+    $answered = $normalized_answers;
+	
 
     if (!$user_id || !$quiz_id) {
         return new WP_REST_Response(['success' => false, 'message' => 'Thiếu user_id hoặc quiz_id'], 400);
@@ -3751,18 +3763,29 @@ if (!empty($questions_detail)) {
     foreach ($questions_detail as $qid => $detail) {
         $qid = absint($qid);
         if (!$qid) continue;
+
+        $ans = $detail['answered'] ?? null;
+
+        // Chuẩn hóa true/false
+        if ($ans === 0 || $ans === '0' || $ans === true || $ans === 'True') {
+            $ans = 'true';
+        } elseif ($ans === 1 || $ans === '1' || $ans === false || $ans === 'False') {
+            $ans = 'false';
+        }
+
         $result_data['questions'][$qid] = [
-            'answered'  => $detail['answered'] ?? null,
+            'answered'  => $ans,
             'correct'   => !empty($detail['correct']),
             'mark'      => isset($detail['mark']) ? floatval($detail['mark']) : 1,
             'user_mark' => isset($detail['user_mark']) ? floatval($detail['user_mark']) : 0,
         ];
     }
 } else {
-    // Fallback: chỉ có answers
     foreach ($answered as $qid => $ans) {
         $qid = absint($qid);
         if (!$qid) continue;
+        if ($ans === 0 || $ans === '0' || $ans === true || $ans === 'True') $ans = 'true';
+        if ($ans === 1 || $ans === '1' || $ans === false || $ans === 'False') $ans = 'false';
         $result_data['questions'][$qid] = [
             'answered'  => $ans,
             'correct'   => false,
@@ -3774,11 +3797,9 @@ if (!empty($questions_detail)) {
 
 if (class_exists('LP_User_Items_Result_DB')) {
     LP_User_Items_Result_DB::instance()->update($user_item_id, wp_json_encode($result_data));
-} else {
-    learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
 }
 
-// Lưu thêm meta answers riêng (một số theme/plugin đọc chỗ này)
+// Quan trọng: meta này LearnPress dùng để tick radio khi review
 learn_press_update_user_item_meta($user_item_id, 'question_answers', $answered);
 learn_press_update_user_item_meta($user_item_id, '_question_answers', $answered);
 

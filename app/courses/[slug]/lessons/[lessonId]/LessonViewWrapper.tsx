@@ -989,7 +989,16 @@ export default function LessonViewWrapper({
         let ansVal: any = null;
 
         if (userAns !== undefined && userAns !== null) {
-          if (q.optionValues && typeof q.optionValues === "object") {
+          const qType = (q.type || "").toLowerCase();
+
+          if (qType === "true_or_false") {
+            // LP bắt buộc value = "true" | "false"
+            if (userAns === 0 || userAns === "0" || userAns === true || userAns === "true" || userAns === "True") {
+              ansVal = "true";
+            } else {
+              ansVal = "false";
+            }
+          } else if (q.optionValues && typeof q.optionValues === "object") {
             if (Array.isArray(userAns)) {
               ansVal = (userAns as number[])
                 .map((idx) => q.optionValues[idx])
