@@ -3690,84 +3690,100 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 
     // ===== Helper: map answer (index/title/"true") → LP option value =====
     $map_answer_to_lp_value = function ($question_id, $raw_ans) use ($wpdb) {
-        if ($raw_ans === null || $raw_ans === '') return null;
+    if ($raw_ans === null || $raw_ans === '') return null;
 
-        // true_or_false
+    // Xác định loại câu hỏi
+    $q_type = '';
+    if (function_exists('learn_press_get_question')) {
+        $q_obj = learn_press_get_question($question_id);
+        if ($q_obj) {
+            $q_type = method_exists($q_obj, 'get_type') ? $q_obj->get_type() : '';
+        }
+    }
+    if (!$q_type) {
+        $q_type = get_post_meta($question_id, '_lp_type', true) ?: '';
+    }
+
+    // CHỈ true_or_false mới map true/false
+    if ($q_type === 'true_or_false') {
         if ($raw_ans === 0 || $raw_ans === '0' || $raw_ans === true || $raw_ans === 'true' || $raw_ans === 'True') {
             return 'true';
         }
         if ($raw_ans === 1 || $raw_ans === '1' || $raw_ans === false || $raw_ans === 'false' || $raw_ans === 'False') {
             return 'false';
         }
-
-        // Lấy options từ DB LearnPress
-        $answers_table = $wpdb->prefix . 'learnpress_question_answers';
-        $meta_table    = $wpdb->prefix . 'learnpress_question_answermeta';
-
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT qa.question_answer_id,
-                    MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
-                    MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
-                    MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text
-             FROM {$answers_table} qa
-             LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
-             WHERE qa.question_id = %d
-             GROUP BY qa.question_answer_id
-             ORDER BY qa.question_answer_id ASC",
-            $question_id
-        ));
-
-        if (empty($rows)) {
-            // Fallback: LP_Question object
-            if (function_exists('learn_press_get_question')) {
-                $q = learn_press_get_question($question_id);
-                if ($q) {
-                    $opts = $q->get_answers();
-                    $i = 0;
-                    foreach ($opts as $opt) {
-                        $data = method_exists($opt, 'get_data') ? $opt->get_data() : (array) $opt;
-                        $val = $data['value'] ?? '';
-                        $title = $data['title'] ?? ($data['text'] ?? '');
-                        if ((string) $raw_ans === (string) $i || (string) $raw_ans === (string) $val || strcasecmp((string) $raw_ans, (string) $title) === 0) {
-                            return $val;
-                        }
-                        $i++;
-                    }
-                }
-            }
-            return is_array($raw_ans) ? $raw_ans : (string) $raw_ans;
-        }
-
-        // Multi-choice: array of indices/titles
-        if (is_array($raw_ans)) {
-            $mapped = [];
-            foreach ($raw_ans as $one) {
-                $idx = 0;
-                foreach ($rows as $row) {
-                    $val = $row->value ?? '';
-                    $title = $row->title ?? ($row->text ?? '');
-                    if ((string) $one === (string) $idx || (string) $one === (string) $val || strcasecmp((string) $one, (string) $title) === 0) {
-                        $mapped[] = $val;
-                        break;
-                    }
-                    $idx++;
-                }
-            }
-            return $mapped;
-        }
-
-        // Single: index hoặc title
-        $idx = 0;
-        foreach ($rows as $row) {
-            $val = $row->value ?? '';
-            $title = $row->title ?? ($row->text ?? '');
-            if ((string) $raw_ans === (string) $idx || (string) $raw_ans === (string) $val || strcasecmp((string) $raw_ans, (string) $title) === 0) {
-                return $val;
-            }
-            $idx++;
-        }
         return (string) $raw_ans;
-    };
+    }
+
+    // single_choice / multi_choice: map index hoặc title → value hash
+    $answers_table = $wpdb->prefix . 'learnpress_question_answers';
+    $meta_table    = $wpdb->prefix . 'learnpress_question_answermeta';
+
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT qa.question_answer_id,
+                MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
+                MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
+                MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text
+         FROM {$answers_table} qa
+         LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
+         WHERE qa.question_id = %d
+         GROUP BY qa.question_answer_id
+         ORDER BY qa.answer_order ASC, qa.question_answer_id ASC",
+        $question_id
+    ));
+
+    // Fallback qua LP_Question
+    if (empty($rows) && function_exists('learn_press_get_question')) {
+        $q = learn_press_get_question($question_id);
+        if ($q) {
+            $opts = $q->get_answers();
+            $list = [];
+            foreach ($opts as $opt) {
+                $data = method_exists($opt, 'get_data') ? $opt->get_data() : (array) $opt;
+                $list[] = (object)[
+                    'value' => $data['value'] ?? '',
+                    'title' => $data['title'] ?? ($data['text'] ?? ''),
+                ];
+            }
+            $rows = $list;
+        }
+    }
+
+    if (empty($rows)) {
+        return is_array($raw_ans) ? $raw_ans : (string) $raw_ans;
+    }
+
+    // multi_choice
+    if (is_array($raw_ans)) {
+        $mapped = [];
+        foreach ($raw_ans as $one) {
+            $idx = 0;
+            foreach ($rows as $row) {
+                $val   = $row->value ?? '';
+                $title = $row->title ?? ($row->text ?? '');
+                if ((string)$one === (string)$idx || (string)$one === (string)$val || strcasecmp((string)$one, (string)$title) === 0) {
+                    if ($val !== '') $mapped[] = $val;
+                    break;
+                }
+                $idx++;
+            }
+        }
+        return $mapped;
+    }
+
+    // single_choice
+    $idx = 0;
+    foreach ($rows as $row) {
+        $val   = $row->value ?? '';
+        $title = $row->title ?? ($row->text ?? '');
+        if ((string)$raw_ans === (string)$idx || (string)$raw_ans === (string)$val || strcasecmp((string)$raw_ans, (string)$title) === 0) {
+            return $val !== '' ? $val : (string)$raw_ans;
+        }
+        $idx++;
+    }
+
+    return (string) $raw_ans;
+};
 
     // ===== Chuẩn hóa answers =====
     $lp_answered = [];
@@ -4949,7 +4965,7 @@ function handle_custom_retake_quiz($request) {
 			$questions_count = is_array($old_meta_map['questions']) ? count($old_meta_map['questions']) : 0;
 			foreach ($old_meta_map['questions'] as $q) {
 				if (isset($q['correct']) && $q['correct']) $correct++;
-			} 
+			}
 		}
 
 		$result_percent = isset($old_meta_map['result']) ? floatval($old_meta_map['result']) : 0;
