@@ -257,8 +257,8 @@ function render_woocommerce_add_to_cart_button_html( $course_id ) {
 
 			return sprintf(
 				'<div class="lp-wc-add-to-cart-wrapper" style="margin-top: 10px; margin-bottom: 10px;">
-                    <a href="%s" data-quantity="1" class="button alt add_to_cart_button ajax_add_to_cart product_type_simple lp-button button-purchase-course" data-product_id="%d" data-product_sku="%s" aria-label="%s" rel="nofollow" style="text-align:center; width: 100%%; box-sizing: border-box; padding: 12px 20px; background-color: #28a745; color: #fff; font-weight: bold; border-radius: 5px; text-decoration: none; display: block;">%s</a>
-                </div>',
+				<a href="%s" data-quantity="1" class="button alt add_to_cart_button ajax_add_to_cart product_type_simple lp-button button-purchase-course" data-product_id="%d" data-product_sku="%s" aria-label="%s" rel="nofollow" style="text-align:center; width: 100%%; box-sizing: border-box; padding: 12px 20px; background-color: #28a745; color: #fff; font-weight: bold; border-radius: 5px; text-decoration: none; display: block;">%s</a>
+			</div>',
 				$add_to_cart_url,
 				esc_attr( $product->get_id() ),
 				esc_attr( $product->get_sku() ),
@@ -472,10 +472,10 @@ add_action( 'rest_api_init', function() {
 			foreach ( $sections as &$sec ) {
 				$items = $wpdb->get_results( $wpdb->prepare(
 					"SELECT si.item_id, si.item_order, si.item_type, p.post_title, p.post_content 
-                     FROM {$items_table} si
-                     LEFT JOIN {$wpdb->posts} p ON si.item_id = p.ID
-                     WHERE si.section_id = %d
-                     ORDER BY si.item_order ASC",
+					FROM {$items_table} si
+					LEFT JOIN {$wpdb->posts} p ON si.item_id = p.ID
+					WHERE si.section_id = %d
+					ORDER BY si.item_order ASC",
 					$sec['section_id']
 				), ARRAY_A );
 
@@ -524,11 +524,11 @@ if ( ! function_exists( 'get_lp_course_rating_details' ) ) {
 
 		// 2. Truy vấn tất cả đánh giá (reviews / comments) từ WordPress Database
 		$comments = $wpdb->get_results( $wpdb->prepare( "
-                SELECT comment_ID, comment_author, comment_author_email, comment_content, comment_date, user_id
-                FROM {$wpdb->comments}
-                WHERE comment_post_ID = %d AND comment_approved = '1'
-                ORDER BY comment_date DESC
-            ", $course_id ) );
+			SELECT comment_ID, comment_author, comment_author_email, comment_content, comment_date, user_id
+			FROM {$wpdb->comments}
+			WHERE comment_post_ID = %d AND comment_approved = '1'
+			ORDER BY comment_date DESC
+		", $course_id ) );
 
 		$stars_count = array( '5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0 );
 		$reviews = array();
@@ -539,10 +539,10 @@ if ( ! function_exists( 'get_lp_course_rating_details' ) ) {
 
 			// Lấy số sao đánh giá (1..5) từ commentmeta (_rating hoặc _review_rating)
 			$rating = $wpdb->get_var( $wpdb->prepare( "
-                    SELECT meta_value FROM {$wpdb->commentmeta}
-                    WHERE comment_id = %d AND (meta_key = '_rating' OR meta_key = '_review_rating' OR meta_key = '_rating_val')
-                    LIMIT 1
-                ", $cm_id ) );
+				SELECT meta_value FROM {$wpdb->commentmeta}
+				WHERE comment_id = %d AND (meta_key = '_rating' OR meta_key = '_review_rating' OR meta_key = '_rating_val')
+				LIMIT 1
+			", $cm_id ) );
 
 			$rating = intval( $rating );
 			if ( $rating < 1 || $rating > 5 ) {
@@ -558,10 +558,10 @@ if ( ! function_exists( 'get_lp_course_rating_details' ) ) {
 
 			// Lấy tiêu đề đánh giá nếu có
 			$title = $wpdb->get_var( $wpdb->prepare( "
-                    SELECT meta_value FROM {$wpdb->commentmeta}
-                    WHERE comment_id = %d AND (meta_key = '_rating_title' OR meta_key = '_review_title' OR meta_key = '_title')
-                    LIMIT 1
-                ", $cm_id ) );
+				SELECT meta_value FROM {$wpdb->commentmeta}
+				WHERE comment_id = %d AND (meta_key = '_rating_title' OR meta_key = '_review_title' OR meta_key = '_title')
+				LIMIT 1
+			", $cm_id ) );
 
 			$avatar_url = get_avatar_url( $cm->comment_author_email, array( 'size' => 96 ) );
 
@@ -632,11 +632,11 @@ add_action( 'rest_api_init', function() {
 					return array( 'success' => false, 'comments' => array() );
 				}
 				$comments = $wpdb->get_results( $wpdb->prepare( "
-                    SELECT comment_ID as id, comment_author as author, comment_author_email as author_email, comment_content as content, comment_date as date, user_id, comment_approved as approved
-                    FROM {$wpdb->comments}
-                    WHERE comment_post_ID = %d AND (comment_approved = '1' OR comment_approved = '0')
-                    ORDER BY comment_date DESC
-                ", $lesson_id ) );
+				SELECT comment_ID as id, comment_author as author, comment_author_email as author_email, comment_content as content, comment_date as date, user_id, comment_approved as approved
+				FROM {$wpdb->comments}
+				WHERE comment_post_ID = %d AND (comment_approved = '1' OR comment_approved = '0')
+				ORDER BY comment_date DESC
+			", $lesson_id ) );
 
 				$result = array();
 				foreach ( $comments as $cm ) {
@@ -905,9 +905,9 @@ add_action( 'rest_api_init', function() {
 	}
 
 	/**
-     * REST API Custom Endpoint cho Đăng nhập
-     * Route: POST /wp-json/custom/v1/login
-     */
+ * REST API Custom Endpoint cho Đăng nhập
+ * Route: POST /wp-json/custom/v1/login
+ */
 	register_rest_route( 'custom/v1', '/login', array(
 		'methods'  => 'POST',
 		'callback' => function ( WP_REST_Request $request ) {
@@ -942,9 +942,9 @@ add_action( 'rest_api_init', function() {
 	) );
 
 	/**
-     * REST API Custom Endpoint cho My Courses (LearnPress / LearnDash / User Enrolled Courses)
-     * Route: GET /wp-json/custom/v1/user-courses?user_id={id}
-     */
+ * REST API Custom Endpoint cho My Courses (LearnPress / LearnDash / User Enrolled Courses)
+ * Route: GET /wp-json/custom/v1/user-courses?user_id={id}
+ */
 	register_rest_route( 'custom/v1', '/user-courses', array(
 		'methods'  => 'GET',
 		'callback' => function ( WP_REST_Request $request ) {
@@ -960,11 +960,11 @@ add_action( 'rest_api_init', function() {
 			$table_name = $wpdb->prefix . 'learnpress_user_items';
 			if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_name ) ) === $table_name ) {
 				$user_items = $wpdb->get_results( $wpdb->prepare( "
-                    SELECT user_item_id, item_id as course_id, user_id, start_time, end_time, item_type, status, graduation
-                    FROM {$table_name}
-                    WHERE user_id = %d AND item_type = 'lp_course'
-                    ORDER BY start_time DESC
-                ", $user_id ) );
+				SELECT user_item_id, item_id as course_id, user_id, start_time, end_time, item_type, status, graduation
+				FROM {$table_name}
+				WHERE user_id = %d AND item_type = 'lp_course'
+				ORDER BY start_time DESC
+			", $user_id ) );
 
 				if ( ! empty( $user_items ) ) {
 					$lp_user = function_exists( 'learnpress_get_user' ) ? learnpress_get_user( $user_id ) : null;
@@ -1018,10 +1018,10 @@ add_action( 'rest_api_init', function() {
 						// 2. Fallback SQL meta lookup cho Result % (Giải nén data serialized/json)
 						if ( $result_val <= 0 ) {
 							$meta_val = $wpdb->get_var( $wpdb->prepare( "
-                                SELECT meta_value FROM {$wpdb->prefix}learnpress_user_itemmeta
-                                WHERE learnpress_user_item_id = %d AND meta_key IN ('_porcentage_result', 'result', 'grade', '_result', 'evaluate_final_quiz')
-                                ORDER BY meta_id DESC LIMIT 1
-                            ", $user_item_id ) );
+							SELECT meta_value FROM {$wpdb->prefix}learnpress_user_itemmeta
+							WHERE learnpress_user_item_id = %d AND meta_key IN ('_porcentage_result', 'result', 'grade', '_result', 'evaluate_final_quiz')
+							ORDER BY meta_id DESC LIMIT 1
+						", $user_item_id ) );
 
 							if ( ! empty( $meta_val ) ) {
 								if ( is_serialized( $meta_val ) ) {
@@ -1044,20 +1044,20 @@ add_action( 'rest_api_init', function() {
 
 						// 3. Tính toán tỷ lệ hoàn thành bài học (chỉ tính lp_lesson, loại trừ lp_quiz)
 						$total_lessons = $wpdb->get_var( $wpdb->prepare( "
-                            SELECT COUNT( DISTINCT si.item_id )
-                            FROM {$wpdb->prefix}learnpress_section_items si
-                            INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
-                            WHERE si.section_id IN (
-                                SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
-                            ) AND p.post_type = 'lp_lesson'
-                        ", $item->course_id ) );
+						SELECT COUNT( DISTINCT si.item_id )
+						FROM {$wpdb->prefix}learnpress_section_items si
+						INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
+						WHERE si.section_id IN (
+							SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
+						) AND p.post_type = 'lp_lesson'
+					", $item->course_id ) );
 
 						if ( $total_lessons > 0 ) {
 							$completed_lessons = $wpdb->get_var( $wpdb->prepare( "
-                                SELECT COUNT( DISTINCT item_id )
-                                FROM {$wpdb->prefix}learnpress_user_items
-                                WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type = 'lp_lesson'
-                            ", $user_id, $user_item_id ) );
+							SELECT COUNT( DISTINCT item_id )
+							FROM {$wpdb->prefix}learnpress_user_items
+							WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type = 'lp_lesson'
+						", $user_id, $user_item_id ) );
 
 							$result_val = round( ( $completed_lessons / $total_lessons ) * 100, 2 );
 						} elseif ( $status === 'passed' || $status === 'finished' ) {
@@ -1072,10 +1072,10 @@ add_action( 'rest_api_init', function() {
 						if ( $expiration_time === '-' ) {
 							// Kiểm tra meta _expiration_time trong user_itemmeta
 							$exp_meta = $wpdb->get_var( $wpdb->prepare( "
-                                SELECT meta_value FROM {$wpdb->prefix}learnpress_user_itemmeta
-                                WHERE learnpress_user_item_id = %d AND meta_key = '_expiration_time'
-                                LIMIT 1
-                            ", $user_item_id ) );
+							SELECT meta_value FROM {$wpdb->prefix}learnpress_user_itemmeta
+							WHERE learnpress_user_item_id = %d AND meta_key = '_expiration_time'
+							LIMIT 1
+						", $user_item_id ) );
 
 							if ( ! empty( $exp_meta ) && $exp_meta !== '0000-00-00 00:00:00' ) {
 								$exp_timestamp = is_numeric( $exp_meta ) ? intval( $exp_meta ) : strtotime( $exp_meta );
@@ -1167,10 +1167,10 @@ add_action( 'rest_api_init', function() {
 	) );
 
 	/**
-     * REST API Custom Endpoint cho Account Details & Change Password
-     * Route: GET /wp-json/custom/v1/account-details?user_id={id}
-     * Route: POST /wp-json/custom/v1/save-account-details
-     */
+ * REST API Custom Endpoint cho Account Details & Change Password
+ * Route: GET /wp-json/custom/v1/account-details?user_id={id}
+ * Route: POST /wp-json/custom/v1/save-account-details
+ */
 	register_rest_route( 'custom/v1', '/account-details', array(
 		'methods'  => 'GET',
 		'callback' => function ( WP_REST_Request $request ) {
@@ -1268,19 +1268,19 @@ add_action( 'rest_api_init', function() {
 			// Resolving course_id slug -> ID
 			if ( ! $course_id && ! empty( $raw_course ) ) {
 				$course_id = intval( $wpdb->get_var( $wpdb->prepare( "
-                    SELECT ID FROM {$wpdb->posts}
-                    WHERE post_name = %s AND post_type = 'lp_course'
-                    LIMIT 1
-                ", $raw_course ) ) );
+				SELECT ID FROM {$wpdb->posts}
+				WHERE post_name = %s AND post_type = 'lp_course'
+				LIMIT 1
+			", $raw_course ) ) );
 			}
 
 			// Resolving lesson_id slug -> ID
 			if ( ! $lesson_id && ! empty( $raw_lesson ) ) {
 				$lesson_id = intval( $wpdb->get_var( $wpdb->prepare( "
-                    SELECT ID FROM {$wpdb->posts}
-                    WHERE post_name = %s AND post_type IN ('lp_lesson', 'lp_quiz')
-                    LIMIT 1
-                ", $raw_lesson ) ) );
+				SELECT ID FROM {$wpdb->posts}
+				WHERE post_name = %s AND post_type IN ('lp_lesson', 'lp_quiz')
+				LIMIT 1
+			", $raw_lesson ) ) );
 			}
 
 			if ( ! $user_id || ! $lesson_id ) {
@@ -1304,18 +1304,18 @@ add_action( 'rest_api_init', function() {
 			$parent_item_id = 0;
 			if ( $course_id > 0 ) {
 				$parent_item_id = intval( $wpdb->get_var( $wpdb->prepare( "
-                    SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
-                    WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-                    ORDER BY user_item_id DESC LIMIT 1
-                ", $user_id, $course_id ) ) );
+				SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+				ORDER BY user_item_id DESC LIMIT 1
+			", $user_id, $course_id ) ) );
 			}
 
 			// Kiểm tra dòng bài học hiện tại trong wp_learnpress_user_items
 			$existing_id = $wpdb->get_var( $wpdb->prepare( "
-                SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
-                WHERE user_id = %d AND item_id = %d AND item_type = %s
-                ORDER BY user_item_id DESC LIMIT 1
-            ", $user_id, $lesson_id, $item_type ) );
+			SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
+			WHERE user_id = %d AND item_id = %d AND item_type = %s
+			ORDER BY user_item_id DESC LIMIT 1
+		", $user_id, $lesson_id, $item_type ) );
 
 			$now = current_time( 'mysql' );
 
@@ -1380,10 +1380,10 @@ add_action( 'rest_api_init', function() {
 
 			// Kiểm tra xem người dùng đã có ghi danh trong bảng wp_learnpress_user_items chưa
 			$existing_id = $wpdb->get_var( $wpdb->prepare( "
-                SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
-                WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-                ORDER BY user_item_id DESC LIMIT 1
-            ", $user_id, $course_id ) );
+			SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+			ORDER BY user_item_id DESC LIMIT 1
+		", $user_id, $course_id ) );
 
 			$now = current_time( 'mysql' );
 
@@ -1434,10 +1434,10 @@ add_action( 'rest_api_init', function() {
 
 			if ( ! $course_id && ! empty( $raw_course ) ) {
 				$course_id = intval( $wpdb->get_var( $wpdb->prepare( "
-                    SELECT ID FROM {$wpdb->posts}
-                    WHERE post_name = %s AND post_type = 'lp_course'
-                    LIMIT 1
-                ", $raw_course ) ) );
+				SELECT ID FROM {$wpdb->posts}
+				WHERE post_name = %s AND post_type = 'lp_course'
+				LIMIT 1
+			", $raw_course ) ) );
 			}
 
 			if ( ! $user_id || ! $course_id ) {
@@ -1450,27 +1450,27 @@ add_action( 'rest_api_init', function() {
 
 			// Đếm tổng số bài học và số bài đã hoàn thành
 			$total_lessons = $wpdb->get_var( $wpdb->prepare( "
-                SELECT COUNT( DISTINCT si.item_id )
-                FROM {$wpdb->prefix}learnpress_section_items si
-                INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
-                WHERE si.section_id IN (
-                    SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
-                ) AND p.post_type IN ('lp_lesson', 'lp_quiz')
-            ", $course_id ) );
+			SELECT COUNT( DISTINCT si.item_id )
+			FROM {$wpdb->prefix}learnpress_section_items si
+			INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
+			WHERE si.section_id IN (
+				SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
+			) AND p.post_type IN ('lp_lesson', 'lp_quiz')
+		", $course_id ) );
 
 			$user_item_id = $wpdb->get_var( $wpdb->prepare( "
-                SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
-                WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-                ORDER BY user_item_id DESC LIMIT 1
-            ", $user_id, $course_id ) );
+			SELECT user_item_id FROM {$wpdb->prefix}learnpress_user_items
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+			ORDER BY user_item_id DESC LIMIT 1
+		", $user_id, $course_id ) );
 
 			$completed_lessons = 0;
 			if ( $user_item_id ) {
 				$completed_lessons = $wpdb->get_var( $wpdb->prepare( "
-                    SELECT COUNT( DISTINCT item_id )
-                    FROM {$wpdb->prefix}learnpress_user_items
-                    WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
-                ", $user_id, $user_item_id ) );
+				SELECT COUNT( DISTINCT item_id )
+				FROM {$wpdb->prefix}learnpress_user_items
+				WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
+			", $user_id, $user_item_id ) );
 			}
 
 			$current_percent = ( $total_lessons > 0 ) ? round( ( $completed_lessons / $total_lessons ) * 100, 2 ) : 100;
@@ -1674,8 +1674,8 @@ add_shortcode( 'inspect_post_meta', function( $atts ) {
 
 
 /* ==========================================================================
-   LearnPress (lp_course) & WooCommerce (product) Sync for Next.js
-   ========================================================================== */
+LearnPress (lp_course) & WooCommerce (product) Sync for Next.js
+========================================================================== */
 
 if (!defined('NEXTJS_FRONTEND_URL')) {
 	define('NEXTJS_FRONTEND_URL', 'http://localhost:3000');
@@ -2375,20 +2375,20 @@ function handle_custom_mark_complete($request) {
 		// Tự động sửa chữa parent_id cho tất cả các bài học/quiz thuộc khóa học này trong wp_learnpress_user_items
 		if ($course_id > 0 && $parent_id > 0) {
 			$wpdb->query($wpdb->prepare("
-                UPDATE {$table_user_items}
-                SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
-                WHERE user_id = %d 
-                  AND item_type IN ('lp_lesson', 'lp_quiz')
-                  AND (parent_id = 0 OR parent_id IS NULL OR parent_id != %d)
-                  AND (
-                    ref_id = %d 
-                    OR item_id IN (
-                      SELECT si.item_id FROM {$wpdb->prefix}learnpress_section_items si
-                      INNER JOIN {$wpdb->prefix}learnpress_sections s ON s.section_id = si.section_id
-                      WHERE s.section_course_id = %d
-                    )
-                  )
-            ", $parent_id, $course_id, $user_id, $parent_id, $course_id, $course_id));
+			UPDATE {$table_user_items}
+			SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
+			WHERE user_id = %d 
+				AND item_type IN ('lp_lesson', 'lp_quiz')
+				AND (parent_id = 0 OR parent_id IS NULL OR parent_id != %d)
+				AND (
+				ref_id = %d 
+				OR item_id IN (
+					SELECT si.item_id FROM {$wpdb->prefix}learnpress_section_items si
+					INNER JOIN {$wpdb->prefix}learnpress_sections s ON s.section_id = si.section_id
+					WHERE s.section_course_id = %d
+				)
+				)
+		", $parent_id, $course_id, $user_id, $parent_id, $course_id, $course_id));
 		}
 
 		// Tìm bài học trong wp_learnpress_user_items
@@ -2498,20 +2498,20 @@ function handle_custom_mark_complete($request) {
 		// Tính toán và Cập nhật trạng thái Khóa học tổng thể
 		if ($course_id > 0 && $parent_id > 0) {
 			$total_items = intval($wpdb->get_var($wpdb->prepare("
-                SELECT COUNT(DISTINCT si.item_id)
-                FROM {$wpdb->prefix}learnpress_section_items si
-                INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
-                WHERE si.section_id IN (
-                    SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
-                ) AND p.post_type IN ('lp_lesson', 'lp_quiz')
-            ", $course_id)));
+			SELECT COUNT(DISTINCT si.item_id)
+			FROM {$wpdb->prefix}learnpress_section_items si
+			INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
+			WHERE si.section_id IN (
+				SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
+			) AND p.post_type IN ('lp_lesson', 'lp_quiz')
+		", $course_id)));
 
 			if ($total_items > 0) {
 				$completed_items = intval($wpdb->get_var($wpdb->prepare("
-                    SELECT COUNT(DISTINCT item_id)
-                    FROM {$table_user_items}
-                    WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
-                ", $user_id, $parent_id)));
+				SELECT COUNT(DISTINCT item_id)
+				FROM {$table_user_items}
+				WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')
+			", $user_id, $parent_id)));
 
 				if ($completed_items >= $total_items) {
 					$wpdb->update(
@@ -2668,10 +2668,10 @@ function handle_custom_repurchase_course($request) {
 
 			// Xóa user_meta _completed_lessons thuộc khóa học này
 			$sec_items = $wpdb->get_col($wpdb->prepare("
-                SELECT si.item_id FROM {$wpdb->prefix}learnpress_section_items si
-                INNER JOIN {$wpdb->prefix}learnpress_sections s ON s.section_id = si.section_id
-                WHERE s.section_course_id = %d
-            ", $course_id));
+			SELECT si.item_id FROM {$wpdb->prefix}learnpress_section_items si
+			INNER JOIN {$wpdb->prefix}learnpress_sections s ON s.section_id = si.section_id
+			WHERE s.section_course_id = %d
+		", $course_id));
 
 			if (!empty($sec_items)) {
 				$sec_item_ids = array_map('intval', $sec_items);
@@ -2745,20 +2745,20 @@ function handle_get_custom_course_progress($request) {
 
 		if ($parent_item_id) {
 			$wpdb->query($wpdb->prepare("
-                UPDATE {$table_items}
-                SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
-                WHERE user_id = %d 
-                  AND item_type IN ('lp_lesson', 'lp_quiz')
-                  AND (parent_id = 0 OR parent_id IS NULL OR parent_id != %d)
-                  AND (
-                    ref_id = %d 
-                    OR item_id IN (
-                      SELECT si.item_id FROM {$wpdb->prefix}learnpress_section_items si
-                      INNER JOIN {$wpdb->prefix}learnpress_sections s ON s.section_id = si.section_id
-                      WHERE s.section_course_id = %d
-                    )
-                  )
-            ", $parent_item_id, $course_id, $user_id, $parent_item_id, $course_id, $course_id));
+			UPDATE {$table_items}
+			SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
+			WHERE user_id = %d 
+				AND item_type IN ('lp_lesson', 'lp_quiz')
+				AND (parent_id = 0 OR parent_id IS NULL OR parent_id != %d)
+				AND (
+				ref_id = %d 
+				OR item_id IN (
+					SELECT si.item_id FROM {$wpdb->prefix}learnpress_section_items si
+					INNER JOIN {$wpdb->prefix}learnpress_sections s ON s.section_id = si.section_id
+					WHERE s.section_course_id = %d
+				)
+				)
+		", $parent_item_id, $course_id, $user_id, $parent_item_id, $course_id, $course_id));
 		}
 	}
 
@@ -2791,13 +2791,13 @@ function handle_get_custom_course_progress($request) {
 			if ($parent_item_id) {
 				$lp_items = $wpdb->get_col($wpdb->prepare(
 					"SELECT item_id FROM {$table_items} ui 
-                     WHERE user_id = %d AND (parent_id = %d OR ref_id = %d) 
-                       AND item_type IN ('lp_lesson', 'lp_quiz')
-                       AND user_item_id = (
-                           SELECT MAX(user_item_id) FROM {$table_items} 
-                           WHERE user_id = ui.user_id AND item_id = ui.item_id
-                       )
-                       AND status = 'completed'",
+					WHERE user_id = %d AND (parent_id = %d OR ref_id = %d) 
+					AND item_type IN ('lp_lesson', 'lp_quiz')
+					AND user_item_id = (
+						SELECT MAX(user_item_id) FROM {$table_items} 
+						WHERE user_id = ui.user_id AND item_id = ui.item_id
+					)
+					AND status = 'completed'",
 					$user_id, $parent_item_id, $course_id
 				));
 				if (is_array($lp_items)) {
@@ -2809,12 +2809,12 @@ function handle_get_custom_course_progress($request) {
 		// Lấy tất cả bài học completed của user trong bảng wp_learnpress_user_items (lấy lượt thi mới nhất)
 		$all_lp_completed = $wpdb->get_col($wpdb->prepare(
 			"SELECT item_id FROM {$table_items} ui 
-             WHERE user_id = %d AND item_type IN ('lp_lesson', 'lp_quiz')
-               AND user_item_id = (
-                   SELECT MAX(user_item_id) FROM {$table_items} 
-                   WHERE user_id = ui.user_id AND item_id = ui.item_id
-               )
-               AND status = 'completed'",
+			WHERE user_id = %d AND item_type IN ('lp_lesson', 'lp_quiz')
+			AND user_item_id = (
+				SELECT MAX(user_item_id) FROM {$table_items} 
+				WHERE user_id = ui.user_id AND item_id = ui.item_id
+			)
+			AND status = 'completed'",
 			$user_id
 		));
 		if (is_array($all_lp_completed)) {
@@ -2928,12 +2928,12 @@ function handle_get_custom_course_progress($request) {
 	if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
 		$failed_lp = $wpdb->get_col($wpdb->prepare(
 			"SELECT item_id FROM {$table_items} ui 
-             WHERE user_id = %d AND item_type = 'lp_quiz'
-               AND user_item_id = (
-                   SELECT MAX(user_item_id) FROM {$table_items} 
-                   WHERE user_id = ui.user_id AND item_id = ui.item_id
-               )
-               AND status = 'completed' AND graduation = 'failed'",
+			WHERE user_id = %d AND item_type = 'lp_quiz'
+			AND user_item_id = (
+				SELECT MAX(user_item_id) FROM {$table_items} 
+				WHERE user_id = ui.user_id AND item_id = ui.item_id
+			)
+			AND status = 'completed' AND graduation = 'failed'",
 			$user_id
 		));
 		if (is_array($failed_lp)) {
@@ -3032,9 +3032,9 @@ function handle_get_custom_quiz_attempts($request) {
 		// Chỉ lấy lượt làm của đúng quiz_id này - KHÔNG fallback sang quiz khác
 		$user_items = $wpdb->get_results($wpdb->prepare(
 			"SELECT user_item_id, start_time, end_time, status, graduation, ref_id, item_id, parent_id 
-             FROM {$table_items} 
-             WHERE user_id = %d AND item_type = 'lp_quiz' AND item_id = %d
-             ORDER BY user_item_id ASC",
+			FROM {$table_items} 
+			WHERE user_id = %d AND item_type = 'lp_quiz' AND item_id = %d
+			ORDER BY user_item_id ASC",
 			$user_id, $quiz_id
 		));
 
@@ -3042,9 +3042,9 @@ function handle_get_custom_quiz_attempts($request) {
 		if (empty($user_items)) {
 			$user_items = $wpdb->get_results($wpdb->prepare(
 				"SELECT user_item_id, start_time, end_time, status, graduation, ref_id, item_id, parent_id 
-                 FROM {$table_items} 
-                 WHERE user_id = %d AND item_type = 'lp_quiz' AND item_id = %d
-                 ORDER BY user_item_id ASC",
+				FROM {$table_items} 
+				WHERE user_id = %d AND item_type = 'lp_quiz' AND item_id = %d
+				ORDER BY user_item_id ASC",
 				$user_id, $quiz_id
 			));
 		}
@@ -3164,14 +3164,43 @@ function handle_get_custom_quiz_attempts($request) {
 				if ($q_empty === null) $q_empty = isset($res_data['question_empty']) ? intval($res_data['question_empty']) : max(0, $mark - $q_correct - $q_wrong);
 
 				// Thời gian làm bài
+				// Thời gian làm bài
 				$duration_sec = 0;
-				if (isset($res_data['time_spent']) && is_numeric($res_data['time_spent'])) {
-					$duration_sec = intval($res_data['time_spent']);
-				} elseif (isset($meta['time_spent']) && is_numeric($meta['time_spent'])) {
-					$duration_sec = intval($meta['time_spent']);
-				} elseif ($u_item->start_time && $u_item->end_time && $u_item->end_time !== '0000-00-00 00:00:00') {
+
+				// 1. Ưu tiên lấy từ results (LearnPress native dùng 'time_spend' dạng HH:MM:SS)
+				$time_candidates = [
+					$res_data['time_spend'] ?? null,
+					$res_data['time_spent'] ?? null,
+					$meta['time_spend'] ?? null,
+					$meta['time_spent'] ?? null,
+				];
+
+				foreach ($time_candidates as $raw_t) {
+					if ($raw_t === null || $raw_t === '') continue;
+
+					// Nếu là số giây
+					if (is_numeric($raw_t)) {
+						$duration_sec = intval($raw_t);
+						break;
+					}
+
+					// Nếu là chuỗi HH:MM:SS hoặc MM:SS
+					if (is_string($raw_t)) {
+						$parts = array_map('intval', explode(':', trim($raw_t)));
+						if (count($parts) === 3) {
+							$duration_sec = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
+							break;
+						} elseif (count($parts) === 2) {
+							$duration_sec = $parts[0] * 60 + $parts[1];
+							break;
+						}
+					}
+				}
+
+				// 2. Fallback cuối cùng: end_time - start_time (chỉ khi vẫn = 0)
+				if ($duration_sec <= 0 && $u_item->start_time && $u_item->end_time && $u_item->end_time !== '0000-00-00 00:00:00') {
 					$t_start = is_numeric($u_item->start_time) ? intval($u_item->start_time) : strtotime($u_item->start_time);
-					$t_end   = is_numeric($u_item->end_time) ? intval($u_item->end_time) : strtotime($u_item->end_time);
+					$t_end   = is_numeric($u_item->end_time)   ? intval($u_item->end_time)   : strtotime($u_item->end_time);
 					if ($t_start && $t_end && $t_end >= $t_start) {
 						$duration_sec = $t_end - $t_start;
 					}
@@ -3276,7 +3305,7 @@ function handle_get_custom_quiz_attempts($request) {
 	$attempts_list = $unique_attempts;
 
 
-    $attempts_list = array_values(array_filter($attempts_list, function($att) {
+	$attempts_list = array_values(array_filter($attempts_list, function($att) {
 		$status = $att['status'] ?? '';
 		if ($status === 'started' || $status === 'in-progress') return false;
 		$score = floatval($att['result_num'] ?? 0);
@@ -3332,6 +3361,39 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 	$course_id = $course_id ?: intval($ui->ref_id);
 	$user_id   = $user_id   ?: intval($ui->user_id);
 
+
+	// Sau dòng: $user_id   = $user_id   ?: intval($ui->user_id);
+
+	// Đảm bảo results của lần hiện tại có time_spend đúng
+	try {
+		$current_results = null;
+		if (class_exists('LP_User_Items_Result_DB')) {
+			$current_results = LP_User_Items_Result_DB::instance()->get_result($user_item_id);
+		}
+		if (!$current_results) {
+			$current_results = learn_press_get_user_item_meta($user_item_id, 'results', true);
+		}
+		if (is_array($current_results)) {
+			$has_time = !empty($current_results['time_spend']) || !empty($current_results['time_spent']);
+			if (!$has_time && $ui->start_time && $ui->end_time && $ui->end_time !== '0000-00-00 00:00:00') {
+				$t_start = is_numeric($ui->start_time) ? intval($ui->start_time) : strtotime($ui->start_time);
+				$t_end   = is_numeric($ui->end_time)   ? intval($ui->end_time)   : strtotime($ui->end_time);
+				if ($t_start && $t_end && $t_end >= $t_start) {
+					$sec = $t_end - $t_start;
+					$ts_str = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+					$current_results['time_spend'] = $ts_str;
+					$current_results['time_spent'] = $sec;
+					// Ghi lại
+					learn_press_update_user_item_meta($user_item_id, 'results', $current_results);
+					if (function_exists('learn_press_update_user_item_meta')) {
+						learn_press_update_user_item_meta($user_item_id, 'time_spend', $ts_str);
+					}
+				}
+			}
+		}
+	} catch (Throwable $e) {}
+
+
 	// 1. Sync results meta (giữ)
 	if (function_exists('learn_press_get_user_item')) {
 		try {
@@ -3356,9 +3418,9 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 	// 2. Rebuild history GIỐNG HỆT custom_lp_submit_quiz
 	$old_ids = $wpdb->get_col($wpdb->prepare(
 		"SELECT user_item_id FROM {$table_ui}
-		 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-		   AND user_item_id < %d
-		 ORDER BY user_item_id ASC",
+		WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+		AND user_item_id < %d
+		ORDER BY user_item_id ASC",
 		$user_id, $quiz_id, $user_item_id
 	));
 
@@ -3395,9 +3457,9 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 			'question_correct' => intval($old_result['question_correct'] ?? $user_mark),
 		]);
 	}
-	
-	
-	
+
+
+
 	$seen = [];
 	$attempts_history = array_values(array_filter($attempts_history, function($a) use (&$seen) {
 		$id = $a['user_item_id'] ?? 0;
@@ -3405,9 +3467,9 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 		$seen[$id] = true;
 		return true;
 	}));
-	
-	
-	
+
+
+
 
 	$keys = ['attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'];
 
@@ -3481,9 +3543,9 @@ function log_user_lp_quiz_attempt_console() {
 		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
 			$user_items = $wpdb->get_results($wpdb->prepare(
 				"SELECT user_item_id, start_time, end_time, status, graduation, ref_id 
-                 FROM {$table_items} 
-                 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' 
-                 ORDER BY user_item_id ASC",
+				FROM {$table_items} 
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' 
+				ORDER BY user_item_id ASC",
 				$user_id, $quiz_id
 			));
 
@@ -3807,15 +3869,15 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 
 		$rows = $wpdb->get_results($wpdb->prepare(
 			"SELECT qa.question_answer_id,
-                MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
-                MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
-                MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text,
-                MAX(CASE WHEN qam.meta_key = 'is_true' THEN qam.meta_value END) as is_true
-         FROM {$answers_table} qa
-         LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
-         WHERE qa.question_id = %d
-         GROUP BY qa.question_answer_id
-         ORDER BY qa.answer_order ASC, qa.question_answer_id ASC",
+			MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
+			MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
+			MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text,
+			MAX(CASE WHEN qam.meta_key = 'is_true' THEN qam.meta_value END) as is_true
+		FROM {$answers_table} qa
+		LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
+		WHERE qa.question_id = %d
+		GROUP BY qa.question_answer_id
+		ORDER BY qa.answer_order ASC, qa.question_answer_id ASC",
 			$question_id
 		));
 
@@ -3920,8 +3982,8 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	if ($course_id) {
 		$course_item = $wpdb->get_row($wpdb->prepare(
 			"SELECT user_item_id FROM {$table}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+			ORDER BY user_item_id DESC LIMIT 1",
 			$user_id,
 			$course_id
 		));
@@ -3963,7 +4025,7 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	if ($parent_id > 0) {
 		$wpdb->query($wpdb->prepare(
 			"UPDATE {$table} SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND (parent_id = 0 OR parent_id IS NULL)",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND (parent_id = 0 OR parent_id IS NULL)",
 			$parent_id, $course_id, $user_id, $quiz_id
 		));
 	}
@@ -4011,8 +4073,8 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	// Lấy tất cả các attempt đã completed cùng quiz
 	$old_ids = $wpdb->get_col($wpdb->prepare(
 		"SELECT user_item_id FROM {$table}
-     WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-     ORDER BY user_item_id ASC",
+	WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+	ORDER BY user_item_id ASC",
 		$user_id, $quiz_id
 	));
 
@@ -4068,8 +4130,8 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 			'question_correct' => intval($old_result['question_correct'] ?? $user_m),
 		]);
 	}
-	
-	
+
+
 	$seen = [];
 	$attempts_history = array_values(array_filter($attempts_history, function($a) use (&$seen) {
 		$id = $a['user_item_id'] ?? 0;
@@ -4243,8 +4305,8 @@ function handle_submit_quiz_result($request) {
 			if ($wpdb->get_var("SHOW TABLES LIKE '{$table_sec_items}'") === $table_sec_items) {
 				$found_cid = $wpdb->get_var($wpdb->prepare(
 					"SELECT s.section_course_id FROM {$table_sections} s 
-                 JOIN {$table_sec_items} i ON s.section_id = i.section_id 
-                 WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
+				JOIN {$table_sec_items} i ON s.section_id = i.section_id 
+				WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
 					$quiz_id
 				));
 				if ($found_cid) {
@@ -4258,8 +4320,8 @@ function handle_submit_quiz_result($request) {
 		if ($course_id) {
 			$course_item = $wpdb->get_row($wpdb->prepare(
 				"SELECT user_item_id FROM {$table_ui}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+			ORDER BY user_item_id DESC LIMIT 1",
 				$user_id,
 				$course_id
 			));
@@ -4289,16 +4351,16 @@ function handle_submit_quiz_result($request) {
 		if ($parent_id) {
 			$existing = $wpdb->get_row($wpdb->prepare(
 				"SELECT user_item_id, status FROM {$table_ui}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
+			ORDER BY user_item_id DESC LIMIT 1",
 				$user_id, $quiz_id, $parent_id
 			));
 		}
 		if (!$existing) {
 			$existing = $wpdb->get_row($wpdb->prepare(
 				"SELECT user_item_id, status FROM {$table_ui}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+			ORDER BY user_item_id DESC LIMIT 1",
 				$user_id, $quiz_id
 			));
 		}
@@ -4386,8 +4448,8 @@ function handle_submit_quiz_result($request) {
 		if ($parent_id > 0 || $course_id > 0) {
 			$existing_standalone = $wpdb->get_row($wpdb->prepare(
 				"SELECT user_item_id, status FROM {$table_ui}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = 0 AND ref_id = 0
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = 0 AND ref_id = 0
+			ORDER BY user_item_id DESC LIMIT 1",
 				$user_id, $quiz_id
 			));
 
@@ -4798,8 +4860,8 @@ function handle_submit_quiz_result($request) {
 		$existing_retakes = [];
 		$prev_user_items  = $wpdb->get_results($wpdb->prepare(
 			"SELECT user_item_id FROM {$table_ui}
-         WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND status = 'completed' AND user_item_id != %d
-         ORDER BY user_item_id ASC",
+		WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND status = 'completed' AND user_item_id != %d
+		ORDER BY user_item_id ASC",
 			$user_id, $quiz_id, $user_item_id
 		));
 
@@ -5130,8 +5192,8 @@ function handle_custom_retake_quiz($request) {
 		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_sec_items}'") === $table_sec_items) {
 			$found_cid = $wpdb->get_var($wpdb->prepare(
 				"SELECT s.section_course_id FROM {$table_sections} s 
-                 JOIN {$table_sec_items} i ON s.section_id = i.section_id 
-                 WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
+				JOIN {$table_sec_items} i ON s.section_id = i.section_id 
+				WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
 				$quiz_id
 			));
 			if ($found_cid) {
@@ -5144,8 +5206,8 @@ function handle_custom_retake_quiz($request) {
 	if ($course_id) {
 		$course_item = $wpdb->get_row($wpdb->prepare(
 			"SELECT user_item_id FROM {$table_ui}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+			ORDER BY user_item_id DESC LIMIT 1",
 			$user_id,
 			$course_id
 		));
@@ -5159,16 +5221,16 @@ function handle_custom_retake_quiz($request) {
 	// 1. Tìm lượt làm bài cũ (status = completed)
 	$existing = $wpdb->get_row($wpdb->prepare(
 		"SELECT * FROM {$table_ui}
-         WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
-         ORDER BY user_item_id DESC LIMIT 1",
+		WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
+		ORDER BY user_item_id DESC LIMIT 1",
 		$user_id, $quiz_id, $parent_id
 	));
 
 	if (!$existing) {
 		$existing = $wpdb->get_row($wpdb->prepare(
 			"SELECT * FROM {$table_ui}
-             WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-             ORDER BY user_item_id DESC LIMIT 1",
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+			ORDER BY user_item_id DESC LIMIT 1",
 			$user_id, $quiz_id
 		));
 	}
