@@ -481,12 +481,19 @@ add_action( 'rest_api_init', function() {
 
 				if ( ! empty( $items ) ) {
 					foreach ( $items as &$item ) {
-						$item_id = $item['item_id'];
-						$item['preview']  = get_post_meta( $item_id, '_lp_preview', true ) === 'yes';
-						$item['duration'] = get_post_meta( $item_id, '_lp_duration', true );
-						$item['title']    = $item['post_title'];
-						$item['content']  = $item['post_content'];
-					}
+    $item_id = $item['item_id'];
+    $item['preview']  = get_post_meta( $item_id, '_lp_preview', true ) === 'yes';
+    $item['duration'] = get_post_meta( $item_id, '_lp_duration', true );
+    $item['title']    = $item['post_title'];
+    $item['content']  = $item['post_content'];
+
+    // Passing grade của quiz (không gán mặc định)
+    $pg = get_post_meta( $item_id, '_lp_passing_grade', true );
+    if ( $pg === '' || $pg === null ) {
+        $pg = get_post_meta( $item_id, '_lp_passing_condition', true );
+    }
+    $item['passing_grade'] = ( $pg !== '' && $pg !== null ) ? $pg : '';
+}
 				} else {
 					$items = array();
 				}

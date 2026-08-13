@@ -243,6 +243,7 @@ export default function LessonViewWrapper({
               type: it.item_type || it.type || (itTitle.toLowerCase().includes("quiz") || itTitle.toLowerCase().includes("review") ? "lp_quiz" : "lp_lesson"),
               duration: it.duration || (it.item_type === "lp_quiz" ? "1 minute" : `${(iIdx + 1) * 3 + 2} minutes`),
               questions_count: it.questions_count || (it.item_type === "lp_quiz" || itTitle.toLowerCase().includes("quiz") || itTitle.toLowerCase().includes("review") ? "" : ""),
+              passing_grade: it.passing_grade ?? it._lp_passing_grade ?? it.passingGrade ?? "",
               section_id: sec.section_id || `sec-${sIdx}`,
               section_title: sec.section_name || sec.title || `Section ${sIdx + 1}`,
             });
@@ -280,6 +281,22 @@ export default function LessonViewWrapper({
     const cleanTitleSlug = it.title ? it.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") : "";
     return it.id === lessonId || it.slug === lessonId || (cleanTitleSlug && cleanTitleSlug === lessonId);
   });
+
+
+  const quizPassingGradeRaw =
+    activeItem?.passing_grade ??
+    activeLesson?.passing_grade ??
+    activeLesson?._lp_passing_grade ??
+    "";
+  const quizPassingGradeDisplay =
+    quizPassingGradeRaw !== "" && quizPassingGradeRaw != null
+      ? String(quizPassingGradeRaw).replace(/%/g, "").trim()
+      : "";
+
+
+
+
+
   const activeIndex = allCurriculumItems.findIndex((it) => {
     const cleanTitleSlug = it.title ? it.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") : "";
     return it.id === lessonId || it.slug === lessonId || (cleanTitleSlug && cleanTitleSlug === lessonId);
@@ -1681,6 +1698,12 @@ export default function LessonViewWrapper({
                           <div className={styles.quiz_overview_card}>
                             <div className={styles.quiz_overview_meta}>
                               {/* Questions count */}
+
+
+
+
+
+
                               <div className={styles.quiz_overview_meta_item}>
                                 <Puzzle className={styles.quiz_meta_icon} />
                                 <span>
@@ -1696,11 +1719,14 @@ export default function LessonViewWrapper({
                                 </span>
                               </div>
 
+
+
+
                               {/* Passing Grade */}
                               <div className={styles.quiz_overview_meta_item}>
                                 <BarChart2 className={styles.quiz_meta_icon} />
                                 <span>
-                                  <strong>Passing grade:</strong> {passingGrade}%
+                                  <strong>Passing grade:</strong> {quizPassingGradeDisplay}%
                                 </span>
                               </div>
                             </div>
