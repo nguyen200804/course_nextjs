@@ -3063,6 +3063,8 @@ function handle_get_custom_quiz_attempts($request) {
 				}
 
 				// Unserialize / JSON decode results từ mọi meta key có thể có trong LearnPress 4.x
+
+				// Unserialize / JSON decode results từ mọi meta key có thể có trong LearnPress 4.x
 				$res_data = [];
 				$possible_result_keys = ['results', '_results', '_lp_quiz_results', '_lp_results', '_lp_user_item_meta', 'user_item_meta', '_lp_user_item_results'];
 				foreach ($possible_result_keys as $pr_key) {
@@ -3083,8 +3085,29 @@ function handle_get_custom_quiz_attempts($request) {
 					}
 				}
 
-				// Chỉ gọi hàm API gốc của LearnPress nếu $res_data chưa có dữ liệu kết quả từ meta
-				if (empty($res_data) || !isset($res_data['result'])) {
+				// ===== ƯU TIÊN NGUỒN CHÍNH CỦA LEARNPRESS 4.x: LP_User_Items_Result_DB =====
+				// Native quiz lần đầu chỉ ghi kết quả vào bảng learnpress_user_item_results
+				$lp_db_result = null;
+				if (class_exists('LP_User_Items_Result_DB')) {
+					try {
+						$lp_db_result = LP_User_Items_Result_DB::instance()->get_result($item_id);
+						if (is_string($lp_db_result)) {
+							$lp_db_result = json_decode($lp_db_result, true);
+						}
+						if (is_array($lp_db_result) && !empty($lp_db_result)) {
+							// Nếu Result DB có điểm thật (result > 0 hoặc user_mark > 0) thì ưu tiên đè lên meta
+							$db_has_score = (isset($lp_db_result['result']) && floatval($lp_db_result['result']) > 0)
+								|| (isset($lp_db_result['user_mark']) && floatval($lp_db_result['user_mark']) > 0)
+								|| (isset($lp_db_result['question_correct']) && intval($lp_db_result['question_correct']) > 0);
+							if ($db_has_score || empty($res_data) || !isset($res_data['result']) || floatval($res_data['result'] ?? 0) <= 0) {
+								$res_data = array_merge($res_data, $lp_db_result);
+							}
+						}
+					} catch (Throwable $e) {}
+				}
+
+				// Fallback cuối cùng nếu vẫn thiếu dữ liệu
+				if (empty($res_data) || !isset($res_data['result']) || (floatval($res_data['result'] ?? 0) <= 0 && empty($res_data['user_mark']))) {
 					if (function_exists('learn_press_get_user_item_results')) {
 						try {
 							$lp_item_res = learn_press_get_user_item_results($item_id);
@@ -3092,7 +3115,8 @@ function handle_get_custom_quiz_attempts($request) {
 								$res_data = array_merge($res_data, (array)$lp_item_res);
 							}
 						} catch (Exception $e) {}
-					} elseif (function_exists('learn_press_get_user_item')) {
+					}
+					if ((empty($res_data) || floatval($res_data['result'] ?? 0) <= 0) && function_exists('learn_press_get_user_item')) {
 						try {
 							$lp_item = learn_press_get_user_item($item_id);
 							if ($lp_item && method_exists($lp_item, 'get_results')) {
@@ -3104,6 +3128,10 @@ function handle_get_custom_quiz_attempts($request) {
 						} catch (Exception $e) {}
 					}
 				}
+
+
+
+
 
 				// Số lượng câu hỏi
 				$q_count = 0;
@@ -3363,17 +3391,30 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 
 
 	// Sau dòng: $user_id   = $user_id   ?: intval($ui->user_id);
-
-	// Đảm bảo results của lần hiện tại có time_spend đúng
+	// ===== Force sync kết quả từ Result DB (nguồn chính của LP 4.x) vào meta =====
 	try {
 		$current_results = null;
+
+		// Ưu tiên lấy từ bảng learnpress_user_item_results
 		if (class_exists('LP_User_Items_Result_DB')) {
 			$current_results = LP_User_Items_Result_DB::instance()->get_result($user_item_id);
+			if (is_string($current_results)) {
+				$current_results = json_decode($current_results, true);
+			}
 		}
-		if (!$current_results) {
-			$current_results = learn_press_get_user_item_meta($user_item_id, 'results', true);
+
+		// Fallback get_results của object
+		if (empty($current_results) || !is_array($current_results)) {
+			if (function_exists('learn_press_get_user_item')) {
+				$user_item_quiz = learn_press_get_user_item($user_item_id);
+				if ($user_item_quiz && method_exists($user_item_quiz, 'get_results')) {
+					$current_results = $user_item_quiz->get_results('');
+				}
+			}
 		}
-		if (is_array($current_results)) {
+
+		if (is_array($current_results) && !empty($current_results)) {
+			// Bổ sung time_spend nếu thiếu
 			$has_time = !empty($current_results['time_spend']) || !empty($current_results['time_spent']);
 			if (!$has_time && $ui->start_time && $ui->end_time && $ui->end_time !== '0000-00-00 00:00:00') {
 				$t_start = is_numeric($ui->start_time) ? intval($ui->start_time) : strtotime($ui->start_time);
@@ -3383,37 +3424,35 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 					$ts_str = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
 					$current_results['time_spend'] = $ts_str;
 					$current_results['time_spent'] = $sec;
-					// Ghi lại
-					learn_press_update_user_item_meta($user_item_id, 'results', $current_results);
-					if (function_exists('learn_press_update_user_item_meta')) {
-						learn_press_update_user_item_meta($user_item_id, 'time_spend', $ts_str);
-					}
 				}
+			}
+
+			// Ghi đè meta để Next.js đọc được
+			$res_serialized = serialize($current_results);
+			$res_json       = json_encode($current_results, JSON_UNESCAPED_UNICODE);
+
+			$wpdb->query($wpdb->prepare(
+				"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key IN ('results', '_lp_user_item_results', '_lp_results', '_lp_quiz_results')",
+				$user_item_id
+			));
+			$wpdb->insert($table_uim, [
+				'learnpress_user_item_id' => $user_item_id,
+				'meta_key'                => 'results',
+				'meta_value'              => $res_serialized,
+			]);
+			$wpdb->insert($table_uim, [
+				'learnpress_user_item_id' => $user_item_id,
+				'meta_key'                => '_lp_user_item_results',
+				'meta_value'              => $res_json,
+			]);
+
+			// Cập nhật thêm time_spend riêng
+			if (!empty($current_results['time_spend'])) {
+				learn_press_update_user_item_meta($user_item_id, 'time_spend', $current_results['time_spend']);
 			}
 		}
 	} catch (Throwable $e) {}
 
-
-	// 1. Sync results meta (giữ)
-	if (function_exists('learn_press_get_user_item')) {
-		try {
-			$user_item_quiz = learn_press_get_user_item($user_item_id);
-			if ($user_item_quiz && method_exists($user_item_quiz, 'get_results')) {
-				$lp_results = $user_item_quiz->get_results('');
-				if (!empty($lp_results)) {
-					$res_serialized = serialize((array)$lp_results);
-					$res_json       = json_encode((array)$lp_results, JSON_UNESCAPED_UNICODE);
-
-					$wpdb->query($wpdb->prepare(
-						"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key IN ('results', '_lp_user_item_results')",
-						$user_item_id
-					));
-					$wpdb->insert($table_uim, ['learnpress_user_item_id' => $user_item_id, 'meta_key' => 'results', 'meta_value' => $res_serialized]);
-					$wpdb->insert($table_uim, ['learnpress_user_item_id' => $user_item_id, 'meta_key' => '_lp_user_item_results', 'meta_value' => $res_json]);
-				}
-			}
-		} catch (Throwable $e) {}
-	}
 
 	// 2. Rebuild history GIỐNG HỆT custom_lp_submit_quiz
 	$old_ids = $wpdb->get_col($wpdb->prepare(
