@@ -3483,17 +3483,23 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 		$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0'], true);
 		if ($is_zero_score && $is_zero_time) continue;
 
+		$pg_val_hist = get_post_meta($quiz_id, '_lp_passing_grade', true);
+		if (empty($pg_val_hist)) $pg_val_hist = get_post_meta($quiz_id, '_lp_passing_condition', true);
+		if (empty($pg_val_hist)) $pg_val_hist = 80;
+		$passing_grade_hist = is_numeric($pg_val_hist) ? "{$pg_val_hist}%" : strval($pg_val_hist);
+
 		$attempts_history[] = array_merge($old_result, [
-			'user_item_id'     => $oid,
-			'result'           => $r,
-			'user_mark'        => $user_mark,
-			'mark'             => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
-			'time_spend'       => $ts ?: '00:00:00',
-			'time_spent'       => $ts ?: '00:00:00',
-			'graduation'       => ($r >= 80 || !empty($old_result['pass'])) ? 'passed' : 'failed',
-			'pass'             => ($r >= 80 || !empty($old_result['pass'])) ? 1 : 0,
-			'question_count'   => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
-			'question_correct' => intval($old_result['question_correct'] ?? $user_mark),
+			'user_item_id'       => $oid,
+			'result'             => $r,
+			'user_mark'          => $user_mark,
+			'mark'               => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
+			'time_spend'         => $ts ?: '00:00:00',
+			'time_spent'         => $ts ?: '00:00:00',
+			'graduation'         => ($r >= 80 || !empty($old_result['pass'])) ? 'passed' : 'failed',
+			'pass'               => ($r >= 80 || !empty($old_result['pass'])) ? 1 : 0,
+			'question_count'     => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
+			'question_correct'   => intval($old_result['question_correct'] ?? $user_mark),
+			'passing_grade'      => $old_result['passing_grade'] ?? $passing_grade_hist,  // ← THÊM
 		]);
 	}
 
@@ -3515,6 +3521,22 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 	// Ghi vào record hiện tại
 	foreach ($keys as $key) {
 		learn_press_update_user_item_meta($user_item_id, $key, $attempts_history);
+	}
+
+	// Ghi vào parent_id (course user_item) — quan trọng để WP theme + Next.js đọc được Last Attempt
+	$parent_id = intval($ui->parent_id ?? 0);
+	if ($parent_id <= 0 && $course_id > 0) {
+		$parent_id = intval($wpdb->get_var($wpdb->prepare(
+			"SELECT user_item_id FROM {$table_ui}
+         WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+         ORDER BY user_item_id DESC LIMIT 1",
+			$user_id, $course_id
+		)));
+	}
+	if ($parent_id > 0) {
+		foreach ($keys as $key) {
+			learn_press_update_user_item_meta($parent_id, $key, $attempts_history);
+		}
 	}
 
 	// Copy sang mọi record cũ
@@ -4087,6 +4109,9 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		'result'             => $result_percent,   // 75 từ Next.js
 		'pass'               => $pass,
 		'time_spend'         => $time_spent,
+		'passing_grade'      => is_numeric(get_post_meta($quiz_id, '_lp_passing_grade', true)) 
+		? get_post_meta($quiz_id, '_lp_passing_grade', true) . '%' 
+		: (get_post_meta($quiz_id, '_lp_passing_grade', true) ?: '80%'),  // ← THÊM
 	];
 
 	// Gắn answered (hash) + đúng/sai từ Next.js
@@ -4156,17 +4181,25 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		}
 
 		// Chuẩn hóa dữ liệu trước khi đưa vào history
+		// Lấy passing_grade từ post_meta (một lần ngoài vòng lặp cũng được, nhưng để an toàn đặt trong)
+		$pg_val_hist = get_post_meta($quiz_id, '_lp_passing_grade', true);
+		if (empty($pg_val_hist)) $pg_val_hist = get_post_meta($quiz_id, '_lp_passing_condition', true);
+		if (empty($pg_val_hist)) $pg_val_hist = 80;
+		$passing_grade_hist = is_numeric($pg_val_hist) ? "{$pg_val_hist}%" : strval($pg_val_hist);
+
+		// Chuẩn hóa dữ liệu trước khi đưa vào history
 		$attempts_history[] = array_merge($old_result, [
-			'user_item_id'   => $oid,
-			'result'         => $r,
-			'user_mark'      => $user_m,
-			'mark'           => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
-			'time_spend'     => $ts_clean ?: '00:00:00',
-			'time_spent'     => $ts_clean ?: '00:00:00',
-			'graduation'     => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 'passed' : 'failed',
-			'pass'           => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 1 : 0,
-			'question_count' => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
-			'question_correct' => intval($old_result['question_correct'] ?? $user_m),
+			'user_item_id'       => $oid,
+			'result'             => $r,
+			'user_mark'          => $user_m,
+			'mark'               => floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0),
+			'time_spend'         => $ts_clean ?: '00:00:00',
+			'time_spent'         => $ts_clean ?: '00:00:00',
+			'graduation'         => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 'passed' : 'failed',
+			'pass'               => ($r >= 80 || ($old_result['pass'] ?? 0) == 1) ? 1 : 0,
+			'question_count'     => intval($old_result['question_count'] ?? $old_result['mark'] ?? 0),
+			'question_correct'   => intval($old_result['question_correct'] ?? $user_m),
+			'passing_grade'      => $old_result['passing_grade'] ?? $passing_grade_hist,  // ← THÊM DÒNG NÀY
 		]);
 	}
 
