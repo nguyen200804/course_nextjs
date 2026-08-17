@@ -3353,63 +3353,241 @@ function handle_get_custom_quiz_attempts($request) {
 		return intval($a['user_item_id']) - intval($b['user_item_id']);
 	});
 
-	// Ưu tiên lấy history đã được ghi bởi custom_write_quiz_attempts_history
+	// Ưu tiên lấy history đã được ghi bởi custom_write_quiz_attempts_history / LearnPress retakes
+	$latest_uid = 0;
 	if (!empty($attempts_list)) {
 		$latest_item = end($attempts_list);
 		$latest_uid  = intval($latest_item['user_item_id'] ?? 0);
-		if ($latest_uid > 0) {
-			$history_keys = ['attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'];
-			$meta_history = null;
-			foreach ($history_keys as $hkey) {
-				$hist = learn_press_get_user_item_meta($latest_uid, $hkey, true);
-				if (is_string($hist)) {
-					$hist = maybe_unserialize($hist);
-				}
-				if (is_array($hist) && !empty($hist)) {
-					$meta_history = $hist;
-					break;
+	}
+	if ($latest_uid <= 0) {
+		$latest_uid = intval($wpdb->get_var($wpdb->prepare(
+			"SELECT user_item_id FROM {$table_items} WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' ORDER BY user_item_id DESC LIMIT 1",
+			$user_id, $quiz_id
+		)));
+	}
+
+	$history_keys = ['attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'];
+	$meta_history = null;
+
+	if ($latest_uid > 0) {
+		foreach ($history_keys as $hkey) {
+			$hist = learn_press_get_user_item_meta($latest_uid, $hkey, true);
+			if (is_string($hist)) {
+				$hist = maybe_unserialize($hist);
+				if (is_string($hist) && (strpos($hist, '{') === 0 || strpos($hist, '[') === 0)) {
+					$hist = json_decode($hist, true);
 				}
 			}
-
-			if (!empty($meta_history) && is_array($meta_history)) {
-				$hist_by_id = [];
-				foreach ($meta_history as $h_idx => $h_att) {
-					if (!is_array($h_att)) continue;
-					$h_uid = strval($h_att['user_item_id'] ?? ($latest_uid . '_h' . $h_idx));
-					$hist_by_id[$h_uid] = $h_att;
-				}
-
-				foreach ($attempts_list as &$att_ref) {
-					$u_str = strval($att_ref['user_item_id'] ?? '');
-					if (isset($hist_by_id[$u_str])) {
-						$h_data = $hist_by_id[$u_str];
-						if ((empty($att_ref['result_num']) || floatval($att_ref['result_num']) <= 0) && isset($h_data['result']) && floatval($h_data['result']) > 0) {
-							$att_ref['result_num'] = floatval($h_data['result']);
-							$att_ref['result']     = sprintf('%.2f%%', floatval($h_data['result']));
-						}
-						if ((empty($att_ref['user_mark']) || intval($att_ref['user_mark']) <= 0) && isset($h_data['user_mark']) && intval($h_data['user_mark']) > 0) {
-							$att_ref['user_mark'] = intval($h_data['user_mark']);
-							$att_ref['correct']   = intval($h_data['question_correct'] ?? $h_data['correct'] ?? $h_data['user_mark']);
-							$att_ref['points']    = "{$att_ref['user_mark']} / {$att_ref['mark']}";
-							$att_ref['questions'] = "{$att_ref['user_mark']} / {$att_ref['mark']}";
-						}
-						if ((empty($att_ref['time_spent']) || $att_ref['time_spent'] === '00:00:00') && !empty($h_data['time_spent'] ?? $h_data['time_spend'])) {
-							$ts = $h_data['time_spent'] ?? $h_data['time_spend'];
-							if (is_numeric($ts)) {
-								$sec = intval($ts);
-								$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
-							}
-							$att_ref['time_spent'] = $ts;
-						}
-						if (isset($h_data['graduation']) && !empty($h_data['graduation'])) {
-							$att_ref['graduation'] = $h_data['graduation'];
-						}
-					}
-				}
-				unset($att_ref);
+			if (is_array($hist) && !empty($hist)) {
+				$meta_history = $hist;
+				break;
 			}
 		}
 	}
+
+	// Fallback kiểm tra các user_item khác nếu latest_uid chưa có meta
+	if (empty($meta_history) && !empty($user_items)) {
+		foreach ($user_items as $u_it) {
+			$ui_check_id = intval($u_it->user_item_id);
+			if ($ui_check_id <= 0 || $ui_check_id === $latest_uid) continue;
+			foreach ($history_keys as $hkey) {
+				$hist = learn_press_get_user_item_meta($ui_check_id, $hkey, true);
+				if (is_string($hist)) {
+					$hist = maybe_unserialize($hist);
+					if (is_string($hist) && (strpos($hist, '{') === 0 || strpos($hist, '[') === 0)) {
+						$hist = json_decode($hist, true);
+					}
+				}
+				if (is_array($hist) && !empty($hist)) {
+					$meta_history = $hist;
+					break 2;
+				}
+			}
+		}
+	}
+
+	$map_single_attempt = function($item, $fallback_id) use ($quiz_id, $wpdb, $pg_val, $passing_grade_str) {
+		$pg_float = floatval($pg_val ?: 80);
+		$uid = isset($item['user_item_id']) && !empty($item['user_item_id']) ? $item['user_item_id'] : $fallback_id;
+
+		$table_qq = $wpdb->prefix . 'learnpress_quiz_questions';
+		$default_q_count = 0;
+		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_qq}'") === $table_qq) {
+			$default_q_count = intval($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_qq} WHERE quiz_id = %d", $quiz_id)));
+		}
+		if ($default_q_count <= 0) $default_q_count = 1;
+
+		$q_count = intval($item['questions_count'] ?? $item['question_count'] ?? $item['count'] ?? $default_q_count);
+		if ($q_count <= 0) $q_count = $default_q_count;
+
+		$mark = isset($item['mark']) && floatval($item['mark']) > 0 ? intval($item['mark']) : (isset($item['total_mark']) && floatval($item['total_mark']) > 0 ? intval($item['total_mark']) : $q_count);
+
+		$u_mark = null;
+		if (isset($item['user_mark']) && $item['user_mark'] !== null && $item['user_mark'] !== '') {
+			$u_mark = intval($item['user_mark']);
+		} elseif (isset($item['score']) && $item['score'] !== null && $item['score'] !== '') {
+			$u_mark = intval($item['score']);
+		}
+
+		$correct = null;
+		if (isset($item['question_correct']) && $item['question_correct'] !== null && $item['question_correct'] !== '') {
+			$correct = intval($item['question_correct']);
+		} elseif (isset($item['correct']) && $item['correct'] !== null && $item['correct'] !== '') {
+			$correct = intval($item['correct']);
+		}
+
+		$score_val = 0;
+		if (isset($item['result_num']) && $item['result_num'] !== null && $item['result_num'] !== '') {
+			$score_val = floatval($item['result_num']);
+		} elseif (isset($item['result']) && $item['result'] !== null && $item['result'] !== '') {
+			$score_val = floatval(str_replace('%', '', strval($item['result'])));
+		} elseif ($u_mark !== null && $mark > 0) {
+			$score_val = ($u_mark / $mark) * 100;
+		}
+
+		if ($u_mark === null) {
+			if ($correct !== null) {
+				$u_mark = $correct;
+			} elseif ($score_val > 0 && $mark > 0) {
+				$u_mark = round(($score_val / 100) * $mark);
+			} else {
+				$u_mark = 0;
+			}
+		}
+		if ($correct === null) {
+			$correct = $u_mark;
+		}
+
+		$is_passed = ($item['graduation'] ?? '') === 'passed'
+			|| (!empty($item['pass']))
+			|| ($score_val >= $pg_float);
+
+		if ($is_passed && $score_val < $pg_float) {
+			$score_val = 100;
+		}
+
+		// Thời gian làm bài
+		$ts_raw = $item['time_spent'] ?? $item['time_spend'] ?? $item['duration'] ?? '';
+		$duration_sec = 0;
+		$ts_formatted = '00:00:00';
+
+		if (is_numeric($ts_raw) && floatval($ts_raw) > 0) {
+			$duration_sec = intval($ts_raw);
+			$ts_formatted = sprintf('%02d:%02d:%02d', floor($duration_sec / 3600), floor(($duration_sec % 3600) / 60), $duration_sec % 60);
+		} elseif (is_string($ts_raw) && !empty(trim($ts_raw)) && !in_array(trim($ts_raw), ['00:00:00', '00:00', '0', '--:--'], true)) {
+			$parts = array_map('intval', explode(':', trim($ts_raw)));
+			if (count($parts) === 3) {
+				$duration_sec = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
+				$ts_formatted = sprintf('%02d:%02d:%02d', $parts[0], $parts[1], $parts[2]);
+			} elseif (count($parts) === 2) {
+				$duration_sec = $parts[0] * 60 + $parts[1];
+				$ts_formatted = sprintf('00:%02d:%02d', $parts[0], $parts[1]);
+			} else {
+				$ts_formatted = trim($ts_raw);
+			}
+		} elseif (!empty($item['start_time']) && !empty($item['end_time']) && $item['end_time'] !== '0000-00-00 00:00:00') {
+			$t_start = is_numeric($item['start_time']) ? intval($item['start_time']) : strtotime($item['start_time']);
+			$t_end   = is_numeric($item['end_time'])   ? intval($item['end_time'])   : strtotime($item['end_time']);
+			if ($t_start && $t_end && $t_end >= $t_start) {
+				$duration_sec = $t_end - $t_start;
+				$ts_formatted = sprintf('%02d:%02d:%02d', floor($duration_sec / 3600), floor(($duration_sec % 3600) / 60), $duration_sec % 60);
+			}
+		}
+
+		$wrong = isset($item['question_wrong']) ? intval($item['question_wrong']) : (isset($item['wrong']) ? intval($item['wrong']) : max(0, $mark - $correct));
+		$skipped = isset($item['question_empty']) ? intval($item['question_empty']) : (isset($item['skipped']) ? intval($item['skipped']) : 0);
+		$minus = isset($item['minus_point']) ? floatval($item['minus_point']) : (isset($item['minus_points']) ? floatval($item['minus_points']) : 0);
+
+		return [
+			'user_item_id'     => $uid,
+			'status'           => $item['status'] ?? 'completed',
+			'graduation'       => $is_passed ? 'passed' : 'failed',
+			'start_time'       => $item['start_time'] ?? null,
+			'end_time'         => $item['end_time'] ?? null,
+			'time_spent'       => $ts_formatted,
+			'questions'        => "{$u_mark} / {$mark}",
+			'questions_count'  => $q_count,
+			'correct'          => $correct,
+			'wrong'            => $wrong,
+			'skipped'          => $skipped,
+			'minus_points'     => $minus,
+			'points'           => "{$u_mark} / {$mark}",
+			'user_mark'        => $u_mark,
+			'mark'             => $mark,
+			'passing_grade'    => $item['passing_grade'] ?? $passing_grade_str,
+			'result'           => sprintf('%.2f%%', $score_val),
+			'result_num'       => $score_val,
+			'results'          => $item['results'] ?? $item,
+		];
+	};
+
+	$new_attempts_map = [];
+
+	// 1. Nếu có meta_history → map thành các attempt đầy đủ
+	if (!empty($meta_history) && is_array($meta_history)) {
+		foreach ($meta_history as $h_idx => $h_item) {
+			if (!is_array($h_item) && !is_object($h_item)) continue;
+			$h_arr = (array)$h_item;
+			$h_uid = strval($h_arr['user_item_id'] ?? ($latest_uid . '_h' . $h_idx));
+			$mapped_h = $map_single_attempt($h_arr, $h_uid);
+
+			// Bỏ attempt rác (0 điểm + 0 thời gian và không hoàn thành)
+			$is_zero_score = ($mapped_h['result_num'] <= 0 && $mapped_h['user_mark'] <= 0);
+			$is_zero_time  = empty($mapped_h['time_spent']) || in_array($mapped_h['time_spent'], ['00:00:00', '00:00', '0', '--:--'], true);
+			if ($is_zero_score && $is_zero_time && $mapped_h['status'] !== 'completed') {
+				continue;
+			}
+
+			$new_attempts_map[$h_uid] = $mapped_h;
+		}
+	}
+
+	// 2. Thêm hoặc merge các attempt từ $attempts_list (bao gồm lần làm mới nhất hiện tại)
+	foreach ($attempts_list as $a_idx => $att_item) {
+		$uid = strval($att_item['user_item_id'] ?? ($latest_uid . '_a' . $a_idx));
+		$mapped_att = $map_single_attempt($att_item, $uid);
+
+		if (isset($new_attempts_map[$uid])) {
+			// Đã có trong history: merge nếu $att_item có thông tin tốt hơn
+			if ($new_attempts_map[$uid]['result_num'] <= 0 && $mapped_att['result_num'] > 0) {
+				$new_attempts_map[$uid]['result_num'] = $mapped_att['result_num'];
+				$new_attempts_map[$uid]['result']     = $mapped_att['result'];
+			}
+			if ($new_attempts_map[$uid]['user_mark'] <= 0 && $mapped_att['user_mark'] > 0) {
+				$new_attempts_map[$uid]['user_mark'] = $mapped_att['user_mark'];
+				$new_attempts_map[$uid]['correct']   = $mapped_att['correct'];
+				$new_attempts_map[$uid]['points']    = $mapped_att['points'];
+				$new_attempts_map[$uid]['questions'] = $mapped_att['questions'];
+			}
+			if ($new_attempts_map[$uid]['time_spent'] === '00:00:00' && $mapped_att['time_spent'] !== '00:00:00') {
+				$new_attempts_map[$uid]['time_spent'] = $mapped_att['time_spent'];
+			}
+		} else {
+			// Lần làm mới nhất hoặc record chưa có trong meta history
+			$is_zero_score = ($mapped_att['result_num'] <= 0 && $mapped_att['user_mark'] <= 0);
+			$is_zero_time  = empty($mapped_att['time_spent']) || in_array($mapped_att['time_spent'], ['00:00:00', '00:00', '0', '--:--'], true);
+			if ($is_zero_score && $is_zero_time && $mapped_att['status'] !== 'completed') {
+				continue;
+			}
+			$new_attempts_map[$uid] = $mapped_att;
+		}
+	}
+
+	if (!empty($new_attempts_map)) {
+		$attempts_list = array_values($new_attempts_map);
+	}
+
+	// Bỏ các attempt started / in-progress
+	$attempts_list = array_values(array_filter($attempts_list, function($att) {
+		$status = $att['status'] ?? '';
+		if ($status === 'started' || $status === 'in-progress') return false;
+		return true;
+	}));
+
+	// Sort theo user_item_id tăng dần
+	usort($attempts_list, function($a, $b) {
+		return intval($a['user_item_id']) - intval($b['user_item_id']);
+	});
 
 	// Chọn Lượt làm trước đó đã HOÀN THÀNH (Completed) làm last_attempt, tránh việc click Retakes / tạo mới làm đè 0 điểm
 	$last_attempt = null;
