@@ -3353,6 +3353,64 @@ function handle_get_custom_quiz_attempts($request) {
 		return intval($a['user_item_id']) - intval($b['user_item_id']);
 	});
 
+	// Ưu tiên lấy history đã được ghi bởi custom_write_quiz_attempts_history
+	if (!empty($attempts_list)) {
+		$latest_item = end($attempts_list);
+		$latest_uid  = intval($latest_item['user_item_id'] ?? 0);
+		if ($latest_uid > 0) {
+			$history_keys = ['attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'];
+			$meta_history = null;
+			foreach ($history_keys as $hkey) {
+				$hist = learn_press_get_user_item_meta($latest_uid, $hkey, true);
+				if (is_string($hist)) {
+					$hist = maybe_unserialize($hist);
+				}
+				if (is_array($hist) && !empty($hist)) {
+					$meta_history = $hist;
+					break;
+				}
+			}
+
+			if (!empty($meta_history) && is_array($meta_history)) {
+				$hist_by_id = [];
+				foreach ($meta_history as $h_idx => $h_att) {
+					if (!is_array($h_att)) continue;
+					$h_uid = strval($h_att['user_item_id'] ?? ($latest_uid . '_h' . $h_idx));
+					$hist_by_id[$h_uid] = $h_att;
+				}
+
+				foreach ($attempts_list as &$att_ref) {
+					$u_str = strval($att_ref['user_item_id'] ?? '');
+					if (isset($hist_by_id[$u_str])) {
+						$h_data = $hist_by_id[$u_str];
+						if ((empty($att_ref['result_num']) || floatval($att_ref['result_num']) <= 0) && isset($h_data['result']) && floatval($h_data['result']) > 0) {
+							$att_ref['result_num'] = floatval($h_data['result']);
+							$att_ref['result']     = sprintf('%.2f%%', floatval($h_data['result']));
+						}
+						if ((empty($att_ref['user_mark']) || intval($att_ref['user_mark']) <= 0) && isset($h_data['user_mark']) && intval($h_data['user_mark']) > 0) {
+							$att_ref['user_mark'] = intval($h_data['user_mark']);
+							$att_ref['correct']   = intval($h_data['question_correct'] ?? $h_data['correct'] ?? $h_data['user_mark']);
+							$att_ref['points']    = "{$att_ref['user_mark']} / {$att_ref['mark']}";
+							$att_ref['questions'] = "{$att_ref['user_mark']} / {$att_ref['mark']}";
+						}
+						if ((empty($att_ref['time_spent']) || $att_ref['time_spent'] === '00:00:00') && !empty($h_data['time_spent'] ?? $h_data['time_spend'])) {
+							$ts = $h_data['time_spent'] ?? $h_data['time_spend'];
+							if (is_numeric($ts)) {
+								$sec = intval($ts);
+								$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+							}
+							$att_ref['time_spent'] = $ts;
+						}
+						if (isset($h_data['graduation']) && !empty($h_data['graduation'])) {
+							$att_ref['graduation'] = $h_data['graduation'];
+						}
+					}
+				}
+				unset($att_ref);
+			}
+		}
+	}
+
 	// Chọn Lượt làm trước đó đã HOÀN THÀNH (Completed) làm last_attempt, tránh việc click Retakes / tạo mới làm đè 0 điểm
 	$last_attempt = null;
 	$completed_attempts = array_filter($attempts_list, function($att) {
