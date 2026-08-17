@@ -447,12 +447,37 @@ export default function LessonViewWrapper({
       .then((data) => {
         if (!data) return;
 
-        console.log('[quiz-attempts API]', {
-          attempts_count: data.attempts_count,
-          attempts_length: Array.isArray(data.attempts) ? data.attempts.length : 0,
-          attempts: data.attempts,
-          last_attempt: data.last_attempt,
-        });
+        // === DEBUG: xuất mảng đầy đủ ===
+        console.groupCollapsed(
+          `%c[quiz-attempts] user=${data.user_id} quiz=${data.quiz_id} | count=${data.attempts_count}`,
+          "color:#0af;font-weight:bold"
+        );
+        console.log("raw data:", data);
+        console.table(
+          (data.attempts || []).map((a: any, i: number) => ({
+            "#": i + 1,
+            user_item_id: a.user_item_id,
+            status: a.status,
+            graduation: a.graduation,
+            result: a.result || a.result_num,
+            user_mark: a.user_mark,
+            mark: a.mark,
+            correct: a.correct,
+            wrong: a.wrong,
+            time_spent: a.time_spent,
+            start_time: a.start_time,
+            end_time: a.end_time,
+          }))
+        );
+        console.log("attempts full array (copy được):", JSON.stringify(data.attempts, null, 2));
+        console.log("last_attempt:", data.last_attempt);
+        console.groupEnd();
+
+        // Lưu tạm vào window để inspect / copy sau
+        if (typeof window !== "undefined") {
+          (window as any).__LP_QUIZ_ATTEMPTS__ = data.attempts;
+          (window as any).__LP_QUIZ_LAST__ = data.last_attempt;
+        }
 
         const passingGrade = Number(quizPassingGradeDisplay || passingGradeState || 80);
 

@@ -3742,6 +3742,11 @@ function handle_get_custom_quiz_attempts($request) {
 		$last_attempt = end($attempts_list);
 	}
 
+	// DEBUG Log (chỉ bật khi cần)
+	if ((defined('WP_DEBUG') && WP_DEBUG) || (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG)) {
+		error_log('[quiz-attempts] user=' . $user_id . ' quiz=' . $quiz_id . ' count=' . count($attempts_list) . ' | ' . wp_json_encode($attempts_list, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+	}
+
 	return rest_ensure_response([
 		'success'        => true,
 		'user_id'        => $user_id,
