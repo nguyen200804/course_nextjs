@@ -4026,7 +4026,7 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 }
 
 /**
- * 8. Console.log Logged-in User Info & Quiz Results (Current & Recent Attempts) on lp_quiz detail page
+ * 8. Console.log Quiz Attempts - format giống hệt Next.js
  */
 
 add_action('wp_footer', 'log_user_lp_quiz_attempt_console');
@@ -4070,121 +4070,130 @@ function log_user_lp_quiz_attempt_console() {
 	$is_logged_in = is_user_logged_in();
 	$current_user = wp_get_current_user();
 	$user_id      = isset($_GET['user_id']) ? intval($_GET['user_id']) : ($is_logged_in ? $current_user->ID : 0);
+
+	// ===== Lấy data đầy đủ giống API /custom/v1/quiz-attempts =====
 	$attempts_list = [];
-
-	if ($user_id && $quiz_id) {
-		global $wpdb;
-		$table_items    = $wpdb->prefix . 'learnpress_user_items';
-		$table_itemmeta = $wpdb->prefix . 'learnpress_user_itemmeta';
-
-		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
-			$user_items = $wpdb->get_results($wpdb->prepare(
-				"SELECT user_item_id, start_time, end_time, status, graduation, ref_id 
-				FROM {$table_items} 
-				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' 
-				ORDER BY user_item_id ASC",
-				$user_id, $quiz_id
-			));
-
-			if (!empty($user_items)) {
-				foreach ($user_items as $u_item) {
-					$item_id   = intval($u_item->user_item_id);
-					$meta_rows = $wpdb->get_results($wpdb->prepare(
-						"SELECT meta_key, meta_value FROM {$table_itemmeta} WHERE learnpress_user_item_id = %d",
-						$item_id
-					));
-
-					$meta = [];
-					foreach ($meta_rows as $row) {
-						$meta[$row->meta_key] = maybe_unserialize($row->meta_value);
-					}
-
-					// 1. Thêm lượt làm hiện tại vào danh sách
-					$res_data = null;
-					if (isset($meta['results'])) {
-						$raw_res = $meta['results'];
-						if (is_string($raw_res)) {
-							$raw_res = maybe_unserialize($raw_res);
-							if (is_string($raw_res) && (strpos($raw_res, '{') === 0 || strpos($raw_res, '[') === 0)) {
-								$raw_res = json_decode($raw_res, true);
-							}
-						}
-						if (is_array($raw_res)) {
-							$res_data = $raw_res;
-						}
-					}
-
-					$attempts_list[] = [
-						'user_item_id' => $u_item->user_item_id,
-						'status'       => $u_item->status,
-						'graduation'   => $u_item->graduation ? $u_item->graduation : (isset($meta['grade']) ? $meta['grade'] : 'completed'),
-						'start_time'   => $u_item->start_time,
-						'end_time'     => $u_item->end_time,
-						'results'      => $res_data ? $res_data : (isset($meta['results']) ? $meta['results'] : null),
-					];
-
-					// 2. BỔ SUNG: Giải nén các lần Retake cũ từ Meta Data của LearnPress
-					$retake_keys = ['_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes', '_lp_retake_results'];
-					foreach ($retake_keys as $r_key) {
-						if (isset($meta[$r_key])) {
-							$raw_retakes = $meta[$r_key];
-							if (is_string($raw_retakes)) {
-								$raw_retakes = maybe_unserialize($raw_retakes);
-							}
-							if (is_array($raw_retakes)) {
-								foreach ($raw_retakes as $r_idx => $r_item) {
-									$r_arr = (array)$r_item;
-									$attempts_list[] = [
-										'user_item_id' => isset($r_arr['user_item_id']) ? $r_arr['user_item_id'] : ($u_item->user_item_id . '_retake_' . $r_idx),
-										'status'       => isset($r_arr['status']) ? $r_arr['status'] : 'completed',
-										'graduation'   => isset($r_arr['graduation']) ? $r_arr['graduation'] : 'completed',
-										'start_time'   => isset($r_arr['start_time']) ? $r_arr['start_time'] : $u_item->start_time,
-										'end_time'     => isset($r_arr['end_time']) ? $r_arr['end_time'] : $u_item->end_time,
-										'results'      => $r_arr,
-									];
-								}
-							}
-						}
-					}
-				}
+	if ($user_id && $quiz_id && function_exists('handle_get_custom_quiz_attempts')) {
+		// Gọi lại logic của API để có data already enriched
+		$request = new WP_REST_Request('GET', '/custom/v1/quiz-attempts');
+		$request->set_param('user_id', $user_id);
+		$request->set_param('quiz_id', $quiz_id);
+		$response = handle_get_custom_quiz_attempts($request);
+		if ($response instanceof WP_REST_Response) {
+			$data = $response->get_data();
+			if (!empty($data['attempts']) && is_array($data['attempts'])) {
+				$attempts_list = $data['attempts'];
 			}
 		}
 	}
 
+	// Fallback nhẹ nếu API chưa có
+	if (empty($attempts_list) && $user_id && $quiz_id) {
+		global $wpdb;
+		$table_items = $wpdb->prefix . 'learnpress_user_items';
+		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
+			$rows = $wpdb->get_results($wpdb->prepare(
+				"SELECT user_item_id, start_time, end_time, status, graduation
+				FROM {$table_items}
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+				ORDER BY user_item_id ASC",
+				$user_id, $quiz_id
+			));
+
+			foreach ((array)$rows as $row) {
+				$attempts_list[] = [
+					'user_item_id' => $row->user_item_id,
+					'status'       => $row->status,
+					'graduation'   => $row->graduation ?: 'failed',
+					'start_time'   => $row->start_time,
+					'end_time'     => $row->end_time,
+					'result'       => '0.00%',
+					'result_num'   => 0,
+					'correct'      => 0,
+					'wrong'        => 0,
+					'skipped'      => 0,
+					'user_mark'    => 0,
+					'mark'         => 0,
+					'time_spent'   => '00:00:00',
+					'points'       => '0 / 0',
+				];
+			}
+		}
+	}
+
+	$quiz_title = get_the_title($quiz_id);
+	$quiz_slug  = get_post_field('post_name', $quiz_id);
+
 	$log_payload = [
 		'is_logged_in' => $is_logged_in,
-		'user' => $is_logged_in ? [
+		'user'         => $is_logged_in ? [
 			'id'           => $current_user->ID,
 			'user_login'   => $current_user->user_login,
 			'user_email'   => $current_user->user_email,
 			'display_name' => $current_user->display_name,
 			'roles'        => $current_user->roles,
 		] : 'User is not logged in',
-		'quiz' => [
+		'quiz'         => [
 			'id'    => $quiz_id,
-			'title' => get_the_title($quiz_id),
-			'slug'  => get_post_field('post_name', $quiz_id),
+			'title' => $quiz_title,
+			'slug'  => $quiz_slug,
 		],
 		'attempts_count' => count($attempts_list),
 		'attempts'       => $attempts_list,
 	];
 ?>
 <script type="text/javascript">
-	(function() {
-		var payload = <?php echo json_encode($log_payload); ?>;
-		console.group("%c[WordPress LearnPress Quiz Attempts Log]", "background: #10b981; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;");
-		console.log("Quiz Info:", payload.quiz);
-		console.log("User Info:", payload.user);
-		if (payload.attempts && payload.attempts.length > 0) {
-			console.log("Tổng số lần làm bài (Attempts Count):", payload.attempts.length);
-			payload.attempts.forEach(function(att, idx) {
-				console.log("%cLần thứ " + (idx + 1) + " (Attempt " + (idx + 1) + "):", "color: #0284c7; font-weight: bold;", att);
-			});
-		} else {
-			console.log("Chưa có lượt làm bài nào cho Quiz này.");
-		}
-		console.groupEnd();
-	})();
+(function() {
+	var payload = <?php echo wp_json_encode($log_payload, JSON_UNESCAPED_UNICODE); ?>;
+	var quizName = (payload.quiz && payload.quiz.title) ? payload.quiz.title : '';
+	var sorted = Array.isArray(payload.attempts) ? payload.attempts.slice() : [];
+
+	// Sort theo user_item_id tăng dần (giống Next)
+	sorted.sort(function(a, b) {
+		return (parseInt(a.user_item_id, 10) || 0) - (parseInt(b.user_item_id, 10) || 0);
+	});
+
+	console.group("%c[WordPress LearnPress Quiz Attempts] " + quizName,
+		"background: #10b981; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;");
+
+	console.log("Quiz Info:", payload.quiz);
+	console.log("User Info:", payload.user);
+	console.log("Tổng số lần làm bài (Total Attempts):", sorted.length);
+
+	if (sorted.length > 0) {
+		console.log("%c[Last Attempt / Lần làm mới nhất]:",
+			"color: #ef4444; font-weight: bold; font-size: 13px;",
+			sorted[sorted.length - 1]);
+
+		sorted.forEach(function(att, idx) {
+			console.log("%cLần thứ " + (idx + 1) + " (Attempt " + (idx + 1) + "):",
+				"color: #10b981; font-weight: bold;",
+				{
+					"Lần làm": "Lần thứ " + (idx + 1),
+					"ID lượt làm": att.user_item_id,
+					"Kết quả": att.graduation || att.status || "-",
+					"Điểm số": att.result || ((att.result_num || 0) + "%"),
+					"Số câu đúng": att.correct !== undefined ? att.correct : "undefined",
+					"Số câu sai": att.wrong !== undefined ? att.wrong : "undefined",
+					"Số câu bỏ qua": att.skipped !== undefined ? att.skipped : "undefined",
+					"Điểm đạt": att.points || ((att.user_mark || 0) + " / " + (att.mark || 0)),
+					"Thời gian": att.time_spent || "-",
+					"Thời gian bắt đầu": att.start_time || "undefined",
+					"Thời gian kết thúc": att.end_time || "undefined",
+					"Dữ liệu đầy đủ": att
+				}
+			);
+		});
+	} else {
+		console.log("Chưa có lượt làm bài nào cho Quiz này.");
+	}
+
+	// Lưu tạm để copy dễ
+	window.__LP_QUIZ_ATTEMPTS__ = sorted;
+	window.__LP_QUIZ_LAST__     = sorted.length ? sorted[sorted.length - 1] : null;
+
+	console.groupEnd();
+})();
 </script>
 <?php
 }
