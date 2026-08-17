@@ -3577,6 +3577,145 @@ function handle_get_custom_quiz_attempts($request) {
 		$attempts_list = array_values($new_attempts_map);
 	}
 
+	// =========================================================
+	// FALLBACK MẠNH: nếu vẫn chỉ có <= 1 attempt thì tự build lại
+	// từ TẤT CẢ user_items + Result DB (giống custom_build)
+	// =========================================================
+	if (count($attempts_list) <= 1) {
+		$all_rows = $wpdb->get_results($wpdb->prepare(
+			"SELECT user_item_id, start_time, end_time, status, graduation
+			FROM {$table_items}
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+			ORDER BY user_item_id ASC",
+			$user_id, $quiz_id
+		));
+
+		$fallback_map = [];
+		foreach ((array)$all_rows as $row) {
+			$oid = absint($row->user_item_id);
+			if (!$oid) continue;
+
+			$old_result = null;
+			if (class_exists('LP_User_Items_Result_DB')) {
+				$old_result = LP_User_Items_Result_DB::instance()->get_result($oid);
+				if (is_string($old_result)) {
+					$old_result = json_decode($old_result, true);
+				}
+			}
+			if (!$old_result || !is_array($old_result)) {
+				$old_result = learn_press_get_user_item_meta($oid, 'results', true);
+				if (is_string($old_result)) {
+					$old_result = maybe_unserialize($old_result);
+					if (is_string($old_result) && (strpos($old_result, '{') === 0 || strpos($old_result, '[') === 0)) {
+						$old_result = json_decode($old_result, true);
+					}
+				}
+			}
+			// Thử thêm các key meta khác
+			if (!$old_result || !is_array($old_result)) {
+				foreach (['_lp_user_item_results', '_lp_results', '_lp_quiz_results'] as $mk) {
+					$tmp = learn_press_get_user_item_meta($oid, $mk, true);
+					if (is_string($tmp)) {
+						$tmp = maybe_unserialize($tmp);
+						if (is_string($tmp) && (strpos($tmp, '{') === 0 || strpos($tmp, '[') === 0)) {
+							$tmp = json_decode($tmp, true);
+						}
+					}
+					if (is_array($tmp) && !empty($tmp)) {
+						$old_result = $tmp;
+						break;
+					}
+				}
+			}
+
+			if (!$old_result || !is_array($old_result)) {
+				// Vẫn giữ record completed dù không có result chi tiết
+				if ($row->status === 'completed') {
+					$fallback_map[$oid] = [
+						'user_item_id'     => $oid,
+						'status'           => 'completed',
+						'graduation'       => $row->graduation ?: 'failed',
+						'start_time'       => $row->start_time,
+						'end_time'         => $row->end_time,
+						'time_spent'       => '00:00:00',
+						'questions'        => '',
+						'questions_count'  => 0,
+						'correct'          => 0,
+						'wrong'            => 0,
+						'skipped'          => 0,
+						'points'           => '',
+						'user_mark'        => 0,
+						'mark'             => 0,
+						'passing_grade'    => '80%',
+						'result'           => '0.00%',
+						'result_num'       => 0,
+					];
+				}
+				continue;
+			}
+
+			$r         = floatval($old_result['result'] ?? $old_result['result_num'] ?? 0);
+			$user_mark = floatval($old_result['user_mark'] ?? $old_result['correct'] ?? 0);
+			$mark      = floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0);
+			$q_correct = intval($old_result['question_correct'] ?? $old_result['correct'] ?? $user_mark);
+			$q_count   = intval($old_result['question_count'] ?? $old_result['questions_count'] ?? $mark);
+			$ts        = trim((string)($old_result['time_spend'] ?? $old_result['time_spent'] ?? ''));
+
+			if (is_numeric($ts)) {
+				$sec = intval($ts);
+				$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+			}
+			if ($ts === '') {
+				// Fallback tính từ start/end
+				if ($row->start_time && $row->end_time && $row->end_time !== '0000-00-00 00:00:00') {
+					$t1 = is_numeric($row->start_time) ? intval($row->start_time) : strtotime($row->start_time);
+					$t2 = is_numeric($row->end_time)   ? intval($row->end_time)   : strtotime($row->end_time);
+					if ($t1 && $t2 && $t2 >= $t1) {
+						$sec = $t2 - $t1;
+						$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+					} else {
+						$ts = '00:00:00';
+					}
+				} else {
+					$ts = '00:00:00';
+				}
+			}
+
+			// Bỏ attempt rác thật sự
+			if ($r <= 0 && $user_mark <= 0 && in_array($ts, ['00:00:00', '00:00', '0', '--:--'], true) && $row->status !== 'completed') {
+				continue;
+			}
+
+			$pg = $old_result['passing_grade'] ?? '80%';
+			if (is_numeric($pg)) $pg = $pg . '%';
+
+			$fallback_map[$oid] = [
+				'user_item_id'     => $oid,
+				'status'           => $row->status ?: 'completed',
+				'graduation'       => $row->graduation ?: (($r >= 80) ? 'passed' : 'failed'),
+				'start_time'       => $row->start_time,
+				'end_time'         => $row->end_time,
+				'time_spent'       => $ts,
+				'questions'        => "{$q_correct} / " . ($q_count > 0 ? $q_count : ($mark > 0 ? $mark : 0)),
+				'questions_count'  => $q_count > 0 ? $q_count : $mark,
+				'correct'          => $q_correct,
+				'wrong'            => intval($old_result['question_wrong'] ?? $old_result['wrong'] ?? max(0, ($mark ?: $q_count) - $q_correct)),
+				'skipped'          => intval($old_result['question_empty'] ?? $old_result['skipped'] ?? 0),
+				'points'           => "{$user_mark} / " . ($mark > 0 ? $mark : $q_count),
+				'user_mark'        => $user_mark,
+				'mark'             => $mark > 0 ? $mark : $q_count,
+				'passing_grade'    => $pg,
+				'result'           => sprintf('%.2f%%', $r),
+				'result_num'       => $r,
+				'results'          => $old_result,
+			];
+		}
+
+		if (count($fallback_map) > count($attempts_list)) {
+			$attempts_list = array_values($fallback_map);
+		}
+	}
+
 	// Bỏ các attempt started / in-progress
 	$attempts_list = array_values(array_filter($attempts_list, function($att) {
 		$status = $att['status'] ?? '';
@@ -3792,6 +3931,7 @@ if (!function_exists('custom_write_quiz_attempts_history')) {
 // Hook tự động đồng bộ khi hoàn thành bài Quiz từ giao diện WordPress LearnPress
 add_action('learn-press/user/quiz-finished', 'custom_sync_lp_native_quiz_finished', 10, 4);
 add_action('learn_press_user_finish_quiz', 'custom_sync_lp_native_quiz_finished', 10, 4);
+add_action('learn-press/quiz/finished', 'custom_sync_lp_native_quiz_finished', 10, 4);
 
 function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id = 0, $course_id = 0, $user_id = 0) {
 	global $wpdb;
@@ -3873,6 +4013,7 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 	} catch (Throwable $e) {}
 	
 	$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, $user_item_id);
+	error_log('[custom_sync] quiz finished user_item_id=' . $user_item_id . ' quiz_id=' . $quiz_id . ' history_count=' . count($attempts_history));
 	custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
 
 

@@ -447,6 +447,13 @@ export default function LessonViewWrapper({
       .then((data) => {
         if (!data) return;
 
+        console.log('[quiz-attempts API]', {
+          attempts_count: data.attempts_count,
+          attempts_length: Array.isArray(data.attempts) ? data.attempts.length : 0,
+          attempts: data.attempts,
+          last_attempt: data.last_attempt,
+        });
+
         const passingGrade = Number(quizPassingGradeDisplay || passingGradeState || 80);
 
         // Map tất cả attempts từ API
