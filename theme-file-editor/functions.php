@@ -3341,12 +3341,22 @@ function handle_get_custom_quiz_attempts($request) {
 
 
 	$attempts_list = array_values(array_filter($attempts_list, function($att) {
-		$status = $att['status'] ?? '';
-		if ($status === 'started' || $status === 'in-progress') return false;
-		$score = floatval($att['result_num'] ?? 0);
-		$mark  = intval($att['user_mark'] ?? 0);
-		return $score > 0 || $mark > 0 || $status === 'completed';
-	}));
+    $status = $att['status'] ?? '';
+    if ($status === 'started' || $status === 'in-progress') return false;
+
+    $score = floatval($att['result_num'] ?? $att['result'] ?? 0);
+    $mark  = floatval($att['user_mark'] ?? 0);
+    $ts    = trim((string)($att['time_spent'] ?? $att['time_spend'] ?? ''));
+
+    // Bỏ bản ghi rác: 0 điểm + 0 thời gian
+    $is_zero_score = ($score <= 0 && $mark <= 0);
+    $is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0', '--:--', ''], true);
+
+    if ($is_zero_score && $is_zero_time) {
+        return false;
+    }
+    return true;
+}));
 
 	// Sắp xếp theo ID / thời gian tăng dần (từ lượt 1 -> n)
 	usort($attempts_list, function($a, $b) {
@@ -4614,23 +4624,53 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 		}
 	}
 
-	$wpdb->insert($table, [
-		'user_id'    => $user_id,
-		'item_id'    => $quiz_id,
-		'item_type'  => 'lp_quiz',
-		'parent_id'  => $parent_id,
-		'ref_id'     => $course_id,
-		'ref_type'   => 'lp_course',
-		'status'     => 'completed',
-		'graduation' => ($graduation === 'passed') ? 'passed' : 'failed',
-		'start_time' => date('Y-m-d H:i:s', $start_ts),
-		'end_time'   => date('Y-m-d H:i:s', $end_ts),
-	]);
-	$user_item_id = $wpdb->insert_id;
+	// ===== Ưu tiên dùng bản ghi "started" / "in-progress" do Retake tạo ra =====
+$existing_started = $wpdb->get_var($wpdb->prepare(
+    "SELECT user_item_id FROM {$table}
+     WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+       AND status IN ('started', 'in-progress')
+     ORDER BY user_item_id DESC LIMIT 1",
+    $user_id, $quiz_id
+));
 
-	if (!$user_item_id) {
-		return new WP_REST_Response(['success' => false, 'message' => 'Không tạo được user_item'], 500);
-	}
+if ($existing_started) {
+    // Cập nhật bản ghi started → completed (không tạo thêm dòng rác)
+    $wpdb->update(
+        $table,
+        [
+            'status'     => 'completed',
+            'graduation' => ($graduation === 'passed') ? 'passed' : 'failed',
+            'start_time' => date('Y-m-d H:i:s', $start_ts),
+            'end_time'   => date('Y-m-d H:i:s', $end_ts),
+            'parent_id'  => $parent_id ?: 0,
+            'ref_id'     => $course_id ?: 0,
+            'ref_type'   => $course_id ? 'lp_course' : '',
+        ],
+        ['user_item_id' => intval($existing_started)],
+        ['%s', '%s', '%s', '%s', '%d', '%d', '%s'],
+        ['%d']
+    );
+    $user_item_id = intval($existing_started);
+} else {
+    // Không có bản started → tạo mới bình thường
+    $wpdb->insert($table, [
+        'user_id'    => $user_id,
+        'item_id'    => $quiz_id,
+        'item_type'  => 'lp_quiz',
+        'parent_id'  => $parent_id,
+        'ref_id'     => $course_id,
+        'ref_type'   => 'lp_course',
+        'status'     => 'completed',
+        'graduation' => ($graduation === 'passed') ? 'passed' : 'failed',
+        'start_time' => date('Y-m-d H:i:s', $start_ts),
+        'end_time'   => date('Y-m-d H:i:s', $end_ts),
+    ]);
+    $user_item_id = $wpdb->insert_id;
+}
+
+if (!$user_item_id) {
+    return new WP_REST_Response(['success' => false, 'message' => 'Không tạo/cập nhật được user_item'], 500);
+}
 
 	// Cập nhật parent_id cho các bản ghi mồ côi cũ của quiz này
 	if ($parent_id > 0) {
