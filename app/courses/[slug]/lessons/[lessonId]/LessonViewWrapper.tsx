@@ -118,6 +118,7 @@ export default function LessonViewWrapper({
     course?.user_course_status === "finished" || course?.status === "finished"
   );
   const [showFinishModal, setShowFinishModal] = useState(false);
+  const [showConfirmFinishCourseModal, setShowConfirmFinishCourseModal] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentPosted, setCommentPosted] = useState(false);
   const [commentsList, setCommentsList] = useState<any[]>([]);
@@ -345,21 +346,48 @@ export default function LessonViewWrapper({
     console.group(`%c[Next.js LearnPress Quiz Attempts] ${quizName || ''}`, "background: #2563eb; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;");
     console.log("Tổng số lần làm bài (Total Attempts):", sorted.length);
     console.log("%c[Last Attempt / Lần làm mới nhất]:", "color: #ef4444; font-weight: bold; font-size: 13px;", sorted[sorted.length - 1]);
-    sorted.forEach((att, idx) => {
-      console.log(`%cLần thứ ${idx + 1} (Attempt ${idx + 1}):`, "color: #10b981; font-weight: bold;", {
-        "Lần làm": `Lần thứ ${idx + 1}`,
-        "ID lượt làm": att.user_item_id,
-        "Kết quả": att.graduation || att.status,
-        "Điểm số": att.result || `${att.result_num || 0}%`,
-        "Số câu đúng": att.correct,
-        "Số câu sai": att.wrong,
-        "Số câu bỏ qua": att.skipped,
-        "Điểm đạt": att.points || `${att.user_mark} / ${att.mark}`,
-        "Thời gian": att.time_spent,
-        "Thời gian bắt đầu": att.start_time,
-        "Thời gian kết thúc": att.end_time,
-        "Dữ liệu đầy đủ": att
-      });
+    sorted.forEach((att: any, idx: number) => {
+      let correct = att.correct;
+      if (correct === undefined || correct === null) correct = att.question_correct;
+      if (correct === undefined || correct === null) correct = att.user_mark;
+      if ((correct === undefined || correct === null || Number(correct) === 0) && att.questions && typeof att.questions === 'string' && att.questions.includes('/')) {
+        const p = att.questions.split('/')[0].trim();
+        if (p && !isNaN(Number(p))) correct = Number(p);
+      }
+      if (correct === undefined || correct === null) correct = 0;
+
+      let wrong = att.wrong;
+      if (wrong === undefined || wrong === null) wrong = att.question_wrong;
+      if ((wrong === undefined || wrong === null) && att.mark && correct !== undefined) {
+        wrong = Math.max(0, Number(att.mark) - Number(correct));
+      }
+      if (wrong === undefined || wrong === null) wrong = 0;
+
+      const skipped = att.skipped ?? att.question_empty ?? 0;
+      const resultStr = att.result ?? (att.result_num != null ? `${att.result_num}%` : '0%');
+      const points = att.points ?? `${att.user_mark ?? correct} / ${att.mark ?? att.questions_count ?? 4}`;
+      const timeSpent = att.time_spent ?? att.time_spend ?? '00:00:00';
+      const startTime = att.start_time || att.time_start || '—';
+      const endTime = att.end_time || att.time_end || '—';
+
+      console.log(
+        `%cLần thứ ${idx + 1} (Attempt ${idx + 1}):`,
+        'color: #10b981; font-weight: bold;',
+        {
+          'Lần làm': `Lần thứ ${idx + 1}`,
+          'ID lượt làm': att.user_item_id,
+          'Kết quả': att.graduation || att.status || '—',
+          'Điểm số': resultStr,
+          'Số câu đúng': Number(correct),
+          'Số câu sai': Number(wrong),
+          'Số câu bỏ qua': Number(skipped),
+          'Điểm đạt': points,
+          'Thời gian': timeSpent,
+          'Thời gian bắt đầu': startTime,
+          'Thời gian kết thúc': endTime,
+          'Dữ liệu đầy đủ': att,
+        }
+      );
     });
     console.groupEnd();
   };
@@ -530,9 +558,14 @@ export default function LessonViewWrapper({
           // CHỈ loại bỏ started / in-progress. Giữ cả những record completed dù score/time tạm thời = 0
           .filter((a: any) => a.status !== "started" && a.status !== "in-progress");
 
-        const sorted = [...attempts].sort(
-          (a: any, b: any) => Number(a.user_item_id) - Number(b.user_item_id)
-        );
+        const sorted = [...attempts].sort((a: any, b: any) => {
+          const timeA = a.start_time ? new Date(a.start_time).getTime() : 0;
+          const timeB = b.start_time ? new Date(b.start_time).getTime() : 0;
+          if (timeA && timeB && timeA !== timeB) return timeA - timeB;
+          const idA = parseInt(String(a.user_item_id).replace(/\D/g, ""), 10) || 0;
+          const idB = parseInt(String(b.user_item_id).replace(/\D/g, ""), 10) || 0;
+          return idA - idB;
+        });
 
         // Current = lần mới nhất (ưu tiên data.last_attempt nếu có điểm, không thì lấy cuối sorted)
         let current: any = null;
@@ -852,8 +885,8 @@ export default function LessonViewWrapper({
   const passingGrade = passingGradeState;
   const isEligibleToFinish = progressPercent >= passingGrade || isCourseFinished;
 
-  // Finish Course API call
-  const handleFinishCourse = async () => {
+  // Finish Course Click Handler
+  const handleFinishCourse = () => {
     if (!isEligibleToFinish && !isCourseFinished) {
       alert(`You need to complete a minimum of ${passingGrade}% to Finish Course. Current progress: ${progressPercent}%`);
       return;
@@ -864,6 +897,12 @@ export default function LessonViewWrapper({
       return;
     }
 
+    setShowConfirmFinishCourseModal(true);
+  };
+
+  // Confirmed Finish Course API call
+  const handleConfirmFinishCourse = async () => {
+    setShowConfirmFinishCourseModal(false);
     setIsFinishingCourse(true);
     try {
       const res = await fetch("/api/finish-course", {
@@ -1163,13 +1202,21 @@ export default function LessonViewWrapper({
                     result: att.result || `${resNum.toFixed(2)}%`,
                     result_num: resNum,
                     graduation: isPassed ? "passed" : "failed",
+                    status: att.status || (isPassed ? "passed" : "failed"),
+                    start_time: att.start_time || att.end_time || null,
+                    end_time: att.end_time || null,
                   };
                 })
                 .filter((a: any) => a.status !== "started" && a.status !== "in-progress");
 
-              const sorted = [...attempts].sort(
-                (a, b) => Number(a.user_item_id) - Number(b.user_item_id)
-              );
+              const sorted = [...attempts].sort((a, b) => {
+                const timeA = a.start_time ? new Date(a.start_time).getTime() : 0;
+                const timeB = b.start_time ? new Date(b.start_time).getTime() : 0;
+                if (timeA && timeB && timeA !== timeB) return timeA - timeB;
+                const idA = parseInt(String(a.user_item_id).replace(/\D/g, ""), 10) || 0;
+                const idB = parseInt(String(b.user_item_id).replace(/\D/g, ""), 10) || 0;
+                return idA - idB;
+              });
 
               // Kết quả chính = lần mới nhất
               const current = sorted[sorted.length - 1] || null;
@@ -1683,7 +1730,7 @@ export default function LessonViewWrapper({
                                 </thead>
                                 <tbody className={styles.quiz_attempts_tbody}>
                                   {attemptsList.map((att: any, index: number) => (
-                                    <tr key={att.user_item_id || index}>
+                                    <tr key={`quiz-attempt-${att.user_item_id || 'item'}-${index}`}>
                                       <td className={styles.quiz_attempts_td_main}>
                                         {att.questions || ""}
                                       </td>
@@ -2262,6 +2309,36 @@ export default function LessonViewWrapper({
                 type="button"
                 className={styles.btn_modal_yes}
                 onClick={handleConfirmComplete}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finish Course Confirmation Modal */}
+      {showConfirmFinishCourseModal && (
+        <div className={styles.modal_backdrop} onClick={() => setShowConfirmFinishCourseModal(false)}>
+          <div className={styles.modal_card} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modal_header} style={{ background: "#7c60d9" }}>
+              <h3 className={styles.modal_title}>Finish course</h3>
+            </div>
+            <div className={styles.modal_body}>
+              Do you want to finish the course &ldquo;{courseTitle}&rdquo;?
+            </div>
+            <div className={styles.modal_footer}>
+              <button
+                type="button"
+                className={styles.btn_modal_no}
+                onClick={() => setShowConfirmFinishCourseModal(false)}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className={styles.btn_modal_yes}
+                onClick={handleConfirmFinishCourse}
               >
                 Yes
               </button>

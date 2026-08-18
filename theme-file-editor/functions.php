@@ -948,230 +948,6 @@ add_action( 'rest_api_init', function() {
 		'permission_callback' => '__return_true',
 	) );
 
-	/**
- * REST API Custom Endpoint cho My Courses (LearnPress / LearnDash / User Enrolled Courses)
- * Route: GET /wp-json/custom/v1/user-courses?user_id={id}
- */
-	register_rest_route( 'custom/v1', '/user-courses', array(
-		'methods'  => 'GET',
-		'callback' => function ( WP_REST_Request $request ) {
-			$user_id = intval( $request->get_param( 'user_id' ) );
-			if ( ! $user_id ) {
-				return new WP_Error( 'missing_user_id', 'Vui lòng cung cấp user_id.', array( 'status' => 400 ) );
-			}
-
-			global $wpdb;
-			$courses = array();
-
-			// 1. Kiểm tra bảng learnpress_user_items nếu hệ thống cài đặt LearnPress
-			$table_name = $wpdb->prefix . 'learnpress_user_items';
-			if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_name ) ) === $table_name ) {
-				$user_items = $wpdb->get_results( $wpdb->prepare( "
-				SELECT user_item_id, item_id as course_id, user_id, start_time, end_time, item_type, status, graduation
-				FROM {$table_name}
-				WHERE user_id = %d AND item_type = 'lp_course'
-				ORDER BY start_time DESC
-			", $user_id ) );
-
-				if ( ! empty( $user_items ) ) {
-					$lp_user = function_exists( 'learnpress_get_user' ) ? learnpress_get_user( $user_id ) : null;
-
-					foreach ( $user_items as $item ) {
-						$course_post = get_post( $item->course_id );
-						if ( ! $course_post || $course_post->post_type !== 'lp_course' ) {
-							continue;
-						}
-
-						$user_item_id = $item->user_item_id;
-						$status_raw   = strtolower( $item->status );
-						$graduation   = strtolower( $item->graduation );
-
-						$status = 'enrolled';
-						if ( $graduation === 'passed' || $status_raw === 'passed' ) {
-							$status = 'passed';
-						} elseif ( $graduation === 'failed' || $status_raw === 'failed' ) {
-							$status = 'failed';
-						} elseif ( $status_raw === 'completed' || $status_raw === 'finished' || $graduation === 'completed' ) {
-							$status = 'finished';
-						} elseif ( $graduation === 'in-progress' || $status_raw === 'in-progress' ) {
-							$status = 'in-progress';
-						} else {
-							$status = 'enrolled';
-						}
-
-						$result_val = 0;
-						$expiration_time = '-';
-						$end_time = '-';
-
-						// 1. Thử dùng official LearnPress User Course API
-						if ( $lp_user && method_exists( $lp_user, 'get_course_data' ) ) {
-							$user_course = $lp_user->get_course_data( $item->course_id );
-							if ( $user_course ) {
-								if ( method_exists( $user_course, 'get_percent_result' ) ) {
-									$result_val = round( floatval( $user_course->get_percent_result() ), 2 );
-								}
-								if ( method_exists( $user_course, 'get_expiration_time' ) ) {
-									$exp_time_lp = $user_course->get_expiration_time();
-									if ( $exp_time_lp ) {
-										$exp_timestamp = is_numeric( $exp_time_lp ) ? $exp_time_lp : strtotime( (string) $exp_time_lp );
-										if ( $exp_timestamp && $exp_timestamp > 0 ) {
-											$expiration_time = date_i18n( 'F j, Y g:i a', $exp_timestamp );
-										}
-									}
-								}
-							}
-						}
-
-						// 2. Fallback SQL meta lookup cho Result % (Giải nén data serialized/json)
-						if ( $result_val <= 0 ) {
-							$meta_val = $wpdb->get_var( $wpdb->prepare( "
-							SELECT meta_value FROM {$wpdb->prefix}learnpress_user_itemmeta
-							WHERE learnpress_user_item_id = %d AND meta_key IN ('_porcentage_result', 'result', 'grade', '_result', 'evaluate_final_quiz')
-							ORDER BY meta_id DESC LIMIT 1
-						", $user_item_id ) );
-
-							if ( ! empty( $meta_val ) ) {
-								if ( is_serialized( $meta_val ) ) {
-									$unserialized = @unserialize( $meta_val );
-									if ( is_array( $unserialized ) && isset( $unserialized['result'] ) ) {
-										$result_val = round( floatval( $unserialized['result'] ), 2 );
-									} elseif ( is_numeric( $unserialized ) ) {
-										$result_val = round( floatval( $unserialized ), 2 );
-									}
-								} elseif ( strpos( $meta_val, '{' ) !== false ) {
-									$json_data = json_decode( $meta_val, true );
-									if ( is_array( $json_data ) && isset( $json_data['result'] ) ) {
-										$result_val = round( floatval( $json_data['result'] ), 2 );
-									}
-								} elseif ( is_numeric( $meta_val ) ) {
-									$result_val = round( floatval( $meta_val ), 2 );
-								}
-							}
-						}
-
-						// 3. Tính toán tỷ lệ hoàn thành bài học (chỉ tính lp_lesson, loại trừ lp_quiz)
-						$total_lessons = $wpdb->get_var( $wpdb->prepare( "
-						SELECT COUNT( DISTINCT si.item_id )
-						FROM {$wpdb->prefix}learnpress_section_items si
-						INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id
-						WHERE si.section_id IN (
-							SELECT section_id FROM {$wpdb->prefix}learnpress_sections WHERE section_course_id = %d
-						) AND p.post_type = 'lp_lesson'
-					", $item->course_id ) );
-
-						if ( $total_lessons > 0 ) {
-							$completed_lessons = $wpdb->get_var( $wpdb->prepare( "
-							SELECT COUNT( DISTINCT item_id )
-							FROM {$wpdb->prefix}learnpress_user_items
-							WHERE user_id = %d AND parent_id = %d AND status = 'completed' AND item_type = 'lp_lesson'
-						", $user_id, $user_item_id ) );
-
-							$result_val = round( ( $completed_lessons / $total_lessons ) * 100, 2 );
-						} elseif ( $status === 'passed' || $status === 'finished' ) {
-							$result_val = 100;
-						}
-
-						if ($status === 'enrolled' && $result_val > 0) {
-							$status = 'in-progress';
-						}
-
-						// 3. Fallback cho Expiration time
-						if ( $expiration_time === '-' ) {
-							// Kiểm tra meta _expiration_time trong user_itemmeta
-							$exp_meta = $wpdb->get_var( $wpdb->prepare( "
-							SELECT meta_value FROM {$wpdb->prefix}learnpress_user_itemmeta
-							WHERE learnpress_user_item_id = %d AND meta_key = '_expiration_time'
-							LIMIT 1
-						", $user_item_id ) );
-
-							if ( ! empty( $exp_meta ) && $exp_meta !== '0000-00-00 00:00:00' ) {
-								$exp_timestamp = is_numeric( $exp_meta ) ? intval( $exp_meta ) : strtotime( $exp_meta );
-								if ( $exp_timestamp > 0 ) {
-									$expiration_time = date_i18n( 'F j, Y g:i a', $exp_timestamp );
-								}
-							}
-
-							// Nếu chưa có meta, tính toán theo _lp_duration post_meta
-							if ( $expiration_time === '-' && ! empty( $item->start_time ) && $item->start_time !== '0000-00-00 00:00:00' ) {
-								$duration_meta = get_post_meta( $item->course_id, '_lp_duration', true );
-								if ( ! empty( $duration_meta ) && $duration_meta !== '0' && strtolower( $duration_meta ) !== 'no' ) {
-									$start_ts = strtotime( $item->start_time );
-									if ( $start_ts > 0 ) {
-										$exp_ts = strtotime( '+' . $duration_meta, $start_ts );
-										if ( $exp_ts && $exp_ts > $start_ts ) {
-											$expiration_time = date_i18n( 'F j, Y g:i a', $exp_ts );
-										}
-									}
-								}
-							}
-						}
-
-						// 4. End time
-						if ( ! empty( $item->end_time ) && $item->end_time !== '0000-00-00 00:00:00' ) {
-							$end_ts = strtotime( $item->end_time );
-							if ( $end_ts > 0 ) {
-								$end_time = date_i18n( 'F j, Y g:i a', $end_ts );
-							}
-						}
-
-						$image_url = get_the_post_thumbnail_url( $item->course_id, 'full' );
-
-						$passing_condition = get_post_meta( $item->course_id, '_lp_passing_condition', true );
-						$clean_num = ( floatval( $result_val ) == intval( $result_val ) ) ? intval( $result_val ) : floatval( $result_val );
-						$result_label = $clean_num . '%';
-						$passing_grade_val = ( ! empty( $passing_condition ) && intval( $passing_condition ) > 0 ) ? intval( $passing_condition ) . '%' : 'N/A';
-
-						$courses[] = array(
-							'id'                   => $item->course_id,
-							'title'                => html_entity_decode( get_the_title( $item->course_id ) ),
-							'slug'                 => $course_post->post_name,
-							'description'          => wp_strip_all_tags( get_the_excerpt( $item->course_id ) ),
-							'image'                => $image_url ? $image_url : 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=600&auto=format&fit=crop',
-							'progress'             => $result_val,
-							'courseProgress'       => $result_label,
-							'passingGradeProgress' => $passing_grade_val,
-							'passingGrade'         => ! empty( $passing_condition ) ? intval( $passing_condition ) : null,
-							'status'               => $status,
-							'result'               => $result_label,
-							'expirationTime'       => $expiration_time,
-							'endTime'              => $end_time,
-						);
-					}
-
-					return $courses;
-				}
-			}
-
-			// 2. Fallback: Nếu chưa có LearnPress table, trả về danh sách post_type lp_course của hệ thống
-			$all_posts = get_posts( array(
-				'post_type'      => array( 'lp_course', 'sfwd-courses' ),
-				'posts_per_page' => 10,
-				'post_status'    => 'publish',
-			) );
-
-			foreach ( $all_posts as $idx => $p ) {
-				$image_url = get_the_post_thumbnail_url( $p->ID, 'full' );
-				$statuses  = array( 'in-progress', 'passed', 'finished', 'failed' );
-				$st        = $statuses[ $idx % count( $statuses ) ];
-
-				$courses[] = array(
-					'id'             => $p->ID,
-					'title'          => html_entity_decode( get_the_title( $p->ID ) ),
-					'slug'           => $p->post_name,
-					'description'    => wp_strip_all_tags( get_the_excerpt( $p->ID ) ),
-					'image'          => $image_url ? $image_url : 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=600&auto=format&fit=crop',
-					'progress'       => $st === 'passed' || $st === 'finished' ? 100 : 14.29,
-					'status'         => $st,
-					'result'         => ( $st === 'passed' || $st === 'finished' ? '100%' : '14.29%' ),
-					'expirationTime' => 'August 6, 2026 3:32 am',
-					'endTime'        => $st === 'finished' || $st === 'passed' ? 'July 30, 2026 10:00 am' : '-',
-				);
-			}
-
-			return $courses;
-		},
-		'permission_callback' => '__return_true',
-	) );
 
 	/**
  * REST API Custom Endpoint cho Account Details & Change Password
@@ -2980,32 +2756,11 @@ function handle_get_custom_quiz_attempts($request) {
 	$user_id    = intval($request->get_param('user_id'));
 	$quiz_param = $request->get_param('quiz_id');
 
-	if ($quiz_param === 'debug' || $user_id === 999) {
-		$table_items    = $wpdb->prefix . 'learnpress_user_items';
-		$table_itemmeta = $wpdb->prefix . 'learnpress_user_itemmeta';
-		$all_items      = $wpdb->get_results("SELECT * FROM {$table_items} WHERE item_type = 'lp_quiz' ORDER BY user_item_id DESC LIMIT 50", ARRAY_A);
-
-		foreach ($all_items as &$it) {
-			$ui_id = intval($it['user_item_id']);
-			$metas = $wpdb->get_results($wpdb->prepare("SELECT meta_key, meta_value FROM {$table_itemmeta} WHERE learnpress_user_item_id = %d", $ui_id), ARRAY_A);
-			$meta_map = [];
-			foreach ($metas as $m) {
-				$meta_map[$m['meta_key']] = maybe_unserialize($m['meta_value']);
-			}
-			$it['meta'] = $meta_map;
-		}
-
-		return rest_ensure_response(['items' => $all_items]);
-	}
-
 	if (!$user_id || !$quiz_param) {
 		return new WP_Error('invalid_params', 'user_id and quiz_id are required', ['status' => 400]);
 	}
 
-	global $wpdb;
 	$quiz_id = intval($quiz_param);
-
-	// Trường hợp quiz_param truyền vào là slug bài quiz (string), cần giải mã sang ID bài viết
 	if ($quiz_id === 0 || !is_numeric($quiz_param)) {
 		$slug_clean = sanitize_title($quiz_param);
 		$found_id   = $wpdb->get_var($wpdb->prepare(
@@ -3018,7 +2773,6 @@ function handle_get_custom_quiz_attempts($request) {
 	}
 
 	if (!$quiz_id) {
-		// Không tìm thấy quiz_id từ slug - trả về rỗng, không fallback sang quiz khác
 		return rest_ensure_response([
 			'success'        => false,
 			'user_id'        => $user_id,
@@ -3030,732 +2784,8 @@ function handle_get_custom_quiz_attempts($request) {
 		]);
 	}
 
-	$table_items    = $wpdb->prefix . 'learnpress_user_items';
-	$table_itemmeta = $wpdb->prefix . 'learnpress_user_itemmeta';
-
-	$attempts_list = [];
-
-	if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
-		// Chỉ lấy lượt làm của đúng quiz_id này - KHÔNG fallback sang quiz khác
-		$user_items = $wpdb->get_results($wpdb->prepare(
-			"SELECT user_item_id, start_time, end_time, status, graduation, ref_id, item_id, parent_id 
-			FROM {$table_items} 
-			WHERE user_id = %d AND item_type = 'lp_quiz' AND item_id = %d
-			ORDER BY user_item_id ASC",
-			$user_id, $quiz_id
-		));
-
-		// Nếu vẫn rỗng, thử tìm theo ref_id (course enrollment record)
-		if (empty($user_items)) {
-			$user_items = $wpdb->get_results($wpdb->prepare(
-				"SELECT user_item_id, start_time, end_time, status, graduation, ref_id, item_id, parent_id 
-				FROM {$table_items} 
-				WHERE user_id = %d AND item_type = 'lp_quiz' AND item_id = %d
-				ORDER BY user_item_id ASC",
-				$user_id, $quiz_id
-			));
-		}
-
-		if (!empty($user_items)) {
-			foreach ($user_items as $u_item) {
-				$item_id   = intval($u_item->user_item_id);
-				$meta_rows = $wpdb->get_results($wpdb->prepare(
-					"SELECT meta_key, meta_value FROM {$table_itemmeta} WHERE learnpress_user_item_id = %d",
-					$item_id
-				));
-
-				$meta = [];
-				foreach ($meta_rows as $row) {
-					$meta[$row->meta_key] = maybe_unserialize($row->meta_value);
-				}
-
-				// Unserialize / JSON decode results từ mọi meta key có thể có trong LearnPress 4.x
-
-				// Unserialize / JSON decode results từ mọi meta key có thể có trong LearnPress 4.x
-				$res_data = [];
-				$possible_result_keys = ['results', '_results', '_lp_quiz_results', '_lp_results', '_lp_user_item_meta', 'user_item_meta', '_lp_user_item_results'];
-				foreach ($possible_result_keys as $pr_key) {
-					if (isset($meta[$pr_key]) && !empty($meta[$pr_key])) {
-						$raw_res = $meta[$pr_key];
-						if (is_string($raw_res)) {
-							$raw_res = maybe_unserialize($raw_res);
-							if (is_string($raw_res) && (strpos($raw_res, '{') === 0 || strpos($raw_res, '[') === 0)) {
-								$raw_res = json_decode($raw_res, true);
-							}
-						}
-						if (is_array($raw_res) || is_object($raw_res)) {
-							$res_arr = (array)$raw_res;
-							if (!empty($res_arr)) {
-								$res_data = array_merge($res_data, $res_arr);
-							}
-						}
-					}
-				}
-
-				// ===== ƯU TIÊN NGUỒN CHÍNH CỦA LEARNPRESS 4.x: LP_User_Items_Result_DB =====
-				// Native quiz lần đầu chỉ ghi kết quả vào bảng learnpress_user_item_results
-				$lp_db_result = null;
-				if (class_exists('LP_User_Items_Result_DB')) {
-					try {
-						$lp_db_result = LP_User_Items_Result_DB::instance()->get_result($item_id);
-						if (is_string($lp_db_result)) {
-							$lp_db_result = json_decode($lp_db_result, true);
-						}
-						if (is_array($lp_db_result) && !empty($lp_db_result)) {
-							// Nếu Result DB có điểm thật (result > 0 hoặc user_mark > 0) thì ưu tiên đè lên meta
-							$db_has_score = (isset($lp_db_result['result']) && floatval($lp_db_result['result']) > 0)
-								|| (isset($lp_db_result['user_mark']) && floatval($lp_db_result['user_mark']) > 0)
-								|| (isset($lp_db_result['question_correct']) && intval($lp_db_result['question_correct']) > 0);
-							if ($db_has_score || empty($res_data) || !isset($res_data['result']) || floatval($res_data['result'] ?? 0) <= 0) {
-								$res_data = array_merge($res_data, $lp_db_result);
-							}
-						}
-					} catch (Throwable $e) {}
-				}
-
-				// Fallback cuối cùng nếu vẫn thiếu dữ liệu
-				if (empty($res_data) || !isset($res_data['result']) || (floatval($res_data['result'] ?? 0) <= 0 && empty($res_data['user_mark']))) {
-					if (function_exists('learn_press_get_user_item_results')) {
-						try {
-							$lp_item_res = learn_press_get_user_item_results($item_id);
-							if (!empty($lp_item_res) && (is_array($lp_item_res) || is_object($lp_item_res))) {
-								$res_data = array_merge($res_data, (array)$lp_item_res);
-							}
-						} catch (Exception $e) {}
-					}
-					if ((empty($res_data) || floatval($res_data['result'] ?? 0) <= 0) && function_exists('learn_press_get_user_item')) {
-						try {
-							$lp_item = learn_press_get_user_item($item_id);
-							if ($lp_item && method_exists($lp_item, 'get_results')) {
-								$lp_item_res = $lp_item->get_results('');
-								if (!empty($lp_item_res) && (is_array($lp_item_res) || is_object($lp_item_res))) {
-									$res_data = array_merge($res_data, (array)$lp_item_res);
-								}
-							}
-						} catch (Exception $e) {}
-					}
-				}
-
-
-
-
-
-				// Số lượng câu hỏi
-				$q_count = 0;
-				if (isset($res_data['question_count'])) $q_count = intval($res_data['question_count']);
-				elseif (isset($res_data['questions_count'])) $q_count = intval($res_data['questions_count']);
-				elseif (isset($res_data['count'])) $q_count = intval($res_data['count']);
-				elseif (isset($meta['question_count'])) $q_count = intval($meta['question_count']);
-
-				if ($q_count === 0) {
-					$table_qq = $wpdb->prefix . 'learnpress_quiz_questions';
-					if ($wpdb->get_var("SHOW TABLES LIKE '{$table_qq}'") === $table_qq) {
-						$q_count = intval($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_qq} WHERE quiz_id = %d", $quiz_id)));
-					}
-				}
-
-				// Trích xuất số câu đúng/sai/bỏ qua từ res_data hoặc meta
-				$q_correct = null;
-				if (isset($res_data['question_correct'])) $q_correct = intval($res_data['question_correct']);
-				elseif (isset($res_data['correct'])) $q_correct = intval($res_data['correct']);
-				elseif (isset($res_data['user_mark'])) $q_correct = intval($res_data['user_mark']);
-				elseif (isset($meta['question_correct'])) $q_correct = intval($meta['question_correct']);
-
-				$q_wrong = null;
-				if (isset($res_data['question_wrong'])) $q_wrong = intval($res_data['question_wrong']);
-				elseif (isset($res_data['wrong'])) $q_wrong = intval($res_data['wrong']);
-				elseif (isset($meta['question_wrong'])) $q_wrong = intval($meta['question_wrong']);
-
-				$user_mark = isset($res_data['user_mark']) ? intval($res_data['user_mark']) : ($q_correct !== null ? $q_correct : 0);
-				$mark      = isset($res_data['mark']) ? intval($res_data['mark']) : ($q_count > 0 ? $q_count : 1);
-
-				// Điểm số %
-				$score_num = 0;
-				$is_passed = ($u_item->graduation === 'passed' || (isset($meta['graduation']) && $meta['graduation'] === 'passed') || (isset($meta['grade']) && $meta['grade'] === 'passed'));
-
-				if (isset($res_data['result']) && floatval($res_data['result']) > 0) {
-					$score_num = floatval($res_data['result']);
-				} elseif (isset($res_data['user_mark']) && intval($res_data['user_mark']) > 0 && $mark > 0) {
-					$score_num = (intval($res_data['user_mark']) / $mark) * 100;
-				} elseif ($is_passed) {
-					$score_num = 100;
-				} elseif (isset($res_data['result'])) {
-					$score_num = floatval($res_data['result']);
-				}
-
-				if ($is_passed && $score_num < 80) {
-					$score_num = 100;
-				}
-
-				if ($is_passed && ($user_mark === 0 || $q_correct === null || $q_correct === 0)) {
-					$user_mark = $mark;
-					$q_correct = $mark;
-					$q_wrong   = 0;
-					$q_empty   = 0;
-				}
-
-				if ($q_correct === null) $q_correct = round(($score_num / 100) * $mark);
-				if ($q_wrong === null) $q_wrong = max(0, $mark - $q_correct);
-				if ($q_empty === null) $q_empty = isset($res_data['question_empty']) ? intval($res_data['question_empty']) : max(0, $mark - $q_correct - $q_wrong);
-
-				// Thời gian làm bài
-				// Thời gian làm bài
-				$duration_sec = 0;
-
-				// 1. Ưu tiên lấy từ results (LearnPress native dùng 'time_spend' dạng HH:MM:SS)
-				$time_candidates = [
-					$res_data['time_spend'] ?? null,
-					$res_data['time_spent'] ?? null,
-					$meta['time_spend'] ?? null,
-					$meta['time_spent'] ?? null,
-				];
-
-				foreach ($time_candidates as $raw_t) {
-					if ($raw_t === null || $raw_t === '') continue;
-
-					// Nếu là số giây
-					if (is_numeric($raw_t)) {
-						$duration_sec = intval($raw_t);
-						break;
-					}
-
-					// Nếu là chuỗi HH:MM:SS hoặc MM:SS
-					if (is_string($raw_t)) {
-						$parts = array_map('intval', explode(':', trim($raw_t)));
-						if (count($parts) === 3) {
-							$duration_sec = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
-							break;
-						} elseif (count($parts) === 2) {
-							$duration_sec = $parts[0] * 60 + $parts[1];
-							break;
-						}
-					}
-				}
-
-				// 2. Fallback cuối cùng: end_time - start_time (chỉ khi vẫn = 0)
-				if ($duration_sec <= 0 && $u_item->start_time && $u_item->end_time && $u_item->end_time !== '0000-00-00 00:00:00') {
-					$t_start = is_numeric($u_item->start_time) ? intval($u_item->start_time) : strtotime($u_item->start_time);
-					$t_end   = is_numeric($u_item->end_time)   ? intval($u_item->end_time)   : strtotime($u_item->end_time);
-					if ($t_start && $t_end && $t_end >= $t_start) {
-						$duration_sec = $t_end - $t_start;
-					}
-				}
-
-				$secs           = $duration_sec % 60;
-				$time_spent_str = sprintf('%02d:%02d:%02d', floor($duration_sec / 3600), floor(($duration_sec % 3600) / 60), $secs);
-
-				// Lấy passing_grade & minus_point từ post_meta của Quiz
-				$pg_val = get_post_meta($quiz_id, '_lp_passing_grade', true);
-				if (empty($pg_val)) $pg_val = get_post_meta($quiz_id, '_lp_passing_condition', true);
-				if (empty($pg_val)) $pg_val = 80;
-				$passing_grade_str = is_numeric($pg_val) ? "{$pg_val}%" : strval($pg_val);
-
-				$minus_point_meta = get_post_meta($quiz_id, '_lp_minus_point', true);
-				$minus_point_val  = (!empty($minus_point_meta) && is_numeric($minus_point_meta)) ? floatval($minus_point_meta) : 0;
-				$minus_total      = isset($res_data['minus_point']) ? floatval($res_data['minus_point']) : ($minus_point_val * $q_wrong);
-
-				$attempts_list[] = [
-					'user_item_id'     => $u_item->user_item_id,
-					'status'           => $u_item->status,
-					'graduation'       => $u_item->graduation ? $u_item->graduation : ($score_num >= floatval($pg_val) ? 'passed' : 'failed'),
-					'start_time'       => $u_item->start_time,
-					'end_time'         => $u_item->end_time,
-					'time_spent'       => $time_spent_str,
-					'questions'        => "{$user_mark} / {$mark}",
-					'questions_count'  => $q_count,
-					'correct'          => $q_correct,
-					'wrong'            => $q_wrong,
-					'skipped'          => $q_empty,
-					'minus_points'     => $minus_total,
-					'points'           => "{$user_mark} / {$mark}",
-					'user_mark'        => $user_mark,
-					'mark'             => $mark,
-					'passing_grade'    => $passing_grade_str,
-					'result'           => sprintf('%.2f%%', $score_num),
-					'result_num'       => $score_num,
-					'results'          => $res_data,
-				];
-
-				// Giải nén các lần làm retake nếu LearnPress lưu trữ trong meta_key (_lp_quiz_retake_items / _lp_retake_items)
-				if (isset($meta['_lp_quiz_retake_items']) || isset($meta['_lp_retake_items']) || isset($meta['_lp_user_item_retakes']) || isset($meta['_lp_retake_results'])) {
-					$raw_retakes = isset($meta['_lp_quiz_retake_items']) ? $meta['_lp_quiz_retake_items'] : (isset($meta['_lp_retake_items']) ? $meta['_lp_retake_items'] : (isset($meta['_lp_user_item_retakes']) ? $meta['_lp_user_item_retakes'] : $meta['_lp_retake_results']));
-					if (is_string($raw_retakes)) {
-						$raw_retakes = maybe_unserialize($raw_retakes);
-					}
-					if (is_array($raw_retakes) && count($raw_retakes) > 0) {
-						$existing_ids = array_column($attempts_list, 'user_item_id');
-						foreach ($raw_retakes as $r_idx => $r_item) {
-							if (is_array($r_item) || is_object($r_item)) {
-								$r_arr   = (array)$r_item;
-								$r_uid   = isset($r_arr['user_item_id']) ? $r_arr['user_item_id'] : ($u_item->user_item_id . '_r' . $r_idx);
-								if (in_array($r_uid, $existing_ids, false)) {
-									continue; // Skip existing DB attempts to prevent duplication
-								}
-								$r_score = isset($r_arr['result']) ? floatval($r_arr['result']) : (isset($r_arr['user_mark']) && isset($r_arr['mark']) && floatval($r_arr['mark']) > 0 ? (floatval($r_arr['user_mark']) / floatval($r_arr['mark'])) * 100 : 0);
-								$r_mark  = isset($r_arr['mark']) ? intval($r_arr['mark']) : $q_count;
-								$r_umark = isset($r_arr['user_mark']) ? intval($r_arr['user_mark']) : round(($r_score / 100) * $r_mark);
-								$r_wrong = isset($r_arr['question_wrong']) ? intval($r_arr['question_wrong']) : max(0, $r_mark - $r_umark);
-								$r_minus = isset($r_arr['minus_point']) ? floatval($r_arr['minus_point']) : ($minus_point_val * $r_wrong);
-
-								$attempts_list[] = [
-									'user_item_id'    => $r_uid,
-									'status'          => isset($r_arr['status']) ? $r_arr['status'] : 'completed',
-									'graduation'      => isset($r_arr['graduation']) ? $r_arr['graduation'] : ($r_score >= floatval($pg_val) ? 'passed' : 'failed'),
-									'start_time'      => isset($r_arr['start_time']) ? $r_arr['start_time'] : $u_item->start_time,
-									'end_time'        => isset($r_arr['end_time']) ? $r_arr['end_time'] : $u_item->end_time,
-									'time_spent'      => isset($r_arr['time_spent']) ? (is_numeric($r_arr['time_spent']) ? sprintf('%02d:%02d:%02d', floor($r_arr['time_spent'] / 3600), floor(($r_arr['time_spent'] % 3600) / 60), $r_arr['time_spent'] % 60) : $r_arr['time_spent']) : $time_spent_str,
-									'questions'       => "{$r_umark} / {$r_mark}",
-									'questions_count' => $q_count,
-									'correct'         => isset($r_arr['question_correct']) ? intval($r_arr['question_correct']) : $r_umark,
-									'wrong'           => $r_wrong,
-									'skipped'         => isset($r_arr['question_empty']) ? intval($r_arr['question_empty']) : 0,
-									'minus_points'    => $r_minus,
-									'points'          => "{$r_umark} / {$r_mark}",
-									'user_mark'       => $r_umark,
-									'mark'            => $r_mark,
-									'passing_grade'   => $passing_grade_str,
-									'result'          => sprintf('%.2f%%', $r_score),
-									'result_num'      => $r_score,
-									'results'         => $r_arr,
-								];
-								$existing_ids[] = $r_uid;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Khử trùng lặp cuối cùng theo user_item_id
-	$seen_uids = [];
-	$unique_attempts = [];
-	foreach ($attempts_list as $att_item) {
-		$uid_key = strval($att_item['user_item_id']);
-		if (!isset($seen_uids[$uid_key])) {
-			$seen_uids[$uid_key] = true;
-			$unique_attempts[] = $att_item;
-		}
-	}
-	$attempts_list = $unique_attempts;
-
-
-	$attempts_list = array_values(array_filter($attempts_list, function($att) {
-    $status = $att['status'] ?? '';
-    if ($status === 'started' || $status === 'in-progress') return false;
-
-    $score = floatval($att['result_num'] ?? $att['result'] ?? 0);
-    $mark  = floatval($att['user_mark'] ?? 0);
-    $ts    = trim((string)($att['time_spent'] ?? $att['time_spend'] ?? ''));
-
-    // Bỏ bản ghi rác: 0 điểm + 0 thời gian
-    $is_zero_score = ($score <= 0 && $mark <= 0);
-    $is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0', '--:--', ''], true);
-
-    if ($is_zero_score && $is_zero_time) {
-        return false;
-    }
-    return true;
-}));
-
-	// Sắp xếp theo ID / thời gian tăng dần (từ lượt 1 -> n)
-	usort($attempts_list, function($a, $b) {
-		return intval($a['user_item_id']) - intval($b['user_item_id']);
-	});
-
-	// Ưu tiên lấy history đã được ghi bởi custom_write_quiz_attempts_history / LearnPress retakes
-	$latest_uid = 0;
-	if (!empty($attempts_list)) {
-		$latest_item = end($attempts_list);
-		$latest_uid  = intval($latest_item['user_item_id'] ?? 0);
-	}
-	if ($latest_uid <= 0) {
-		$latest_uid = intval($wpdb->get_var($wpdb->prepare(
-			"SELECT user_item_id FROM {$table_items} WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' ORDER BY user_item_id DESC LIMIT 1",
-			$user_id, $quiz_id
-		)));
-	}
-
-	$history_keys = ['attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'];
-	$meta_history = null;
-
-	if ($latest_uid > 0) {
-		foreach ($history_keys as $hkey) {
-			$hist = learn_press_get_user_item_meta($latest_uid, $hkey, true);
-			if (is_string($hist)) {
-				$hist = maybe_unserialize($hist);
-				if (is_string($hist) && (strpos($hist, '{') === 0 || strpos($hist, '[') === 0)) {
-					$hist = json_decode($hist, true);
-				}
-			}
-			if (is_array($hist) && !empty($hist)) {
-				$meta_history = $hist;
-				break;
-			}
-		}
-	}
-
-	// Fallback kiểm tra các user_item khác nếu latest_uid chưa có meta
-	if (empty($meta_history) && !empty($user_items)) {
-		foreach ($user_items as $u_it) {
-			$ui_check_id = intval($u_it->user_item_id);
-			if ($ui_check_id <= 0 || $ui_check_id === $latest_uid) continue;
-			foreach ($history_keys as $hkey) {
-				$hist = learn_press_get_user_item_meta($ui_check_id, $hkey, true);
-				if (is_string($hist)) {
-					$hist = maybe_unserialize($hist);
-					if (is_string($hist) && (strpos($hist, '{') === 0 || strpos($hist, '[') === 0)) {
-						$hist = json_decode($hist, true);
-					}
-				}
-				if (is_array($hist) && !empty($hist)) {
-					$meta_history = $hist;
-					break 2;
-				}
-			}
-		}
-	}
-
-	$map_single_attempt = function($item, $fallback_id) use ($quiz_id, $wpdb, $pg_val, $passing_grade_str) {
-		$pg_float = floatval($pg_val ?: 80);
-		$uid = isset($item['user_item_id']) && !empty($item['user_item_id']) ? $item['user_item_id'] : $fallback_id;
-
-		$table_qq = $wpdb->prefix . 'learnpress_quiz_questions';
-		$default_q_count = 0;
-		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_qq}'") === $table_qq) {
-			$default_q_count = intval($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_qq} WHERE quiz_id = %d", $quiz_id)));
-		}
-		if ($default_q_count <= 0) $default_q_count = 1;
-
-		$q_count = intval($item['questions_count'] ?? $item['question_count'] ?? $item['count'] ?? $default_q_count);
-		if ($q_count <= 0) $q_count = $default_q_count;
-
-		$mark = isset($item['mark']) && floatval($item['mark']) > 0 ? intval($item['mark']) : (isset($item['total_mark']) && floatval($item['total_mark']) > 0 ? intval($item['total_mark']) : $q_count);
-
-		$u_mark = null;
-		if (isset($item['user_mark']) && $item['user_mark'] !== null && $item['user_mark'] !== '') {
-			$u_mark = intval($item['user_mark']);
-		} elseif (isset($item['score']) && $item['score'] !== null && $item['score'] !== '') {
-			$u_mark = intval($item['score']);
-		}
-
-		$correct = null;
-		if (isset($item['question_correct']) && $item['question_correct'] !== null && $item['question_correct'] !== '') {
-			$correct = intval($item['question_correct']);
-		} elseif (isset($item['correct']) && $item['correct'] !== null && $item['correct'] !== '') {
-			$correct = intval($item['correct']);
-		}
-
-		$score_val = 0;
-		if (isset($item['result_num']) && $item['result_num'] !== null && $item['result_num'] !== '') {
-			$score_val = floatval($item['result_num']);
-		} elseif (isset($item['result']) && $item['result'] !== null && $item['result'] !== '') {
-			$score_val = floatval(str_replace('%', '', strval($item['result'])));
-		} elseif ($u_mark !== null && $mark > 0) {
-			$score_val = ($u_mark / $mark) * 100;
-		}
-
-		if ($u_mark === null) {
-			if ($correct !== null) {
-				$u_mark = $correct;
-			} elseif ($score_val > 0 && $mark > 0) {
-				$u_mark = round(($score_val / 100) * $mark);
-			} else {
-				$u_mark = 0;
-			}
-		}
-		if ($correct === null) {
-			$correct = $u_mark;
-		}
-
-		$is_passed = ($item['graduation'] ?? '') === 'passed'
-			|| (!empty($item['pass']))
-			|| ($score_val >= $pg_float);
-
-		if ($is_passed && $score_val < $pg_float) {
-			$score_val = 100;
-		}
-
-		// Thời gian làm bài
-		$ts_raw = $item['time_spent'] ?? $item['time_spend'] ?? $item['duration'] ?? '';
-		$duration_sec = 0;
-		$ts_formatted = '00:00:00';
-
-		if (is_numeric($ts_raw) && floatval($ts_raw) > 0) {
-			$duration_sec = intval($ts_raw);
-			$ts_formatted = sprintf('%02d:%02d:%02d', floor($duration_sec / 3600), floor(($duration_sec % 3600) / 60), $duration_sec % 60);
-		} elseif (is_string($ts_raw) && !empty(trim($ts_raw)) && !in_array(trim($ts_raw), ['00:00:00', '00:00', '0', '--:--'], true)) {
-			$parts = array_map('intval', explode(':', trim($ts_raw)));
-			if (count($parts) === 3) {
-				$duration_sec = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
-				$ts_formatted = sprintf('%02d:%02d:%02d', $parts[0], $parts[1], $parts[2]);
-			} elseif (count($parts) === 2) {
-				$duration_sec = $parts[0] * 60 + $parts[1];
-				$ts_formatted = sprintf('00:%02d:%02d', $parts[0], $parts[1]);
-			} else {
-				$ts_formatted = trim($ts_raw);
-			}
-		} elseif (!empty($item['start_time']) && !empty($item['end_time']) && $item['end_time'] !== '0000-00-00 00:00:00') {
-			$t_start = is_numeric($item['start_time']) ? intval($item['start_time']) : strtotime($item['start_time']);
-			$t_end   = is_numeric($item['end_time'])   ? intval($item['end_time'])   : strtotime($item['end_time']);
-			if ($t_start && $t_end && $t_end >= $t_start) {
-				$duration_sec = $t_end - $t_start;
-				$ts_formatted = sprintf('%02d:%02d:%02d', floor($duration_sec / 3600), floor(($duration_sec % 3600) / 60), $duration_sec % 60);
-			}
-		}
-
-		$wrong = isset($item['question_wrong']) ? intval($item['question_wrong']) : (isset($item['wrong']) ? intval($item['wrong']) : max(0, $mark - $correct));
-		$skipped = isset($item['question_empty']) ? intval($item['question_empty']) : (isset($item['skipped']) ? intval($item['skipped']) : 0);
-		$minus = isset($item['minus_point']) ? floatval($item['minus_point']) : (isset($item['minus_points']) ? floatval($item['minus_points']) : 0);
-
-		return [
-			'user_item_id'     => $uid,
-			'status'           => $item['status'] ?? 'completed',
-			'graduation'       => $is_passed ? 'passed' : 'failed',
-			'start_time'       => $item['start_time'] ?? null,
-			'end_time'         => $item['end_time'] ?? null,
-			'time_spent'       => $ts_formatted,
-			'questions'        => "{$u_mark} / {$mark}",
-			'questions_count'  => $q_count,
-			'correct'          => $correct,
-			'wrong'            => $wrong,
-			'skipped'          => $skipped,
-			'minus_points'     => $minus,
-			'points'           => "{$u_mark} / {$mark}",
-			'user_mark'        => $u_mark,
-			'mark'             => $mark,
-			'passing_grade'    => $item['passing_grade'] ?? $passing_grade_str,
-			'result'           => sprintf('%.2f%%', $score_val),
-			'result_num'       => $score_val,
-			'results'          => $item['results'] ?? $item,
-		];
-	};
-
-	$new_attempts_map = [];
-
-	// 1. Nếu có meta_history → map thành các attempt đầy đủ
-	if (!empty($meta_history) && is_array($meta_history)) {
-		foreach ($meta_history as $h_idx => $h_item) {
-			if (!is_array($h_item) && !is_object($h_item)) continue;
-			$h_arr = (array)$h_item;
-			$h_uid = strval($h_arr['user_item_id'] ?? ($latest_uid . '_h' . $h_idx));
-			$mapped_h = $map_single_attempt($h_arr, $h_uid);
-
-			// Bỏ attempt rác (0 điểm + 0 thời gian và không hoàn thành)
-			$is_zero_score = ($mapped_h['result_num'] <= 0 && $mapped_h['user_mark'] <= 0);
-			$is_zero_time  = empty($mapped_h['time_spent']) || in_array($mapped_h['time_spent'], ['00:00:00', '00:00', '0', '--:--'], true);
-			if ($is_zero_score && $is_zero_time && $mapped_h['status'] !== 'completed') {
-				continue;
-			}
-
-			$new_attempts_map[$h_uid] = $mapped_h;
-		}
-	}
-
-	// 2. Thêm hoặc merge các attempt từ $attempts_list (bao gồm lần làm mới nhất hiện tại)
-	foreach ($attempts_list as $a_idx => $att_item) {
-		$uid = strval($att_item['user_item_id'] ?? ($latest_uid . '_a' . $a_idx));
-		$mapped_att = $map_single_attempt($att_item, $uid);
-
-		if (isset($new_attempts_map[$uid])) {
-			// Đã có trong history: merge nếu $att_item có thông tin tốt hơn
-			if ($new_attempts_map[$uid]['result_num'] <= 0 && $mapped_att['result_num'] > 0) {
-				$new_attempts_map[$uid]['result_num'] = $mapped_att['result_num'];
-				$new_attempts_map[$uid]['result']     = $mapped_att['result'];
-			}
-			if ($new_attempts_map[$uid]['user_mark'] <= 0 && $mapped_att['user_mark'] > 0) {
-				$new_attempts_map[$uid]['user_mark'] = $mapped_att['user_mark'];
-				$new_attempts_map[$uid]['correct']   = $mapped_att['correct'];
-				$new_attempts_map[$uid]['points']    = $mapped_att['points'];
-				$new_attempts_map[$uid]['questions'] = $mapped_att['questions'];
-			}
-			if ($new_attempts_map[$uid]['time_spent'] === '00:00:00' && $mapped_att['time_spent'] !== '00:00:00') {
-				$new_attempts_map[$uid]['time_spent'] = $mapped_att['time_spent'];
-			}
-		} else {
-			// Lần làm mới nhất hoặc record chưa có trong meta history
-			$is_zero_score = ($mapped_att['result_num'] <= 0 && $mapped_att['user_mark'] <= 0);
-			$is_zero_time  = empty($mapped_att['time_spent']) || in_array($mapped_att['time_spent'], ['00:00:00', '00:00', '0', '--:--'], true);
-			if ($is_zero_score && $is_zero_time && $mapped_att['status'] !== 'completed') {
-				continue;
-			}
-			$new_attempts_map[$uid] = $mapped_att;
-		}
-	}
-
-	if (!empty($new_attempts_map)) {
-		$attempts_list = array_values($new_attempts_map);
-	}
-
-	// =========================================================
-	// FALLBACK MẠNH: nếu vẫn chỉ có <= 1 attempt thì tự build lại
-	// từ TẤT CẢ user_items + Result DB (giống custom_build)
-	// =========================================================
-	if (count($attempts_list) <= 1) {
-		$all_rows = $wpdb->get_results($wpdb->prepare(
-			"SELECT user_item_id, start_time, end_time, status, graduation
-			FROM {$table_items}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-			ORDER BY user_item_id ASC",
-			$user_id, $quiz_id
-		));
-
-		$fallback_map = [];
-		foreach ((array)$all_rows as $row) {
-			$oid = absint($row->user_item_id);
-			if (!$oid) continue;
-
-			$old_result = null;
-			if (class_exists('LP_User_Items_Result_DB')) {
-				$old_result = LP_User_Items_Result_DB::instance()->get_result($oid);
-				if (is_string($old_result)) {
-					$old_result = json_decode($old_result, true);
-				}
-			}
-			if (!$old_result || !is_array($old_result)) {
-				$old_result = learn_press_get_user_item_meta($oid, 'results', true);
-				if (is_string($old_result)) {
-					$old_result = maybe_unserialize($old_result);
-					if (is_string($old_result) && (strpos($old_result, '{') === 0 || strpos($old_result, '[') === 0)) {
-						$old_result = json_decode($old_result, true);
-					}
-				}
-			}
-			// Thử thêm các key meta khác
-			if (!$old_result || !is_array($old_result)) {
-				foreach (['_lp_user_item_results', '_lp_results', '_lp_quiz_results'] as $mk) {
-					$tmp = learn_press_get_user_item_meta($oid, $mk, true);
-					if (is_string($tmp)) {
-						$tmp = maybe_unserialize($tmp);
-						if (is_string($tmp) && (strpos($tmp, '{') === 0 || strpos($tmp, '[') === 0)) {
-							$tmp = json_decode($tmp, true);
-						}
-					}
-					if (is_array($tmp) && !empty($tmp)) {
-						$old_result = $tmp;
-						break;
-					}
-				}
-			}
-
-			if (!$old_result || !is_array($old_result)) {
-				// Vẫn giữ record completed dù không có result chi tiết
-				if ($row->status === 'completed') {
-					$fallback_map[$oid] = [
-						'user_item_id'     => $oid,
-						'status'           => 'completed',
-						'graduation'       => $row->graduation ?: 'failed',
-						'start_time'       => $row->start_time,
-						'end_time'         => $row->end_time,
-						'time_spent'       => '00:00:00',
-						'questions'        => '',
-						'questions_count'  => 0,
-						'correct'          => 0,
-						'wrong'            => 0,
-						'skipped'          => 0,
-						'points'           => '',
-						'user_mark'        => 0,
-						'mark'             => 0,
-						'passing_grade'    => '80%',
-						'result'           => '0.00%',
-						'result_num'       => 0,
-					];
-				}
-				continue;
-			}
-
-			$r         = floatval($old_result['result'] ?? $old_result['result_num'] ?? 0);
-			$user_mark = floatval($old_result['user_mark'] ?? $old_result['correct'] ?? 0);
-			$mark      = floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0);
-			$q_correct = intval($old_result['question_correct'] ?? $old_result['correct'] ?? $user_mark);
-			$q_count   = intval($old_result['question_count'] ?? $old_result['questions_count'] ?? $mark);
-			$ts        = trim((string)($old_result['time_spend'] ?? $old_result['time_spent'] ?? ''));
-
-			if (is_numeric($ts)) {
-				$sec = intval($ts);
-				$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
-			}
-			if ($ts === '') {
-				// Fallback tính từ start/end
-				if ($row->start_time && $row->end_time && $row->end_time !== '0000-00-00 00:00:00') {
-					$t1 = is_numeric($row->start_time) ? intval($row->start_time) : strtotime($row->start_time);
-					$t2 = is_numeric($row->end_time)   ? intval($row->end_time)   : strtotime($row->end_time);
-					if ($t1 && $t2 && $t2 >= $t1) {
-						$sec = $t2 - $t1;
-						$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
-					} else {
-						$ts = '00:00:00';
-					}
-				} else {
-					$ts = '00:00:00';
-				}
-			}
-
-			// Bỏ attempt rác thật sự
-			if ($r <= 0 && $user_mark <= 0 && in_array($ts, ['00:00:00', '00:00', '0', '--:--'], true) && $row->status !== 'completed') {
-				continue;
-			}
-
-			$pg = $old_result['passing_grade'] ?? '80%';
-			if (is_numeric($pg)) $pg = $pg . '%';
-
-			$fallback_map[$oid] = [
-				'user_item_id'     => $oid,
-				'status'           => $row->status ?: 'completed',
-				'graduation'       => $row->graduation ?: (($r >= 80) ? 'passed' : 'failed'),
-				'start_time'       => $row->start_time,
-				'end_time'         => $row->end_time,
-				'time_spent'       => $ts,
-				'questions'        => "{$q_correct} / " . ($q_count > 0 ? $q_count : ($mark > 0 ? $mark : 0)),
-				'questions_count'  => $q_count > 0 ? $q_count : $mark,
-				'correct'          => $q_correct,
-				'wrong'            => intval($old_result['question_wrong'] ?? $old_result['wrong'] ?? max(0, ($mark ?: $q_count) - $q_correct)),
-				'skipped'          => intval($old_result['question_empty'] ?? $old_result['skipped'] ?? 0),
-				'points'           => "{$user_mark} / " . ($mark > 0 ? $mark : $q_count),
-				'user_mark'        => $user_mark,
-				'mark'             => $mark > 0 ? $mark : $q_count,
-				'passing_grade'    => $pg,
-				'result'           => sprintf('%.2f%%', $r),
-				'result_num'       => $r,
-				'results'          => $old_result,
-			];
-		}
-
-		if (count($fallback_map) > count($attempts_list)) {
-			$attempts_list = array_values($fallback_map);
-		}
-	}
-
-	// Bỏ các attempt started / in-progress
-	$attempts_list = array_values(array_filter($attempts_list, function($att) {
-		$status = $att['status'] ?? '';
-		if ($status === 'started' || $status === 'in-progress') return false;
-		return true;
-	}));
-
-	// Sort theo user_item_id tăng dần
-	usort($attempts_list, function($a, $b) {
-		return intval($a['user_item_id']) - intval($b['user_item_id']);
-	});
-
-	// Chọn Lượt làm trước đó đã HOÀN THÀNH (Completed) làm last_attempt, tránh việc click Retakes / tạo mới làm đè 0 điểm
-	$last_attempt = null;
-	$completed_attempts = array_filter($attempts_list, function($att) {
-		return (isset($att['status']) && $att['status'] === 'completed') ||
-			(isset($att['result_num']) && floatval($att['result_num']) > 0) ||
-			(isset($att['user_mark']) && intval($att['user_mark']) > 0);
-	});
-
-	if (!empty($completed_attempts)) {
-		$last_attempt = end($completed_attempts);
-	} else if (!empty($attempts_list)) {
-		$last_attempt = end($attempts_list);
-	}
-
-	// DEBUG Log (chỉ bật khi cần)
-	if ((defined('WP_DEBUG') && WP_DEBUG) || (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG)) {
-		error_log('[quiz-attempts] user=' . $user_id . ' quiz=' . $quiz_id . ' count=' . count($attempts_list) . ' | ' . wp_json_encode($attempts_list, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-	}
+	$attempts_list = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0);
+	$last_attempt  = !empty($attempts_list) ? end($attempts_list) : null;
 
 	return rest_ensure_response([
 		'success'        => true,
@@ -3768,454 +2798,772 @@ function handle_get_custom_quiz_attempts($request) {
 }
 
 /**
- * Build danh sách attempt TRƯỚC lần hiện tại (dùng cho bảng Last Attempt).
- * exclude_user_item_id = user_item_id lần vừa finish (không đưa vào history).
+ * Build danh sách tất cả attempts đã hoàn thành (completed) cho quiz và user
+ * Tích hợp đa nguồn: user_meta + learnpress_user_items + parent course retakes + result DB
  */
 if (!function_exists('custom_build_quiz_previous_attempts_history')) {
 	function custom_build_quiz_previous_attempts_history($user_id, $quiz_id, $exclude_user_item_id = 0) {
 		global $wpdb;
-		$table_ui = $wpdb->prefix . 'learnpress_user_items';
+		$table_ui  = $wpdb->prefix . 'learnpress_user_items';
+		$table_uim = $wpdb->prefix . 'learnpress_user_itemmeta';
+		$table_uir = $wpdb->prefix . 'learnpress_user_item_results';
 
 		$exclude_user_item_id = absint($exclude_user_item_id);
-		$user_id = absint($user_id);
-		$quiz_id = absint($quiz_id);
+		$user_id              = absint($user_id);
+		$quiz_id              = absint($quiz_id);
 		if (!$user_id || !$quiz_id) return [];
-
-		// Lấy TẤT CẢ bản ghi (không exclude ở SQL để tránh mất data)
-		$sql = "SELECT user_item_id, start_time, end_time, status, graduation
-		        FROM {$table_ui}
-		        WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-		        ORDER BY user_item_id ASC";
-		$rows = $wpdb->get_results($wpdb->prepare($sql, $user_id, $quiz_id));
-		if (empty($rows)) return [];
 
 		$pg_val = get_post_meta($quiz_id, '_lp_passing_grade', true);
 		if ($pg_val === '' || $pg_val === null) {
 			$pg_val = get_post_meta($quiz_id, '_lp_passing_condition', true);
 		}
-		$passing_grade_str = ($pg_val !== '' && $pg_val !== null)
-			? (is_numeric($pg_val) ? "{$pg_val}%" : strval($pg_val))
-			: '80%';
+		$passing_grade_num = ($pg_val !== '' && $pg_val !== null && is_numeric($pg_val)) ? floatval($pg_val) : 80;
+		$passing_grade_str = $passing_grade_num . '%';
 
-		$history = [];
-		$seen = [];
+		$table_qq = $wpdb->prefix . 'learnpress_quiz_questions';
+		$default_q_count = 0;
+		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_qq}'") === $table_qq) {
+			$default_q_count = intval($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_qq} WHERE quiz_id = %d", $quiz_id)));
+		}
+		if ($default_q_count <= 0) $default_q_count = 1;
 
-		foreach ($rows as $row) {
-			$oid = absint($row->user_item_id);
-			if (!$oid || isset($seen[$oid])) continue;
+		$minus_point_meta = get_post_meta($quiz_id, '_lp_minus_point', true);
+		$minus_point_val  = (!empty($minus_point_meta) && is_numeric($minus_point_meta)) ? floatval($minus_point_meta) : 0;
 
-			// Bỏ qua bản ghi đang exclude (lần vừa finish) nếu cần
-			if ($exclude_user_item_id > 0 && $oid === $exclude_user_item_id) {
-				continue;
-			}
+		// 1. Lấy tất cả bản ghi user_items của quiz này trong DB LearnPress
+		$sql = "SELECT user_item_id, start_time, end_time, status, graduation, ref_id, item_id, parent_id
+		        FROM {$table_ui}
+		        WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+		        ORDER BY user_item_id ASC";
+		$rows = $wpdb->get_results($wpdb->prepare($sql, $user_id, $quiz_id));
 
-			$old_result = null;
-			if (class_exists('LP_User_Items_Result_DB')) {
-				$old_result = LP_User_Items_Result_DB::instance()->get_result($oid);
-				if (is_string($old_result)) {
-					$old_result = json_decode($old_result, true);
-				}
-			}
-			if (!$old_result || !is_array($old_result)) {
-				$old_result = learn_press_get_user_item_meta($oid, 'results', true);
-				if (is_string($old_result)) {
-					$old_result = maybe_unserialize($old_result);
-					if (is_string($old_result) && (strpos($old_result, '{') === 0 || strpos($old_result, '[') === 0)) {
-						$old_result = json_decode($old_result, true);
-					}
-				}
-			}
-			// Thử thêm các key meta khác
-			if (!$old_result || !is_array($old_result)) {
-				foreach (['_lp_user_item_results', '_lp_results', '_lp_quiz_results'] as $mk) {
-					$tmp = learn_press_get_user_item_meta($oid, $mk, true);
-					if (is_string($tmp)) {
-						$tmp = maybe_unserialize($tmp);
-						if (is_string($tmp) && (strpos($tmp, '{') === 0 || strpos($tmp, '[') === 0)) {
-							$tmp = json_decode($tmp, true);
-						}
-					}
-					if (is_array($tmp) && !empty($tmp)) {
-						$old_result = $tmp;
-						break;
-					}
-				}
-			}
-
-			// Nếu vẫn không có result chi tiết → vẫn giữ bản ghi completed
-			if (!$old_result || !is_array($old_result)) {
-				if ($row->status === 'completed') {
-					$history[] = [
-						'user_item_id'     => $oid,
-						'status'           => 'completed',
-						'graduation'       => $row->graduation ?: 'failed',
-						'start_time'       => $row->start_time,
-						'end_time'         => $row->end_time,
-						'time_spent'       => '00:00:00',
-						'time_spend'       => '00:00:00',
-						'questions'        => '',
-						'questions_count'  => 0,
-						'correct'          => 0,
-						'wrong'            => 0,
-						'skipped'          => 0,
-						'points'           => '',
-						'user_mark'        => 0,
-						'mark'             => 0,
-						'passing_grade'    => $passing_grade_str,
-						'result'           => '0.00%',
-						'result_num'       => 0,
-					];
-					$seen[$oid] = true;
-				}
-				continue;
-			}
-
-			$r         = floatval($old_result['result'] ?? $old_result['result_num'] ?? 0);
-			$user_mark = floatval($old_result['user_mark'] ?? $old_result['correct'] ?? 0);
-			$mark      = floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0);
-			$q_correct = intval($old_result['question_correct'] ?? $old_result['correct'] ?? $user_mark);
-			$q_count   = intval($old_result['question_count'] ?? $old_result['questions_count'] ?? $mark);
-			$ts        = trim((string)($old_result['time_spend'] ?? $old_result['time_spent'] ?? ''));
-
-			if (is_numeric($ts)) {
-				$sec = intval($ts);
-				$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
-			}
-			if ($ts === '') {
-				// Fallback tính từ start/end
-				if ($row->start_time && $row->end_time && $row->end_time !== '0000-00-00 00:00:00') {
-					$t1 = is_numeric($row->start_time) ? intval($row->start_time) : strtotime($row->start_time);
-					$t2 = is_numeric($row->end_time)   ? intval($row->end_time)   : strtotime($row->end_time);
-					if ($t1 && $t2 && $t2 >= $t1) {
-						$sec = $t2 - $t1;
-						$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
-					} else {
-						$ts = '00:00:00';
-					}
-				} else {
-					$ts = '00:00:00';
-				}
-			}
-
-			// Chỉ bỏ attempt rác thật sự (0 điểm + 0 thời gian + không phải completed)
-			$is_zero_score = ($r <= 0 && $user_mark <= 0);
-			$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0', '--:--'], true);
-			if ($is_zero_score && $is_zero_time && $row->status !== 'completed') {
-				continue;
-			}
-
-			$pg = $old_result['passing_grade'] ?? $passing_grade_str;
-			if (is_numeric($pg)) $pg = $pg . '%';
-
-			$graduation = $row->graduation
-				?: (($r >= floatval($pg_val ?: 80) || !empty($old_result['pass'])) ? 'passed' : 'failed');
-
-			$item = [
-				'user_item_id'     => $oid,
-				'status'           => $row->status ?: 'completed',
-				'graduation'       => $graduation,
-				'start_time'       => $row->start_time,
-				'end_time'         => $row->end_time,
-				'time_spent'       => $ts,
-				'time_spend'       => $ts,
-				'questions'        => "{$q_correct} / " . ($q_count > 0 ? $q_count : ($mark > 0 ? $mark : 0)),
-				'questions_count'  => $q_count > 0 ? $q_count : $mark,
-				'correct'          => $q_correct,
-				'wrong'            => intval($old_result['question_wrong'] ?? $old_result['wrong'] ?? max(0, ($mark ?: $q_count) - $q_correct)),
-				'skipped'          => intval($old_result['question_empty'] ?? $old_result['skipped'] ?? 0),
-				'points'           => "{$user_mark} / " . ($mark > 0 ? $mark : $q_count),
-				'user_mark'        => $user_mark,
-				'mark'             => $mark > 0 ? $mark : $q_count,
-				'passing_grade'    => $pg,
-				'result'           => sprintf('%.2f%%', $r),
-				'result_num'       => $r,
-				'results'          => $old_result,
-			];
-
-			$history[] = $item;
-			$seen[$oid] = true;
+		// NẾU DATABASE LEARNPRESS KHÔNG CÒN BẢN GHI NÀO (Chưa làm bài hoặc đã Reset Item Progress trên WP)
+		// -> Xóa sạch lịch sử đã lưu và trả về rỗng [] để Next.js trở về trạng thái ban đầu
+		if (empty($rows)) {
+			delete_user_meta($user_id, "_custom_lp_quiz_attempts_{$quiz_id}");
+			return [];
 		}
 
-		return array_values($history);
+		$candidates = [];
+
+		// 2. Đọc các attempt đã lưu trong user_meta (nếu có bản ghi trong DB)
+		$saved_user_meta = get_user_meta($user_id, "_custom_lp_quiz_attempts_{$quiz_id}", true);
+		if (is_string($saved_user_meta)) {
+			$saved_user_meta = maybe_unserialize($saved_user_meta);
+			if (is_string($saved_user_meta) && (strpos($saved_user_meta, '[') === 0 || strpos($saved_user_meta, '{') === 0)) {
+				$saved_user_meta = json_decode($saved_user_meta, true);
+			}
+		}
+		if (is_array($saved_user_meta)) {
+			foreach ($saved_user_meta as $s_idx => $s_att) {
+				if (!is_array($s_att)) continue;
+				$s_uid = isset($s_att['user_item_id']) && !empty($s_att['user_item_id']) ? $s_att['user_item_id'] : ($user_id . '_meta_' . $s_idx);
+				$candidates[] = [
+					'user_item_id' => $s_uid,
+					'raw'          => $s_att,
+					'status'       => $s_att['status'] ?? 'completed',
+					'graduation'   => $s_att['graduation'] ?? null,
+					'start_time'   => $s_att['start_time'] ?? '',
+					'end_time'     => $s_att['end_time'] ?? '',
+				];
+			}
+		}
+
+		$parent_ids = [];
+
+		if (!empty($rows)) {
+			foreach ($rows as $row) {
+				if (!empty($row->parent_id)) {
+					$parent_ids[] = absint($row->parent_id);
+				}
+				$oid = absint($row->user_item_id);
+				if (!$oid) continue;
+				if ($exclude_user_item_id > 0 && $oid === $exclude_user_item_id) continue;
+
+				$meta_rows = $wpdb->get_results($wpdb->prepare(
+					"SELECT meta_key, meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d",
+					$oid
+				));
+				$meta = [];
+				foreach ((array)$meta_rows as $m) {
+					$meta[$m->meta_key] = maybe_unserialize($m->meta_value);
+				}
+
+				// Đọc result từ LP DB Result, table user_item_results hoặc meta
+				$res_data = [];
+				if (class_exists('LP_User_Items_Result_DB')) {
+					try {
+						$lp_db_res = LP_User_Items_Result_DB::instance()->get_result($oid);
+						if (is_string($lp_db_res)) {
+							$lp_db_res = json_decode($lp_db_res, true);
+						}
+						if (is_array($lp_db_res) && !empty($lp_db_res)) {
+							$res_data = $lp_db_res;
+						}
+					} catch (Throwable $e) {}
+				}
+
+				if (empty($res_data) && $wpdb->get_var("SHOW TABLES LIKE '{$table_uir}'") === $table_uir) {
+					$raw_db_json = $wpdb->get_var($wpdb->prepare(
+						"SELECT result FROM {$table_uir} WHERE user_item_id = %d LIMIT 1",
+						$oid
+					));
+					if ($raw_db_json) {
+						$parsed = json_decode($raw_db_json, true);
+						if (is_array($parsed) && !empty($parsed)) {
+							$res_data = $parsed;
+						}
+					}
+				}
+
+				if (empty($res_data)) {
+					foreach (['results', '_lp_user_item_results', '_lp_results', '_lp_quiz_results', '_results'] as $mk) {
+						if (isset($meta[$mk]) && !empty($meta[$mk])) {
+							$tmp = $meta[$mk];
+							if (is_string($tmp)) {
+								$tmp = maybe_unserialize($tmp);
+								if (is_string($tmp) && (strpos($tmp, '{') === 0 || strpos($tmp, '[') === 0)) {
+									$tmp = json_decode($tmp, true);
+								}
+							}
+							if (is_array($tmp) && !empty($tmp)) {
+								$res_data = $tmp;
+								break;
+							}
+						}
+					}
+				}
+
+				// 2.1) Check archived retake items trong meta của chính quiz row
+				$retake_keys = ['_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes', '_retake_results', 'attempts', '_attempts'];
+				foreach ($retake_keys as $rk) {
+					if (!empty($meta[$rk])) {
+						$raw_retakes = $meta[$rk];
+						if (is_string($raw_retakes)) {
+							$raw_retakes = maybe_unserialize($raw_retakes);
+							if (is_string($raw_retakes) && (strpos($raw_retakes, '{') === 0 || strpos($raw_retakes, '[') === 0)) {
+								$raw_retakes = json_decode($raw_retakes, true);
+							}
+						}
+						if (is_array($raw_retakes)) {
+							if (isset($raw_retakes[$quiz_id]) && is_array($raw_retakes[$quiz_id])) {
+								$raw_retakes = $raw_retakes[$quiz_id];
+							}
+							foreach ($raw_retakes as $r_idx => $r_att) {
+								if (!is_array($r_att) && !is_object($r_att)) continue;
+								$r_arr = (array)$r_att;
+								if (isset($r_arr['quiz_id']) && intval($r_arr['quiz_id']) !== $quiz_id && intval($r_arr['quiz_id']) > 0) continue;
+								if (isset($r_arr['item_id']) && intval($r_arr['item_id']) !== $quiz_id && intval($r_arr['item_id']) > 0) continue;
+
+								$r_uid = isset($r_arr['user_item_id']) && !empty($r_arr['user_item_id']) ? $r_arr['user_item_id'] : ($oid . '_r' . $r_idx);
+								$candidates[] = [
+									'user_item_id' => $r_uid,
+									'raw'          => $r_arr,
+									'status'       => $r_arr['status'] ?? 'completed',
+									'graduation'   => $r_arr['graduation'] ?? null,
+									'start_time'   => $r_arr['start_time'] ?? $row->start_time,
+									'end_time'     => $r_arr['end_time'] ?? $row->end_time,
+								];
+							}
+						}
+					}
+				}
+
+				// 2.2) Thêm bản ghi hiện tại của quiz row nếu status completed hoặc có điểm/kết quả
+				if ($row->status === 'completed' || !empty($res_data['result']) || !empty($res_data['user_mark']) || !empty($res_data['correct']) || !empty($res_data['question_correct'])) {
+					$candidates[] = [
+						'user_item_id' => $oid,
+						'raw'          => $res_data,
+						'status'       => $row->status ?: 'completed',
+						'graduation'   => $row->graduation,
+						'start_time'   => $row->start_time,
+						'end_time'     => $row->end_time,
+					];
+				}
+			}
+		}
+
+		// 3. Tìm parent course user_items và quét retake meta được LearnPress lưu trên parent
+		$course_id = 0;
+		if (function_exists('learn_press_get_item_course_id')) {
+			$course_id = learn_press_get_item_course_id($quiz_id, 'lp_quiz');
+		}
+		if (!$course_id && !empty($rows[0]->ref_id)) {
+			$course_id = absint($rows[0]->ref_id);
+		}
+		if ($course_id > 0) {
+			$c_parent = $wpdb->get_var($wpdb->prepare(
+				"SELECT user_item_id FROM {$table_ui} WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course' ORDER BY user_item_id DESC LIMIT 1",
+				$user_id, $course_id
+			));
+			if ($c_parent) $parent_ids[] = absint($c_parent);
+		}
+
+		$parent_ids = array_unique(array_filter($parent_ids));
+		foreach ($parent_ids as $pid) {
+			$p_meta_rows = $wpdb->get_results($wpdb->prepare(
+				"SELECT meta_key, meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d",
+				$pid
+			));
+			$p_meta = [];
+			foreach ((array)$p_meta_rows as $pm) {
+				$p_meta[$pm->meta_key] = maybe_unserialize($pm->meta_value);
+			}
+
+			foreach (['_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes', 'attempts', '_attempts', '_retake_results'] as $rk) {
+				if (!empty($p_meta[$rk])) {
+					$raw_val = $p_meta[$rk];
+					if (is_string($raw_val)) {
+						$raw_val = maybe_unserialize($raw_val);
+						if (is_string($raw_val) && (strpos($raw_val, '{') === 0 || strpos($raw_val, '[') === 0)) {
+							$raw_val = json_decode($raw_val, true);
+						}
+					}
+					if (is_array($raw_val)) {
+						if (isset($raw_val[$quiz_id]) && is_array($raw_val[$quiz_id])) {
+							$raw_val = $raw_val[$quiz_id];
+						}
+						foreach ($raw_val as $r_idx => $r_att) {
+							if (!is_array($r_att) && !is_object($r_att)) continue;
+							$r_arr = (array)$r_att;
+							if (isset($r_arr['quiz_id']) && intval($r_arr['quiz_id']) !== $quiz_id && intval($r_arr['quiz_id']) > 0) continue;
+							if (isset($r_arr['item_id']) && intval($r_arr['item_id']) !== $quiz_id && intval($r_arr['item_id']) > 0) continue;
+
+							$r_uid = isset($r_arr['user_item_id']) && !empty($r_arr['user_item_id']) ? $r_arr['user_item_id'] : ($pid . '_pr' . $r_idx);
+							$candidates[] = [
+								'user_item_id' => $r_uid,
+								'raw'          => $r_arr,
+								'status'       => $r_arr['status'] ?? 'completed',
+								'graduation'   => $r_arr['graduation'] ?? null,
+								'start_time'   => $r_arr['start_time'] ?? '',
+								'end_time'     => $r_arr['end_time'] ?? '',
+							];
+						}
+					}
+				}
+			}
+		}
+
+		$formatted_attempts = [];
+		$seen_fingerprints  = [];
+
+		foreach ($candidates as $cand) {
+			$raw  = array_merge((array)($cand['raw'] ?? []), (array)$cand);
+			$c_id = strval($cand['user_item_id']);
+
+			// Bỏ started / in-progress
+			$status_check = strtolower($cand['status'] ?? ($raw['status'] ?? 'completed'));
+			if (in_array($status_check, ['started', 'in-progress'], true)) {
+				continue;
+			}
+
+			// 1. Mark & User mark
+			$q_count = intval($raw['question_count'] ?? $raw['questions_count'] ?? $raw['count'] ?? $default_q_count);
+			if ($q_count <= 0) $q_count = $default_q_count;
+			$mark = intval($raw['mark'] ?? $raw['total_mark'] ?? $q_count);
+			if ($mark <= 0) $mark = $q_count;
+
+			$user_mark = 0.0;
+			if (isset($raw['user_mark']) && is_numeric($raw['user_mark'])) {
+				$user_mark = floatval($raw['user_mark']);
+			} elseif (isset($raw['question_correct']) && is_numeric($raw['question_correct'])) {
+				$user_mark = floatval($raw['question_correct']);
+			} elseif (isset($raw['correct']) && is_numeric($raw['correct'])) {
+				$user_mark = floatval($raw['correct']);
+			}
+
+			// 2. Correct / Wrong / Skipped
+			$correct = 0;
+			if (isset($raw['question_correct']) && is_numeric($raw['question_correct'])) {
+				$correct = intval($raw['question_correct']);
+			} elseif (isset($raw['correct']) && is_numeric($raw['correct'])) {
+				$correct = intval($raw['correct']);
+			} else {
+				$correct = intval($user_mark);
+			}
+
+			// Nếu correct vẫn là 0 nhưng có chuỗi points hoặc questions ví dụ "3 / 4"
+			if ($correct === 0 && !empty($raw['questions']) && is_string($raw['questions']) && strpos($raw['questions'], '/') !== false) {
+				$parts = explode('/', $raw['questions']);
+				$correct = intval(trim($parts[0]));
+				if ($user_mark === 0.0) $user_mark = floatval($correct);
+			} elseif ($correct === 0 && !empty($raw['points']) && is_string($raw['points']) && strpos($raw['points'], '/') !== false) {
+				$parts = explode('/', $raw['points']);
+				$correct = intval(trim($parts[0]));
+				if ($user_mark === 0.0) $user_mark = floatval($correct);
+			}
+
+			// Nếu correct vẫn là 0 nhưng có result_num và mark
+			if ($correct === 0 && !empty($raw['result_num']) && $mark > 0) {
+				$correct = intval(round((floatval($raw['result_num']) / 100) * $mark));
+				if ($user_mark === 0.0) $user_mark = floatval($correct);
+			}
+
+			$wrong = 0;
+			if (isset($raw['question_wrong']) && is_numeric($raw['question_wrong'])) {
+				$wrong = intval($raw['question_wrong']);
+			} elseif (isset($raw['wrong']) && is_numeric($raw['wrong'])) {
+				$wrong = intval($raw['wrong']);
+			} else {
+				$wrong = max(0, $mark - $correct);
+			}
+
+			$skipped = 0;
+			if (isset($raw['question_empty']) && is_numeric($raw['question_empty'])) {
+				$skipped = intval($raw['question_empty']);
+			} elseif (isset($raw['skipped']) && is_numeric($raw['skipped'])) {
+				$skipped = intval($raw['skipped']);
+			}
+
+			$score_num = 0;
+			if (isset($raw['result_num']) && $raw['result_num'] !== null && $raw['result_num'] !== '') {
+				$score_num = floatval($raw['result_num']);
+			} elseif (isset($raw['result']) && $raw['result'] !== null && $raw['result'] !== '') {
+				$score_num = floatval(str_replace('%', '', strval($raw['result'])));
+			} elseif ($mark > 0) {
+				$score_num = ($user_mark / $mark) * 100;
+			}
+
+			$is_passed = (isset($cand['graduation']) && $cand['graduation'] === 'passed')
+				|| (isset($raw['graduation']) && $raw['graduation'] === 'passed')
+				|| (!empty($raw['pass']))
+				|| ($score_num >= $passing_grade_num);
+
+			$grad_str = $is_passed ? 'passed' : 'failed';
+
+			// Parse time_spent
+			$ts_raw = $raw['time_spend'] ?? $raw['time_spent'] ?? $raw['duration'] ?? '';
+			$sec    = 0;
+			$ts_str = '00:00:00';
+			if (is_numeric($ts_raw) && floatval($ts_raw) > 0) {
+				$sec = intval($ts_raw);
+				$ts_str = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+			} elseif (is_string($ts_raw) && !empty(trim($ts_raw)) && !in_array(trim($ts_raw), ['00:00:00', '00:00', '0', '--:--'], true)) {
+				$parts = array_map('intval', explode(':', trim($ts_raw)));
+				if (count($parts) === 3) {
+					$sec = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
+					$ts_str = sprintf('%02d:%02d:%02d', $parts[0], $parts[1], $parts[2]);
+				} elseif (count($parts) === 2) {
+					$sec = $parts[0] * 60 + $parts[1];
+					$ts_str = sprintf('00:%02d:%02d', $parts[0], $parts[1]);
+				}
+			} elseif (!empty($cand['start_time']) && !empty($cand['end_time']) && $cand['end_time'] !== '0000-00-00 00:00:00') {
+				$t1 = is_numeric($cand['start_time']) ? intval($cand['start_time']) : strtotime($cand['start_time']);
+				$t2 = is_numeric($cand['end_time'])   ? intval($cand['end_time'])   : strtotime($cand['end_time']);
+				if ($t1 && $t2 && $t2 >= $t1) {
+					$sec = $t2 - $t1;
+					$ts_str = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+				}
+			}
+
+			// Start Time & End Time
+			$start_key = !empty($cand['start_time']) && $cand['start_time'] !== '0000-00-00 00:00:00' ? $cand['start_time'] : ($raw['start_time'] ?? '');
+			$end_key   = !empty($cand['end_time']) && $cand['end_time'] !== '0000-00-00 00:00:00' ? $cand['end_time'] : ($raw['end_time'] ?? '');
+
+			if (empty($start_key) && !empty($end_key) && $sec > 0) {
+				$start_key = date('Y-m-d H:i:s', strtotime($end_key) - $sec);
+			}
+
+			// Fingerprint để deduplicate
+			if ($start_key && $end_key) {
+				$fp = $start_key . '_' . $end_key . '_' . sprintf('%.2f', $score_num) . '_' . $correct;
+			} elseif ($end_key) {
+				$fp = 'end_' . $end_key . '_' . sprintf('%.2f', $score_num) . '_' . $ts_str . '_' . $correct;
+			} else {
+				$fp = 'uid_' . $c_id . '_' . sprintf('%.2f', $score_num) . '_' . $ts_str . '_' . $correct;
+			}
+
+			if (isset($seen_fingerprints[$fp])) {
+				continue;
+			}
+			$seen_fingerprints[$fp] = true;
+
+			$formatted_attempts[] = [
+				'user_item_id'     => $c_id,
+				'status'           => 'completed',
+				'graduation'       => $grad_str,
+				'start_time'       => $start_key,
+				'end_time'         => $end_key,
+				'time_spent'       => $ts_str,
+				'time_spend'       => $ts_str,
+				'questions'        => "{$correct} / {$mark}",
+				'questions_count'  => $q_count,
+				'correct'          => $correct,
+				'wrong'            => $wrong,
+				'skipped'          => $skipped,
+				'minus_points'     => isset($raw['minus_point']) ? floatval($raw['minus_point']) : ($minus_point_val * $wrong),
+				'points'           => "{$user_mark} / {$mark}",
+				'user_mark'        => $user_mark,
+				'mark'             => $mark,
+				'passing_grade'    => $raw['passing_grade'] ?? $passing_grade_str,
+				'result'           => sprintf('%.2f%%', $score_num),
+				'result_num'       => $score_num,
+				'results'          => !empty($raw['questions']) ? $raw : ($cand['raw'] ?? []),
+			];
+		}
+
+		// Sắp xếp theo thứ tự thời gian tăng dần (Lần 1 -> Lần 2 -> Lần 3...)
+		usort($formatted_attempts, function($a, $b) {
+			$t1 = !empty($a['start_time']) ? strtotime($a['start_time']) : (!empty($a['end_time']) ? strtotime($a['end_time']) : 0);
+			$t2 = !empty($b['start_time']) ? strtotime($b['start_time']) : (!empty($b['end_time']) ? strtotime($b['end_time']) : 0);
+			if ($t1 && $t2 && $t1 !== $t2) {
+				return $t1 - $t2;
+			}
+			$id1 = intval(preg_replace('/\D/', '', strval($a['user_item_id'])));
+			$id2 = intval(preg_replace('/\D/', '', strval($b['user_item_id'])));
+			return $id1 - $id2;
+		});
+
+		// Đảm bảo ID lượt làm của mỗi lần là DUY NHẤT (không bị trùng ID 329 giữa Lần 1 và Lần 2 khi LP retake)
+		$seen_id_counts = [];
+		foreach ($formatted_attempts as $idx => &$att) {
+			$clean_id = preg_replace('/-\d+$/', '', strval($att['user_item_id']));
+			if (!isset($seen_id_counts[$clean_id])) {
+				$seen_id_counts[$clean_id] = 1;
+				$att['user_item_id'] = $clean_id;
+			} else {
+				$seen_id_counts[$clean_id]++;
+				$att['user_item_id'] = $clean_id . '-' . $seen_id_counts[$clean_id];
+			}
+		}
+		unset($att);
+
+		// Chỉ giữ tối đa 4 kết quả gần nhất (4 recent attempts)
+		if (count($formatted_attempts) > 4) {
+			$formatted_attempts = array_slice($formatted_attempts, -4);
+		}
+
+		if (!empty($formatted_attempts)) {
+			update_user_meta($user_id, "_custom_lp_quiz_attempts_{$quiz_id}", $formatted_attempts);
+		}
+
+		return $formatted_attempts;
 	}
 }
 
 /**
- * Ghi history vào current + parent + mọi record cũ
+ * Ghi history vào user_meta an toàn tuyệt đối, không ghi đè meta nội bộ của LearnPress
  */
 if (!function_exists('custom_write_quiz_attempts_history')) {
 	function custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $current_user_item_id, $attempts_history) {
+		static $writing_locks = [];
+		$lock_key = $user_id . '_' . $quiz_id . '_' . $current_user_item_id;
+		if (isset($writing_locks[$lock_key])) {
+			return;
+		}
+		$writing_locks[$lock_key] = true;
+
+		try {
+			$current_user_item_id = absint($current_user_item_id);
+			$user_id              = absint($user_id);
+			$quiz_id              = absint($quiz_id);
+
+			if (!$user_id || !$quiz_id || empty($attempts_history)) {
+				unset($writing_locks[$lock_key]);
+				return;
+			}
+
+			// 1. Lưu vào user_meta (Bền vững nhất, an toàn, độc lập không làm hỏng LearnPress native core)
+			update_user_meta($user_id, "_custom_lp_quiz_attempts_{$quiz_id}", $attempts_history);
+
+			// 2. Lưu vào custom meta của user_item
+			if ($current_user_item_id > 0) {
+				learn_press_update_user_item_meta($current_user_item_id, '_custom_quiz_attempts', $attempts_history);
+			}
+		} catch (Throwable $e) {}
+
+		unset($writing_locks[$lock_key]);
+	}
+}
+
+// Tự động dọn dẹp meta LearnPress bị lưu sai format nếu có từ trước
+add_action('init', 'custom_cleanup_corrupted_lp_retake_meta');
+function custom_cleanup_corrupted_lp_retake_meta() {
+	static $cleaned = false;
+	if ($cleaned) return;
+	$cleaned = true;
+
+	global $wpdb;
+	$table_uim = $wpdb->prefix . 'learnpress_user_itemmeta';
+	if ($wpdb->get_var("SHOW TABLES LIKE '{$table_uim}'") === $table_uim) {
+		$rows = $wpdb->get_results("SELECT meta_id, meta_key, meta_value FROM {$table_uim} WHERE meta_key IN ('attempts', '_attempts', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes')");
+		foreach ((array)$rows as $r) {
+			$val = maybe_unserialize($r->meta_value);
+			if (is_array($val) && isset($val[0]) && isset($val[0]['user_item_id'])) {
+				$wpdb->delete($table_uim, ['meta_id' => $r->meta_id]);
+			}
+		}
+	}
+}
+
+if (!function_exists('custom_resolve_lp_quiz_params')) {
+	function custom_resolve_lp_quiz_params($p1, $p2 = null, $p3 = null, $p4 = null) {
 		global $wpdb;
 		$table_ui = $wpdb->prefix . 'learnpress_user_items';
 
-		$keys = [
-			'attempts',
-			'_attempts',
-			'_lp_quiz_retake_items',
-			'_lp_retake_items',
-			'_lp_user_item_retakes',
-		];
+		$user_id      = 0;
+		$quiz_id      = 0;
+		$course_id    = 0;
+		$user_item_id = 0;
 
-		$current_user_item_id = absint($current_user_item_id);
-		$user_id = absint($user_id);
-		$quiz_id = absint($quiz_id);
-		$course_id = absint($course_id);
+		// 1. Object
+		if (is_object($p1)) {
+			if (method_exists($p1, 'get_user_item_id')) $user_item_id = intval($p1->get_user_item_id());
+			elseif (isset($p1->user_item_id)) $user_item_id = intval($p1->user_item_id);
 
-		// 1) Current
-		if ($current_user_item_id > 0) {
-			foreach ($keys as $key) {
-				learn_press_update_user_item_meta($current_user_item_id, $key, $attempts_history);
+			if (method_exists($p1, 'get_item_id')) $quiz_id = intval($p1->get_item_id());
+			elseif (isset($p1->item_id)) $quiz_id = intval($p1->item_id);
+
+			if (method_exists($p1, 'get_course_id')) $course_id = intval($p1->get_course_id());
+			elseif (isset($p1->ref_id)) $course_id = intval($p1->ref_id);
+
+			if (method_exists($p1, 'get_user_id')) $user_id = intval($p1->get_user_id());
+			elseif (isset($p1->user_id)) $user_id = intval($p1->user_id);
+		}
+
+		// 2. Numeric
+		if (is_numeric($p1) && intval($p1) > 0) {
+			$num = intval($p1);
+			$ui  = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_ui} WHERE user_item_id = %d", $num));
+			if ($ui) {
+				$user_item_id = $num;
+				if ($ui->item_type === 'lp_quiz') {
+					$quiz_id   = intval($ui->item_id);
+					$course_id = intval($ui->ref_id);
+					$user_id   = intval($ui->user_id);
+				}
+			} else {
+				$post_type = get_post_type($num);
+				if ($post_type === 'lp_quiz') {
+					$quiz_id = $num;
+				}
 			}
 		}
 
-		// 2) Parent (course user_item)
-		$parent_id = 0;
-		if ($current_user_item_id > 0) {
-			$parent_id = intval($wpdb->get_var($wpdb->prepare(
-				"SELECT parent_id FROM {$table_ui} WHERE user_item_id = %d",
-				$current_user_item_id
+		foreach ([$p2, $p3, $p4] as $p) {
+			if (is_numeric($p) && intval($p) > 0) {
+				$val = intval($p);
+				if (!$user_id && get_userdata($val)) {
+					$user_id = $val;
+				} elseif (!$course_id && get_post_type($val) === 'lp_course') {
+					$course_id = $val;
+				} elseif (!$quiz_id && get_post_type($val) === 'lp_quiz') {
+					$quiz_id = $val;
+				} elseif (!$user_item_id) {
+					$chk = $wpdb->get_var($wpdb->prepare("SELECT user_item_id FROM {$table_ui} WHERE user_item_id = %d", $val));
+					if ($chk) $user_item_id = $val;
+				}
+			}
+		}
+
+		if (!$user_id) {
+			$user_id = get_current_user_id();
+		}
+
+		if (!$quiz_id && $user_item_id) {
+			$quiz_id = intval($wpdb->get_var($wpdb->prepare("SELECT item_id FROM {$table_ui} WHERE user_item_id = %d", $user_item_id)));
+		}
+
+		if (!$user_item_id && $user_id && $quiz_id) {
+			$user_item_id = intval($wpdb->get_var($wpdb->prepare(
+				"SELECT user_item_id FROM {$table_ui} WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' ORDER BY user_item_id DESC LIMIT 1",
+				$user_id, $quiz_id
 			)));
 		}
-		if ($parent_id <= 0 && $course_id > 0) {
-			$parent_id = intval($wpdb->get_var($wpdb->prepare(
-				"SELECT user_item_id FROM {$table_ui}
-				 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-				 ORDER BY user_item_id DESC LIMIT 1",
-				$user_id, $course_id
-			)));
-		}
-		if ($parent_id > 0) {
-			foreach ($keys as $key) {
-				learn_press_update_user_item_meta($parent_id, $key, $attempts_history);
-			}
+
+		if (!$course_id && $quiz_id && function_exists('learn_press_get_item_course_id')) {
+			$course_id = learn_press_get_item_course_id($quiz_id, 'lp_quiz');
 		}
 
-		// 3) Mọi record quiz cũ + ép completed
-		$old_ids = $wpdb->get_col($wpdb->prepare(
-			"SELECT user_item_id FROM {$table_ui}
-			 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-			   AND user_item_id != %d
-			 ORDER BY user_item_id ASC",
-			$user_id, $quiz_id, $current_user_item_id
-		));
-		foreach ($old_ids as $oid) {
-			$oid = absint($oid);
-			$wpdb->update($table_ui, ['status' => 'completed'], ['user_item_id' => $oid], ['%s'], ['%d']);
-			foreach ($keys as $key) {
-				learn_press_update_user_item_meta($oid, $key, $attempts_history);
-			}
-		}
+		return [$user_id, $quiz_id, $course_id, $user_item_id];
 	}
 }
 
 // Hook tự động đồng bộ khi hoàn thành bài Quiz từ giao diện WordPress LearnPress
-add_action('learn-press/user/quiz-finished', 'custom_sync_lp_native_quiz_finished', 10, 4);
-add_action('learn_press_user_finish_quiz', 'custom_sync_lp_native_quiz_finished', 10, 4);
-add_action('learn-press/quiz/finished', 'custom_sync_lp_native_quiz_finished', 10, 4);
+add_action('learn-press/user/quiz-finished', 'custom_sync_lp_native_quiz_finished', 20, 4);
+add_action('learn_press_user_finish_quiz', 'custom_sync_lp_native_quiz_finished', 20, 4);
 
-function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id = 0, $course_id = 0, $user_id = 0) {
-	global $wpdb;
-	$user_item_id = intval($item_id_or_user_item_id);
-	if (!$user_item_id) return;
+function custom_sync_lp_native_quiz_finished($p1 = null, $p2 = null, $p3 = null, $p4 = null) {
+	static $synced_items = [];
 
-	$table_ui  = $wpdb->prefix . 'learnpress_user_items';
-	$table_uim = $wpdb->prefix . 'learnpress_user_itemmeta';
-
-	$ui = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_ui} WHERE user_item_id = %d", $user_item_id));
-	if (!$ui || $ui->item_type !== 'lp_quiz') return;
-
-	$quiz_id   = $quiz_id   ?: intval($ui->item_id);
-	$course_id = $course_id ?: intval($ui->ref_id);
-	$user_id   = $user_id   ?: intval($ui->user_id);
-
-
-	// Sau dòng: $user_id   = $user_id   ?: intval($ui->user_id);
-	// ===== Force sync kết quả từ Result DB (nguồn chính của LP 4.x) vào meta =====
 	try {
-		$current_results = null;
+		list($user_id, $quiz_id, $course_id, $user_item_id) = custom_resolve_lp_quiz_params($p1, $p2, $p3, $p4);
 
-		// Ưu tiên lấy từ bảng learnpress_user_item_results
-		if (class_exists('LP_User_Items_Result_DB')) {
-			$current_results = LP_User_Items_Result_DB::instance()->get_result($user_item_id);
-			if (is_string($current_results)) {
-				$current_results = json_decode($current_results, true);
-			}
+		if (!$user_id || !$quiz_id) return;
+
+		// Chống lặp đệ quy (Recursion lock)
+		$lock_key = $user_id . '_' . $quiz_id . '_' . $user_item_id;
+		if (isset($synced_items[$lock_key])) {
+			return;
 		}
+		$synced_items[$lock_key] = true;
 
-		// Fallback get_results của object
-		if (empty($current_results) || !is_array($current_results)) {
-			if (function_exists('learn_press_get_user_item')) {
-				$user_item_quiz = learn_press_get_user_item($user_item_id);
-				if ($user_item_quiz && method_exists($user_item_quiz, 'get_results')) {
-					$current_results = $user_item_quiz->get_results('');
-				}
-			}
-		}
+		$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0);
+		custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
+	} catch (Throwable $e) {}
+}
 
-		if (is_array($current_results) && !empty($current_results)) {
-			// Bổ sung time_spend nếu thiếu
-			$has_time = !empty($current_results['time_spend']) || !empty($current_results['time_spent']);
-			if (!$has_time && $ui->start_time && $ui->end_time && $ui->end_time !== '0000-00-00 00:00:00') {
-				$t_start = is_numeric($ui->start_time) ? intval($ui->start_time) : strtotime($ui->start_time);
-				$t_end   = is_numeric($ui->end_time)   ? intval($ui->end_time)   : strtotime($ui->end_time);
-				if ($t_start && $t_end && $t_end >= $t_start) {
-					$sec = $t_end - $t_start;
-					$ts_str = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
-					$current_results['time_spend'] = $ts_str;
-					$current_results['time_spent'] = $sec;
-				}
-			}
+// Bắt hook khi user bấm retake trên WordPress để lưu trữ lịch sử trước khi reset
+add_action('learn-press/user/quiz-retaken', 'custom_handle_lp_native_quiz_retaken', 10, 4);
+add_action('learn_press_user_retake_quiz', 'custom_handle_lp_native_quiz_retaken', 10, 4);
+add_action('learn-press/user-item/retaken', 'custom_handle_lp_native_quiz_retaken', 10, 4);
 
-			// Ghi đè meta để Next.js đọc được
-			$res_serialized = serialize($current_results);
-			$res_json       = json_encode($current_results, JSON_UNESCAPED_UNICODE);
-
-			$wpdb->query($wpdb->prepare(
-				"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key IN ('results', '_lp_user_item_results', '_lp_results', '_lp_quiz_results')",
-				$user_item_id
-			));
-			$wpdb->insert($table_uim, [
-				'learnpress_user_item_id' => $user_item_id,
-				'meta_key'                => 'results',
-				'meta_value'              => $res_serialized,
-			]);
-			$wpdb->insert($table_uim, [
-				'learnpress_user_item_id' => $user_item_id,
-				'meta_key'                => '_lp_user_item_results',
-				'meta_value'              => $res_json,
-			]);
-
-			// Cập nhật thêm time_spend riêng
-			if (!empty($current_results['time_spend'])) {
-				learn_press_update_user_item_meta($user_item_id, 'time_spend', $current_results['time_spend']);
-			}
+function custom_handle_lp_native_quiz_retaken($p1 = null, $p2 = null, $p3 = null, $p4 = null) {
+	try {
+		list($user_id, $quiz_id, $course_id, $user_item_id) = custom_resolve_lp_quiz_params($p1, $p2, $p3, $p4);
+		if ($user_id && $quiz_id) {
+			$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0);
+			custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
 		}
 	} catch (Throwable $e) {}
-	
-	$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0); // lấy hết
-error_log('[custom_sync] quiz finished user_item_id=' . $user_item_id . ' quiz_id=' . $quiz_id . ' history_count=' . count($attempts_history));
-custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
+}
 
+// Hook tự động xóa sạch attempts khi Admin/User bấm "Reset Item Progress" hoặc "Reset Course Progress" trên WordPress
+add_action('learn-press/user-item/reset', 'custom_handle_lp_item_reset', 10, 4);
+add_action('learn-press/user/item-reset', 'custom_handle_lp_item_reset', 10, 4);
+add_action('learn_press_user_item_reset', 'custom_handle_lp_item_reset', 10, 4);
+add_action('learn-press/user-item/deleted', 'custom_handle_lp_item_reset', 10, 4);
+add_action('learn-press/course/reset-progress', 'custom_handle_lp_course_reset_progress', 10, 4);
+add_action('wp_ajax_learnpress_reset_user_item', 'custom_catch_lp_ajax_reset_item', 1);
+add_action('wp_ajax_lp_reset_user_item', 'custom_catch_lp_ajax_reset_item', 1);
+add_action('wp_ajax_learnpress_reset_course_progress', 'custom_catch_lp_ajax_reset_item', 1);
+add_action('wp_ajax_lp_reset_course_progress', 'custom_catch_lp_ajax_reset_item', 1);
 
-	
+function custom_handle_lp_item_reset($p1 = null, $p2 = null, $p3 = null, $p4 = null) {
+	global $wpdb;
+	list($user_id, $quiz_id, $course_id, $user_item_id) = custom_resolve_lp_quiz_params($p1, $p2, $p3, $p4);
+	if ($user_id && $quiz_id) {
+		delete_user_meta($user_id, "_custom_lp_quiz_attempts_{$quiz_id}");
+	}
+	if ($user_id && $course_id) {
+		$table_ui = $wpdb->prefix . 'learnpress_user_items';
+		$quiz_ids = $wpdb->get_col($wpdb->prepare(
+			"SELECT item_id FROM {$table_ui} WHERE user_id = %d AND (parent_id = %d OR ref_id = %d) AND item_type = 'lp_quiz'",
+			$user_id, $course_id, $course_id
+		));
+		foreach ((array)$quiz_ids as $qid) {
+			delete_user_meta($user_id, "_custom_lp_quiz_attempts_{$qid}");
+		}
+	}
+}
+
+function custom_handle_lp_course_reset_progress($course_id, $user_id, $p3 = null) {
+	global $wpdb;
+	$user_id   = absint($user_id);
+	$course_id = absint($course_id);
+	if (!$user_id || !$course_id) return;
+
+	$section_table = $wpdb->prefix . 'learnpress_sections';
+	$section_items = $wpdb->prefix . 'learnpress_section_items';
+	if ($wpdb->get_var("SHOW TABLES LIKE '{$section_items}'") === $section_items) {
+		$item_ids = $wpdb->get_col($wpdb->prepare(
+			"SELECT si.item_id FROM {$section_items} si
+			 INNER JOIN {$section_table} s ON s.section_id = si.section_id
+			 WHERE s.section_course_id = %d",
+			$course_id
+		));
+		foreach ((array)$item_ids as $iid) {
+			delete_user_meta($user_id, "_custom_lp_quiz_attempts_{$iid}");
+		}
+	}
+}
+
+function custom_catch_lp_ajax_reset_item() {
+	global $wpdb;
+	$user_item_id = isset($_POST['user_item_id']) ? intval($_POST['user_item_id']) : (isset($_GET['user_item_id']) ? intval($_GET['user_item_id']) : 0);
+	$user_id      = isset($_POST['user_id']) ? intval($_POST['user_id']) : (isset($_GET['user_id']) ? intval($_GET['user_id']) : 0);
+	$item_id      = isset($_POST['item_id']) ? intval($_POST['item_id']) : (isset($_GET['item_id']) ? intval($_GET['item_id']) : 0);
+
+	$table_ui = $wpdb->prefix . 'learnpress_user_items';
+	if ($user_item_id > 0) {
+		$row = $wpdb->get_row($wpdb->prepare("SELECT user_id, item_id, item_type, ref_id FROM {$table_ui} WHERE user_item_id = %d", $user_item_id));
+		if ($row) {
+			$u_id = intval($row->user_id);
+			$i_id = intval($row->item_id);
+			if ($row->item_type === 'lp_quiz') {
+				delete_user_meta($u_id, "_custom_lp_quiz_attempts_{$i_id}");
+			} elseif ($row->item_type === 'lp_course') {
+				custom_handle_lp_course_reset_progress($i_id, $u_id);
+			}
+		}
+	}
+	if ($user_id > 0 && $item_id > 0) {
+		delete_user_meta($user_id, "_custom_lp_quiz_attempts_{$item_id}");
+		custom_handle_lp_course_reset_progress($item_id, $user_id);
+	}
 }
 
 /**
- * 8. Console.log Quiz Attempts - format giống hệt Next.js
+ * Console.log Quiz Attempts trên WordPress - format giống hệt Next.js
  */
-
 add_action('wp_footer', 'log_user_lp_quiz_attempt_console');
 function log_user_lp_quiz_attempt_console() {
-	$quiz_id = 0;
+	try {
+		$quiz_id = 0;
 
-	if (is_singular('lp_quiz')) {
-		$quiz_id = get_the_ID();
-	} elseif (function_exists('learn_press_get_course_item')) {
-		$item = learn_press_get_course_item();
-		if ($item && method_exists($item, 'get_id')) {
-			$item_id = $item->get_id();
-			if (get_post_type($item_id) === 'lp_quiz') {
-				$quiz_id = $item_id;
-			}
-		}
-	}
-
-	if (!$quiz_id) {
-		$uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
-		if (strpos($uri, '/quizzes/') !== false) {
-			$url_path = trim(parse_url($uri, PHP_URL_PATH), '/');
-			$parts    = explode('/', $url_path);
-			$q_idx    = array_search('quizzes', $parts);
-			if ($q_idx !== false && isset($parts[$q_idx + 1])) {
-				$quiz_slug = sanitize_title($parts[$q_idx + 1]);
-				global $wpdb;
-				$quiz_id_db = $wpdb->get_var($wpdb->prepare(
-					"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'lp_quiz' LIMIT 1",
-					$quiz_slug
-				));
-				if ($quiz_id_db) {
-					$quiz_id = intval($quiz_id_db);
+		if (is_singular('lp_quiz')) {
+			$quiz_id = get_the_ID();
+		} elseif (function_exists('learn_press_get_course_item')) {
+			$item = learn_press_get_course_item();
+			if ($item && method_exists($item, 'get_id')) {
+				$item_id = $item->get_id();
+				if (get_post_type($item_id) === 'lp_quiz') {
+					$quiz_id = $item_id;
 				}
 			}
 		}
-	}
 
-	if (!$quiz_id) return;
-
-	$is_logged_in = is_user_logged_in();
-	$current_user = wp_get_current_user();
-	$user_id      = isset($_GET['user_id']) ? intval($_GET['user_id']) : ($is_logged_in ? $current_user->ID : 0);
-
-	// ===== Lấy data đầy đủ giống API /custom/v1/quiz-attempts =====
-	$attempts_list = [];
-	if ($user_id && $quiz_id && function_exists('handle_get_custom_quiz_attempts')) {
-		// Gọi lại logic của API để có data already enriched
-		$request = new WP_REST_Request('GET', '/custom/v1/quiz-attempts');
-		$request->set_param('user_id', $user_id);
-		$request->set_param('quiz_id', $quiz_id);
-		$response = handle_get_custom_quiz_attempts($request);
-		if ($response instanceof WP_REST_Response) {
-			$data = $response->get_data();
-			if (!empty($data['attempts']) && is_array($data['attempts'])) {
-				$attempts_list = $data['attempts'];
+		if (!$quiz_id) {
+			$uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+			if (strpos($uri, '/quizzes/') !== false) {
+				$url_path = trim(parse_url($uri, PHP_URL_PATH), '/');
+				$parts    = explode('/', $url_path);
+				$q_idx    = array_search('quizzes', $parts);
+				if ($q_idx !== false && isset($parts[$q_idx + 1])) {
+					$quiz_slug = sanitize_title($parts[$q_idx + 1]);
+					global $wpdb;
+					$quiz_id_db = $wpdb->get_var($wpdb->prepare(
+						"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'lp_quiz' LIMIT 1",
+						$quiz_slug
+					));
+					if ($quiz_id_db) {
+						$quiz_id = intval($quiz_id_db);
+					}
+				}
 			}
 		}
-	}
 
-	// Fallback nhẹ nếu API chưa có
-	if (empty($attempts_list) && $user_id && $quiz_id) {
-		global $wpdb;
-		$table_items = $wpdb->prefix . 'learnpress_user_items';
-		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
-			$rows = $wpdb->get_results($wpdb->prepare(
-				"SELECT user_item_id, start_time, end_time, status, graduation
-				FROM {$table_items}
-				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-				ORDER BY user_item_id ASC",
-				$user_id, $quiz_id
-			));
+		if (!$quiz_id) return;
 
-			foreach ((array)$rows as $row) {
-				$attempts_list[] = [
-					'user_item_id' => $row->user_item_id,
-					'status'       => $row->status,
-					'graduation'   => $row->graduation ?: 'failed',
-					'start_time'   => $row->start_time,
-					'end_time'     => $row->end_time,
-					'result'       => '0.00%',
-					'result_num'   => 0,
-					'correct'      => 0,
-					'wrong'        => 0,
-					'skipped'      => 0,
-					'user_mark'    => 0,
-					'mark'         => 0,
-					'time_spent'   => '00:00:00',
-					'points'       => '0 / 0',
-				];
-			}
+		$is_logged_in = is_user_logged_in();
+		$current_user = wp_get_current_user();
+		$user_id      = isset($_GET['user_id']) ? intval($_GET['user_id']) : ($is_logged_in ? $current_user->ID : 0);
+
+		$attempts_list = [];
+		if ($user_id && $quiz_id && function_exists('custom_build_quiz_previous_attempts_history')) {
+			$attempts_list = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0);
 		}
-	}
 
-	$quiz_title = get_the_title($quiz_id);
-	$quiz_slug  = get_post_field('post_name', $quiz_id);
+		$quiz_title = get_the_title($quiz_id);
+		$quiz_slug  = get_post_field('post_name', $quiz_id);
 
-	$log_payload = [
-		'is_logged_in' => $is_logged_in,
-		'user'         => $is_logged_in ? [
-			'id'           => $current_user->ID,
-			'user_login'   => $current_user->user_login,
-			'user_email'   => $current_user->user_email,
-			'display_name' => $current_user->display_name,
-			'roles'        => $current_user->roles,
-		] : 'User is not logged in',
-		'quiz'         => [
-			'id'    => $quiz_id,
-			'title' => $quiz_title,
-			'slug'  => $quiz_slug,
-		],
-		'attempts_count' => count($attempts_list),
-		'attempts'       => $attempts_list,
-	];
+		$log_payload = [
+			'is_logged_in' => $is_logged_in,
+			'user'         => $is_logged_in ? [
+				'id'           => $current_user->ID,
+				'user_login'   => $current_user->user_login,
+				'user_email'   => $current_user->user_email,
+				'display_name' => $current_user->display_name,
+				'roles'        => $current_user->roles,
+			] : 'User is not logged in',
+			'quiz'         => [
+				'id'    => $quiz_id,
+				'title' => $quiz_title,
+				'slug'  => $quiz_slug,
+			],
+			'attempts_count' => count($attempts_list),
+			'attempts'       => $attempts_list,
+		];
 ?>
 <script type="text/javascript">
 (function() {
@@ -4223,9 +3571,13 @@ function log_user_lp_quiz_attempt_console() {
 	var quizName = (payload.quiz && payload.quiz.title) ? payload.quiz.title : '';
 	var sorted = Array.isArray(payload.attempts) ? payload.attempts.slice() : [];
 
-	// Sort theo user_item_id tăng dần (giống Next)
 	sorted.sort(function(a, b) {
-		return (parseInt(a.user_item_id, 10) || 0) - (parseInt(b.user_item_id, 10) || 0);
+		var timeA = a.start_time ? new Date(a.start_time).getTime() : (a.end_time ? new Date(a.end_time).getTime() : 0);
+		var timeB = b.start_time ? new Date(b.start_time).getTime() : (b.end_time ? new Date(b.end_time).getTime() : 0);
+		if (timeA && timeB && timeA !== timeB) return timeA - timeB;
+		var idA = parseInt(String(a.user_item_id).replace(/\D/g, ''), 10) || 0;
+		var idB = parseInt(String(b.user_item_id).replace(/\D/g, ''), 10) || 0;
+		return idA - idB;
 	});
 
 	console.group("%c[WordPress LearnPress Quiz Attempts] " + quizName,
@@ -4248,13 +3600,13 @@ function log_user_lp_quiz_attempt_console() {
 					"ID lượt làm": att.user_item_id,
 					"Kết quả": att.graduation || att.status || "-",
 					"Điểm số": att.result || ((att.result_num || 0) + "%"),
-					"Số câu đúng": att.correct !== undefined ? att.correct : "undefined",
-					"Số câu sai": att.wrong !== undefined ? att.wrong : "undefined",
-					"Số câu bỏ qua": att.skipped !== undefined ? att.skipped : "undefined",
+					"Số câu đúng": att.correct !== undefined ? att.correct : 0,
+					"Số câu sai": att.wrong !== undefined ? att.wrong : 0,
+					"Số câu bỏ qua": att.skipped !== undefined ? att.skipped : 0,
 					"Điểm đạt": att.points || ((att.user_mark || 0) + " / " + (att.mark || 0)),
 					"Thời gian": att.time_spent || "-",
-					"Thời gian bắt đầu": att.start_time || "undefined",
-					"Thời gian kết thúc": att.end_time || "undefined",
+					"Thời gian bắt đầu": att.start_time || "-",
+					"Thời gian kết thúc": att.end_time || "-",
 					"Dữ liệu đầy đủ": att
 				}
 			);
@@ -4263,7 +3615,6 @@ function log_user_lp_quiz_attempt_console() {
 		console.log("Chưa có lượt làm bài nào cho Quiz này.");
 	}
 
-	// Lưu tạm để copy dễ
 	window.__LP_QUIZ_ATTEMPTS__ = sorted;
 	window.__LP_QUIZ_LAST__     = sorted.length ? sorted[sorted.length - 1] : null;
 
@@ -4271,6 +3622,7 @@ function log_user_lp_quiz_attempt_console() {
 })();
 </script>
 <?php
+	} catch (Throwable $e) {}
 }
 
 // 1. Đổi permalink của Quiz để WordPress trả về đúng đường dẫn NextJS
@@ -4443,1140 +3795,320 @@ add_action('rest_api_init', function () {
 });
 
 function custom_lp_submit_quiz(WP_REST_Request $request) {
-	$p = $request->get_json_params();
-	$user_id   = absint($p['user_id'] ?? 0);
-	$quiz_id   = absint($p['quiz_id'] ?? 0);
-	$course_id = absint($p['course_id'] ?? 0);
-	$answered  = (array) ($p['answers'] ?? []);
-	$questions_detail = (array) ($p['questions_detail'] ?? []);
-	$graduation = sanitize_text_field($p['graduation'] ?? 'failed');
-	$result_percent = floatval($p['result'] ?? 0);
-	$user_mark = floatval($p['user_mark'] ?? 0);
-	$total_mark = floatval($p['total_mark'] ?? 0);
-	$time_spent = sanitize_text_field($p['time_spent'] ?? '');
-	$time_spent_seconds = absint($p['time_spent_seconds'] ?? 0);
-	$correct = absint($p['correct'] ?? 0);
-	$wrong = absint($p['wrong'] ?? 0);
-	$skipped = absint($p['skipped'] ?? 0);
-
-	if (!$user_id || !$quiz_id) {
-		return new WP_REST_Response(['success' => false, 'message' => 'Thiếu user_id hoặc quiz_id'], 400);
-	}
-	if (!function_exists('learn_press_get_user')) {
-		return new WP_REST_Response(['success' => false, 'message' => 'LearnPress chưa kích hoạt'], 500);
-	}
-
-	$user = learn_press_get_user($user_id);
-	if (!$user) {
-		return new WP_REST_Response(['success' => false, 'message' => 'User không tồn tại'], 404);
-	}
-	if (!$course_id) {
-		$course_id = learn_press_get_item_course_id($quiz_id, 'lp_quiz');
-	}
-	if (!$course_id) {
-		return new WP_REST_Response(['success' => false, 'message' => 'Không tìm thấy course_id'], 400);
-	}
-
-	global $wpdb;
-	$table = $wpdb->prefix . 'learnpress_user_items';
-
-	// ===== Helper: map answer (index/title/"true") → LP option value =====
-	$map_answer_to_lp_value = function ($question_id, $raw_ans) use ($wpdb) {
-		if ($raw_ans === null || $raw_ans === '') return null;
-
-		// Lấy options thật từ DB
-		$answers_table = $wpdb->prefix . 'learnpress_question_answers';
-		$meta_table    = $wpdb->prefix . 'learnpress_question_answermeta';
-
-		$rows = $wpdb->get_results($wpdb->prepare(
-			"SELECT qa.question_answer_id,
-			MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
-			MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
-			MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text,
-			MAX(CASE WHEN qam.meta_key = 'is_true' THEN qam.meta_value END) as is_true
-		FROM {$answers_table} qa
-		LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
-		WHERE qa.question_id = %d
-		GROUP BY qa.question_answer_id
-		ORDER BY qa.answer_order ASC, qa.question_answer_id ASC",
-			$question_id
-		));
-
-		// Fallback LP_Question object
-		if (empty($rows) && function_exists('learn_press_get_question')) {
-			$q = learn_press_get_question($question_id);
-			if ($q) {
-				$list = [];
-				foreach ($q->get_answers() as $opt) {
-					$data = method_exists($opt, 'get_data') ? $opt->get_data() : (array) $opt;
-					$list[] = (object) [
-						'value'   => $data['value'] ?? '',
-						'title'   => $data['title'] ?? ($data['text'] ?? ''),
-						'is_true' => $data['is_true'] ?? '',
-					];
-				}
-				$rows = $list;
-			}
-		}
-
-		if (empty($rows)) {
-			// Fallback cuối cho true/false
-			if ($raw_ans === 0 || $raw_ans === '0' || $raw_ans === true || $raw_ans === 'true' || $raw_ans === 'True') return 'true';
-			if ($raw_ans === 1 || $raw_ans === '1' || $raw_ans === false || $raw_ans === 'false' || $raw_ans === 'False') return 'false';
-			return is_array($raw_ans) ? $raw_ans : (string) $raw_ans;
-		}
-
-		// multi_choice
-		if (is_array($raw_ans)) {
-			$mapped = [];
-			foreach ($raw_ans as $one) {
-				$idx = 0;
-				foreach ($rows as $row) {
-					$val   = $row->value ?? '';
-					$title = $row->title ?? ($row->text ?? '');
-					if ((string)$one === (string)$idx
-						|| (string)$one === (string)$val
-						|| strcasecmp((string)$one, (string)$title) === 0
-						|| (strtolower((string)$one) === 'true' && strtolower($title) === 'true')
-						|| (strtolower((string)$one) === 'false' && strtolower($title) === 'false')
-					   ) {
-						if ($val !== '') $mapped[] = $val;
-						break;
-					}
-					$idx++;
-				}
-			}
-			return $mapped;
-		}
-
-		// single / true_or_false: map theo index, value, title
-		$idx = 0;
-		foreach ($rows as $row) {
-			$val   = $row->value ?? '';
-			$title = $row->title ?? ($row->text ?? '');
-			$match = (
-				(string)$raw_ans === (string)$idx
-				|| (string)$raw_ans === (string)$val
-				|| strcasecmp((string)$raw_ans, (string)$title) === 0
-				|| (strtolower((string)$raw_ans) === 'true'  && (strtolower($title) === 'true'  || $val === 'true'))
-				|| (strtolower((string)$raw_ans) === 'false' && (strtolower($title) === 'false' || $val === 'false'))
-			);
-			if ($match) {
-				return $val !== '' ? $val : (string)$raw_ans;
-			}
-			$idx++;
-		}
-
-		return (string) $raw_ans;
-	};
-
-	// ===== Chuẩn hóa answers =====
-	// ===== Map answers → LP value hash (giữ nguyên helper $map_answer_to_lp_value) =====
-	$lp_answered = [];
-	foreach ($answered as $qid => $ans) {
-		$qid = absint($qid);
-		if (!$qid) continue;
-		$lp_answered[$qid] = $map_answer_to_lp_value($qid, $ans);
-	}
-	foreach ($questions_detail as $qid => $detail) {
-		$qid = absint($qid);
-		if (!$qid || isset($lp_answered[$qid])) continue;
-		$lp_answered[$qid] = $map_answer_to_lp_value($qid, $detail['answered'] ?? null);
-	}
-
-	// ===== user_item =====
-	// Luôn tạo attempt MỚI (giống Retake của LearnPress)
-	$time_spent_seconds = absint($p['time_spent_seconds'] ?? 0);
-	if ($time_spent_seconds <= 0 && !empty($time_spent)) {
-		$parts = array_map('intval', explode(':', $time_spent));
-		if (count($parts) === 3) {
-			$time_spent_seconds = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
-		} elseif (count($parts) === 2) {
-			$time_spent_seconds = $parts[0] * 60 + $parts[1];
-		}
-	}
-	$end_ts   = current_time('timestamp');
-	$start_ts = $end_ts - max($time_spent_seconds, 1);
-
-	// Tìm hoặc tự động tạo parent_id (user_item_id của course record)
-	$parent_id = 0;
-	if ($course_id) {
-		$course_item = $wpdb->get_row($wpdb->prepare(
-			"SELECT user_item_id FROM {$table}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-			ORDER BY user_item_id DESC LIMIT 1",
-			$user_id,
-			$course_id
-		));
-		if ($course_item) {
-			$parent_id = intval($course_item->user_item_id);
-		} else {
-			$now_time = current_time('mysql');
-			$wpdb->insert($table, [
-				'user_id'    => $user_id,
-				'item_id'    => $course_id,
-				'start_time' => $now_time,
-				'item_type'  => 'lp_course',
-				'status'     => 'enrolled',
-				'graduation' => 'in-progress',
-			]);
-			$parent_id = intval($wpdb->insert_id);
-		}
-	}
-
-	// ===== Ưu tiên dùng bản ghi "started" / "in-progress" do Retake tạo ra =====
-$existing_started = $wpdb->get_var($wpdb->prepare(
-    "SELECT user_item_id FROM {$table}
-     WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-       AND status IN ('started', 'in-progress')
-     ORDER BY user_item_id DESC LIMIT 1",
-    $user_id, $quiz_id
-));
-
-if ($existing_started) {
-    // Cập nhật bản ghi started → completed (không tạo thêm dòng rác)
-    $wpdb->update(
-        $table,
-        [
-            'status'     => 'completed',
-            'graduation' => ($graduation === 'passed') ? 'passed' : 'failed',
-            'start_time' => date('Y-m-d H:i:s', $start_ts),
-            'end_time'   => date('Y-m-d H:i:s', $end_ts),
-            'parent_id'  => $parent_id ?: 0,
-            'ref_id'     => $course_id ?: 0,
-            'ref_type'   => $course_id ? 'lp_course' : '',
-        ],
-        ['user_item_id' => intval($existing_started)],
-        ['%s', '%s', '%s', '%s', '%d', '%d', '%s'],
-        ['%d']
-    );
-    $user_item_id = intval($existing_started);
-} else {
-    // Không có bản started → tạo mới bình thường
-    $wpdb->insert($table, [
-        'user_id'    => $user_id,
-        'item_id'    => $quiz_id,
-        'item_type'  => 'lp_quiz',
-        'parent_id'  => $parent_id,
-        'ref_id'     => $course_id,
-        'ref_type'   => 'lp_course',
-        'status'     => 'completed',
-        'graduation' => ($graduation === 'passed') ? 'passed' : 'failed',
-        'start_time' => date('Y-m-d H:i:s', $start_ts),
-        'end_time'   => date('Y-m-d H:i:s', $end_ts),
-    ]);
-    $user_item_id = $wpdb->insert_id;
-}
-
-if (!$user_item_id) {
-    return new WP_REST_Response(['success' => false, 'message' => 'Không tạo/cập nhật được user_item'], 500);
-}
-
-	// Cập nhật parent_id cho các bản ghi mồ côi cũ của quiz này
-	if ($parent_id > 0) {
-		$wpdb->query($wpdb->prepare(
-			"UPDATE {$table} SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND (parent_id = 0 OR parent_id IS NULL)",
-			$parent_id, $course_id, $user_id, $quiz_id
-		));
-	}
-
-	// ===== Build result – ƯU TIÊN điểm từ Next.js =====
-	$grade = ($graduation === 'passed') ? 'passed' : 'failed';
-	$pass  = ($grade === 'passed') ? 1 : 0;
-
-	$result_data = [
-		'questions'          => [],
-		'mark'               => $total_mark > 0 ? $total_mark : 4,
-		'user_mark'          => $user_mark,
-		'question_count'     => $total_mark > 0 ? $total_mark : 4,
-		'question_correct'   => $correct,
-		'question_wrong'     => $wrong,
-		'question_empty'     => $skipped,
-		'question_answered'  => $correct + $wrong,
-		'status'             => 'completed',
-		'grade'              => $grade,
-		'result'             => $result_percent,   // 75 từ Next.js
-		'pass'               => $pass,
-		'time_spend'         => $time_spent,
-		'passing_grade'      => is_numeric(get_post_meta($quiz_id, '_lp_passing_grade', true)) 
-		? get_post_meta($quiz_id, '_lp_passing_grade', true) . '%' 
-		: (get_post_meta($quiz_id, '_lp_passing_grade', true) ?: '80%'),  // ← THÊM
-	];
-
-	// Gắn answered (hash) + đúng/sai từ Next.js
-	foreach ($lp_answered as $qid => $ans) {
-		$detail = $questions_detail[$qid] ?? $questions_detail[(string)$qid] ?? [];
-		$is_correct = !empty($detail['correct']);
-		$result_data['questions'][$qid] = [
-			'answered'  => $ans,
-			'correct'   => $is_correct,
-			'mark'      => isset($detail['mark']) ? floatval($detail['mark']) : 1,
-			'user_mark' => isset($detail['user_mark']) ? floatval($detail['user_mark']) : ($is_correct ? 1 : 0),
-		];
-	}
-
-	// Lưu results
-	if (class_exists('LP_User_Items_Result_DB')) {
-		LP_User_Items_Result_DB::instance()->update($user_item_id, wp_json_encode($result_data));
-	} else {
-		learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
-	}
-
-
-// Lấy history TẤT CẢ (không exclude) rồi ghi lại
-$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0); // 0 = lấy hết
-custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
-
-	// Meta answers để review tick radio
-
-
-	// Meta answers để review tick radio
-	learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
-	learn_press_update_user_item_meta($user_item_id, '_question_answers', $lp_answered);
-	learn_press_update_user_item_meta($user_item_id, 'grade', $grade);
-	// 	if ($time_spent) {
-	// 		learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spent);
-	// 	}
-
-	// Update user_items
-	// Tính start/end theo time_spent_seconds để LP hiển thị đúng
-	$time_spent_seconds = absint($p['time_spent_seconds'] ?? 0);
-	if ($time_spent_seconds <= 0 && !empty($time_spent)) {
-		$parts = array_map('intval', explode(':', $time_spent));
-		if (count($parts) === 3) {
-			$time_spent_seconds = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
-		} elseif (count($parts) === 2) {
-			$time_spent_seconds = $parts[0] * 60 + $parts[1];
-		}
-	}
-
-	$end_ts   = current_time('timestamp');
-	$start_ts = $end_ts - max($time_spent_seconds, 1);
-	$start_mysql = date('Y-m-d H:i:s', $start_ts);
-	$end_mysql   = date('Y-m-d H:i:s', $end_ts);
-
-	$h = floor($time_spent_seconds / 3600);
-	$m = floor(($time_spent_seconds % 3600) / 60);
-	$s = $time_spent_seconds % 60;
-	$time_spend_formatted = sprintf('%02d:%02d:%02d', $h, $m, $s);
-
-	$wpdb->update(
-		$table,
-		[
-			'status'     => 'completed',
-			'graduation' => $grade,
-			'start_time' => $start_mysql,
-			'end_time'   => $end_mysql,
-		],
-		['user_item_id' => $user_item_id],
-		['%s', '%s', '%s', '%s'],
-		['%d']
-	);
-
-	learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spend_formatted);
-
-	// complete() nếu có
 	try {
-		$user_quiz = $user->get_item_data($quiz_id, $course_id);
-		if ($user_quiz) {
-			if (method_exists($user_quiz, 'set_graduation')) {
-				$user_quiz->set_graduation($grade);
-			}
-			if (method_exists($user_quiz, 'complete')) {
-				$user_quiz->complete();
-			}
-		}
-	} catch (Throwable $e) {}
-
-	do_action('learn-press/user/quiz-finished', $quiz_id, $course_id, $user_id);
-
-	return new WP_REST_Response([
-		'success'      => true,
-		'user_item_id' => $user_item_id,
-		'graduation'   => $grade,
-		'result'       => $result_percent,
-		'answered'     => $lp_answered,
-		'message'      => 'Nộp bài thành công',
-	], 200);
-}
-
-function handle_submit_quiz_result($request) {
-	try {
-		global $wpdb;
-
-		$body       = $request->get_json_params();
-		$user_id    = isset($body['user_id']) ? intval($body['user_id']) : 0;
-		$raw_quiz   = isset($body['quiz_id']) ? $body['quiz_id'] : 0;
-		$raw_course = isset($body['course_id']) ? $body['course_id'] : 0;
-
-		$quiz_id   = is_numeric($raw_quiz) ? intval($raw_quiz) : 0;
-		$course_id = is_numeric($raw_course) ? intval($raw_course) : 0;
-
-		// Trường hợp quiz_id hoặc course_id được truyền dạng slug
-		if (!$quiz_id && !empty($raw_quiz)) {
-			$slug_clean = sanitize_title($raw_quiz);
-			$found_q    = $wpdb->get_var($wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type IN ('lp_quiz', 'lp_lesson') ORDER BY ID DESC LIMIT 1",
-				$slug_clean
-			));
-			if ($found_q) $quiz_id = intval($found_q);
-		}
-
-		if (!$course_id && !empty($raw_course)) {
-			$slug_clean = sanitize_title($raw_course);
-			$found_c    = $wpdb->get_var($wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'lp_course' ORDER BY ID DESC LIMIT 1",
-				$slug_clean
-			));
-			if ($found_c) $course_id = intval($found_c);
-		}
+		$p = $request->get_json_params();
+		$user_id   = absint($p['user_id'] ?? 0);
+		$quiz_id   = absint($p['quiz_id'] ?? 0);
+		$course_id = absint($p['course_id'] ?? 0);
+		$answered  = (array) ($p['answers'] ?? []);
+		$questions_detail = (array) ($p['questions_detail'] ?? []);
+		$graduation = sanitize_text_field($p['graduation'] ?? 'failed');
+		$result_percent = floatval($p['result'] ?? 0);
+		$user_mark = floatval($p['user_mark'] ?? 0);
+		$total_mark = floatval($p['total_mark'] ?? 0);
+		$time_spent = sanitize_text_field($p['time_spent'] ?? '');
+		$time_spent_seconds = absint($p['time_spent_seconds'] ?? 0);
+		$correct = absint($p['correct'] ?? 0);
+		$wrong = absint($p['wrong'] ?? 0);
+		$skipped = absint($p['skipped'] ?? 0);
 
 		if (!$user_id || !$quiz_id) {
-			return new WP_Error('missing_params', 'Thiếu user_id hoặc quiz_id', ['status' => 400]);
+			return new WP_REST_Response(['success' => false, 'message' => 'Thiếu user_id hoặc quiz_id'], 400);
+		}
+		if (!function_exists('learn_press_get_user')) {
+			return new WP_REST_Response(['success' => false, 'message' => 'LearnPress chưa kích hoạt'], 500);
 		}
 
-		$now = current_time('mysql');
+		$user = learn_press_get_user($user_id);
+		if (!$user) {
+			return new WP_REST_Response(['success' => false, 'message' => 'User không tồn tại'], 404);
+		}
+		if (!$course_id) {
+			$course_id = learn_press_get_item_course_id($quiz_id, 'lp_quiz');
+		}
+		if (!$course_id) {
+			return new WP_REST_Response(['success' => false, 'message' => 'Không tìm thấy course_id'], 400);
+		}
 
-		$result_percent = isset($body['result'])     ? floatval($body['result'])     : 0;
-		$correct        = isset($body['correct'])    ? intval($body['correct'])      : 0;
-		$wrong          = isset($body['wrong'])      ? intval($body['wrong'])        : 0;
-		$skipped        = isset($body['skipped'])    ? intval($body['skipped'])      : 0;
-		$user_mark      = isset($body['user_mark'])  ? floatval($body['user_mark'])  : $correct;
-		$total_mark     = isset($body['total_mark']) ? floatval($body['total_mark']) : ($correct + $wrong + $skipped);
-		$time_spent     = isset($body['time_spent']) ? sanitize_text_field($body['time_spent']) : '00:00:00';
-		$graduation     = isset($body['graduation']) ? sanitize_text_field($body['graduation'])  : 'failed';
+		global $wpdb;
+		$table = $wpdb->prefix . 'learnpress_user_items';
 
-		$table_ui  = $wpdb->prefix . 'learnpress_user_items';
-		$table_uim = $wpdb->prefix . 'learnpress_user_itemmeta';
+		// ===== Helper: map answer (index/title/"true") → LP option value =====
+		$map_answer_to_lp_value = function ($question_id, $raw_ans) use ($wpdb) {
+			if ($raw_ans === null || $raw_ans === '') return null;
 
-		// Tự động truy vấn course_id từ DB LearnPress nếu course_id bị thiếu hoặc bằng 0
-		if (!$course_id && $quiz_id) {
-			$table_sections  = $wpdb->prefix . 'learnpress_sections';
-			$table_sec_items = $wpdb->prefix . 'learnpress_section_items';
-			if ($wpdb->get_var("SHOW TABLES LIKE '{$table_sec_items}'") === $table_sec_items) {
-				$found_cid = $wpdb->get_var($wpdb->prepare(
-					"SELECT s.section_course_id FROM {$table_sections} s 
-				JOIN {$table_sec_items} i ON s.section_id = i.section_id 
-				WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
-					$quiz_id
-				));
-				if ($found_cid) {
-					$course_id = intval($found_cid);
+			$answers_table = $wpdb->prefix . 'learnpress_question_answers';
+			$meta_table    = $wpdb->prefix . 'learnpress_question_answermeta';
+
+			$rows = $wpdb->get_results($wpdb->prepare(
+				"SELECT qa.question_answer_id,
+				MAX(CASE WHEN qam.meta_key = 'value' THEN qam.meta_value END) as value,
+				MAX(CASE WHEN qam.meta_key = 'title' THEN qam.meta_value END) as title,
+				MAX(CASE WHEN qam.meta_key = 'text' THEN qam.meta_value END) as text,
+				MAX(CASE WHEN qam.meta_key = 'is_true' THEN qam.meta_value END) as is_true
+			FROM {$answers_table} qa
+			LEFT JOIN {$meta_table} qam ON qam.learnpress_question_answer_id = qa.question_answer_id
+			WHERE qa.question_id = %d
+			GROUP BY qa.question_answer_id
+			ORDER BY qa.answer_order ASC, qa.question_answer_id ASC",
+				$question_id
+			));
+
+			if (empty($rows) && function_exists('learn_press_get_question')) {
+				$q = learn_press_get_question($question_id);
+				if ($q) {
+					$list = [];
+					foreach ($q->get_answers() as $opt) {
+						$data = method_exists($opt, 'get_data') ? $opt->get_data() : (array) $opt;
+						$list[] = (object) [
+							'value'   => $data['value'] ?? '',
+							'title'   => $data['title'] ?? ($data['text'] ?? ''),
+							'is_true' => $data['is_true'] ?? '',
+						];
+					}
+					$rows = $list;
 				}
 			}
+
+			if (empty($rows)) {
+				if ($raw_ans === 0 || $raw_ans === '0' || $raw_ans === true || $raw_ans === 'true' || $raw_ans === 'True') return 'true';
+				if ($raw_ans === 1 || $raw_ans === '1' || $raw_ans === false || $raw_ans === 'false' || $raw_ans === 'False') return 'false';
+				return is_array($raw_ans) ? $raw_ans : (string) $raw_ans;
+			}
+
+			if (is_array($raw_ans)) {
+				$mapped = [];
+				foreach ($raw_ans as $one) {
+					$idx = 0;
+					foreach ($rows as $row) {
+						$val   = $row->value ?? '';
+						$title = $row->title ?? ($row->text ?? '');
+						if ((string)$one === (string)$idx
+							|| (string)$one === (string)$val
+							|| strcasecmp((string)$one, (string)$title) === 0
+							|| (strtolower((string)$one) === 'true' && strtolower($title) === 'true')
+							|| (strtolower((string)$one) === 'false' && strtolower($title) === 'false')
+						   ) {
+							if ($val !== '') $mapped[] = $val;
+							break;
+						}
+						$idx++;
+					}
+				}
+				return $mapped;
+			}
+
+			$idx = 0;
+			foreach ($rows as $row) {
+				$val   = $row->value ?? '';
+				$title = $row->title ?? ($row->text ?? '');
+				$match = (
+					(string)$raw_ans === (string)$idx
+					|| (string)$raw_ans === (string)$val
+					|| strcasecmp((string)$raw_ans, (string)$title) === 0
+					|| (strtolower((string)$raw_ans) === 'true'  && (strtolower($title) === 'true'  || $val === 'true'))
+					|| (strtolower((string)$raw_ans) === 'false' && (strtolower($title) === 'false' || $val === 'false'))
+				);
+				if ($match) {
+					return $val !== '' ? $val : (string)$raw_ans;
+				}
+				$idx++;
+			}
+
+			return (string) $raw_ans;
+		};
+
+		// ===== Map answers → LP value hash =====
+		$lp_answered = [];
+		foreach ($answered as $qid => $ans) {
+			$qid = absint($qid);
+			if (!$qid) continue;
+			$lp_answered[$qid] = $map_answer_to_lp_value($qid, $ans);
+		}
+		foreach ($questions_detail as $qid => $detail) {
+			$qid = absint($qid);
+			if (!$qid || isset($lp_answered[$qid])) continue;
+			$lp_answered[$qid] = $map_answer_to_lp_value($qid, $detail['answered'] ?? null);
 		}
 
-		// --- Bước 2: Tìm hoặc tự động tạo parent_id (user_item_id của course record) ---
+		if ($time_spent_seconds <= 0 && !empty($time_spent)) {
+			$parts = array_map('intval', explode(':', $time_spent));
+			if (count($parts) === 3) {
+				$time_spent_seconds = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
+			} elseif (count($parts) === 2) {
+				$time_spent_seconds = $parts[0] * 60 + $parts[1];
+			}
+		}
+		$end_ts   = current_time('timestamp');
+		$start_ts = $end_ts - max($time_spent_seconds, 1);
+		$start_mysql = date('Y-m-d H:i:s', $start_ts);
+		$end_mysql   = date('Y-m-d H:i:s', $end_ts);
+
+		$h = floor($time_spent_seconds / 3600);
+		$m = floor(($time_spent_seconds % 3600) / 60);
+		$s = $time_spent_seconds % 60;
+		$time_spend_formatted = sprintf('%02d:%02d:%02d', $h, $m, $s);
+
+		// Tìm hoặc tự động tạo parent_id
 		$parent_id = 0;
 		if ($course_id) {
 			$course_item = $wpdb->get_row($wpdb->prepare(
-				"SELECT user_item_id FROM {$table_ui}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-			ORDER BY user_item_id DESC LIMIT 1",
+				"SELECT user_item_id FROM {$table}
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+				ORDER BY user_item_id DESC LIMIT 1",
 				$user_id,
 				$course_id
 			));
 			if ($course_item) {
 				$parent_id = intval($course_item->user_item_id);
 			} else {
-				// Tự động tạo bản ghi enrollment cho Course nếu chưa có
-				$wpdb->insert(
-					$table_ui,
-					[
-						'user_id'    => $user_id,
-						'item_id'    => $course_id,
-						'item_type'  => 'lp_course',
-						'start_time' => $now,
-						'status'     => 'enrolled',
-						'graduation' => 'in-progress',
-					],
-					['%d', '%d', '%s', '%s', '%s', '%s']
-				);
+				$now_time = current_time('mysql');
+				$wpdb->insert($table, [
+					'user_id'    => $user_id,
+					'item_id'    => $course_id,
+					'start_time' => $now_time,
+					'item_type'  => 'lp_course',
+					'status'     => 'enrolled',
+					'graduation' => 'in-progress',
+				]);
 				$parent_id = intval($wpdb->insert_id);
 			}
 		}
 
-		// --- Bước 3: Tìm quiz user_item record đã tồn tại ---
-		// Ưu tiên record có parent_id đúng, fallback sang bất kỳ record nào
-		$existing = null;
-		if ($parent_id) {
-			$existing = $wpdb->get_row($wpdb->prepare(
-				"SELECT user_item_id, status FROM {$table_ui}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
-			ORDER BY user_item_id DESC LIMIT 1",
-				$user_id, $quiz_id, $parent_id
-			));
-		}
-		if (!$existing) {
-			$existing = $wpdb->get_row($wpdb->prepare(
-				"SELECT user_item_id, status FROM {$table_ui}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
-			ORDER BY user_item_id DESC LIMIT 1",
-				$user_id, $quiz_id
-			));
-		}
+		// Ưu tiên UPDATE bản ghi "started" do Retake tạo ra
+		$existing_started = $wpdb->get_var($wpdb->prepare(
+			"SELECT user_item_id FROM {$table}
+			 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+			   AND status IN ('started', 'in-progress')
+			 ORDER BY user_item_id DESC LIMIT 1",
+			$user_id, $quiz_id
+		));
 
-		// Parse time_spent thành số giây INTEGER và chuỗi định dạng HH:MM:SS
-		$time_spent_sec = 0;
-		if (isset($body['time_spent_seconds']) && is_numeric($body['time_spent_seconds'])) {
-			$time_spent_sec = intval($body['time_spent_seconds']);
-		} elseif (isset($body['time_spent'])) {
-			$raw_t = $body['time_spent'];
-			if (is_numeric($raw_t)) {
-				$time_spent_sec = intval($raw_t);
-			} elseif (is_string($raw_t) && strpos($raw_t, ':') !== false) {
-				$parts = array_map('intval', explode(':', $raw_t));
-				if (count($parts) === 3) $time_spent_sec = $parts[0] * 3600 + $parts[1] * 60 + $parts[2];
-				elseif (count($parts) === 2) $time_spent_sec = $parts[0] * 60 + $parts[1];
-			}
-		}
+		$grade = ($graduation === 'passed') ? 'passed' : 'failed';
+		$pass  = ($grade === 'passed') ? 1 : 0;
 
-		$t_end = current_time('timestamp');
-		$t_start = $t_end - max(1, $time_spent_sec);
-		$start_time_str = date('Y-m-d H:i:s', $t_start);
-		$end_time_str   = date('Y-m-d H:i:s', $t_end);
-		$time_spent_str = sprintf('%02d:%02d:%02d', floor($time_spent_sec / 3600), floor(($time_spent_sec % 3600) / 60), $time_spent_sec % 60);
-
-		// --- Bước 4: Upsert user_item record ---
-		// Nếu lượt làm cũ đã 'completed' -> đây là lượt làm lại (Retake) -> Insert bản ghi MỚI vào wp_learnpress_user_items
-		if ($existing && $existing->status === 'completed') {
-			$wpdb->insert(
-				$table_ui,
-				[
-					'user_id'    => $user_id,
-					'item_id'    => $quiz_id,
-					'item_type'  => 'lp_quiz',
-					'parent_id'  => $parent_id ?: 0,
-					'ref_id'     => $course_id  ?: 0,
-					'ref_type'   => $course_id ? 'lp_course' : '',
-					'start_time' => $start_time_str,
-					'end_time'   => $end_time_str,
-					'status'     => 'completed',
-					'graduation' => $graduation,
-				],
-				['%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
-			);
-			$user_item_id = intval($wpdb->insert_id);
-		} elseif ($existing) {
-			// Lượt làm cũ đang 'in-progress' -> Update bản ghi này
-			$user_item_id = intval($existing->user_item_id);
+		if ($existing_started) {
 			$wpdb->update(
-				$table_ui,
+				$table,
 				[
 					'status'     => 'completed',
-					'graduation' => $graduation,
-					'start_time' => $start_time_str,
-					'end_time'   => $end_time_str,
+					'graduation' => $grade,
+					'start_time' => $start_mysql,
+					'end_time'   => $end_mysql,
 					'parent_id'  => $parent_id ?: 0,
-					'ref_id'     => $course_id  ?: 0,
+					'ref_id'     => $course_id ?: 0,
 					'ref_type'   => $course_id ? 'lp_course' : '',
 				],
-				['user_item_id' => $user_item_id]
+				['user_item_id' => intval($existing_started)],
+				['%s','%s','%s','%s','%d','%d','%s'],
+				['%d']
 			);
+			$user_item_id = intval($existing_started);
 		} else {
-			// Chưa có bản ghi nào -> Insert bản ghi đầu tiên
-			$wpdb->insert(
-				$table_ui,
-				[
-					'user_id'    => $user_id,
-					'item_id'    => $quiz_id,
-					'item_type'  => 'lp_quiz',
-					'parent_id'  => $parent_id ?: 0,
-					'ref_id'     => $course_id  ?: 0,
-					'ref_type'   => $course_id ? 'lp_course' : '',
-					'start_time' => $start_time_str,
-					'end_time'   => $end_time_str,
-					'status'     => 'completed',
-					'graduation' => $graduation,
-				],
-				['%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
-			);
-			$user_item_id = intval($wpdb->insert_id);
-		}
-
-		// ĐỒNG BỘ SONG SONG: Tạo/Cập nhật bản ghi standalone (parent_id = 0, ref_id = 0) để hiển thị đúng trên standalone wordpress_url
-		$standalone_user_item_id = 0;
-		if ($parent_id > 0 || $course_id > 0) {
-			$existing_standalone = $wpdb->get_row($wpdb->prepare(
-				"SELECT user_item_id, status FROM {$table_ui}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = 0 AND ref_id = 0
-			ORDER BY user_item_id DESC LIMIT 1",
-				$user_id, $quiz_id
-			));
-
-			if ($existing_standalone && $existing_standalone->status === 'completed') {
-				$wpdb->insert(
-					$table_ui,
-					[
-						'user_id'    => $user_id,
-						'item_id'    => $quiz_id,
-						'item_type'  => 'lp_quiz',
-						'parent_id'  => 0,
-						'ref_id'     => 0,
-						'ref_type'   => '',
-						'start_time' => $start_time_str,
-						'end_time'   => $end_time_str,
-						'status'     => 'completed',
-						'graduation' => $graduation,
-					],
-					['%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
-				);
-				$standalone_user_item_id = intval($wpdb->insert_id);
-			} elseif ($existing_standalone) {
-				$standalone_user_item_id = intval($existing_standalone->user_item_id);
-				$wpdb->update(
-					$table_ui,
-					[
-						'status'     => 'completed',
-						'graduation' => $graduation,
-						'start_time' => $start_time_str,
-						'end_time'   => $end_time_str,
-						'parent_id'  => 0,
-						'ref_id'     => 0,
-						'ref_type'   => '',
-					],
-					['user_item_id' => $standalone_user_item_id]
-				);
-			} else {
-				$wpdb->insert(
-					$table_ui,
-					[
-						'user_id'    => $user_id,
-						'item_id'    => $quiz_id,
-						'item_type'  => 'lp_quiz',
-						'parent_id'  => 0,
-						'ref_id'     => 0,
-						'ref_type'   => '',
-						'start_time' => $start_time_str,
-						'end_time'   => $end_time_str,
-						'status'     => 'completed',
-						'graduation' => $graduation,
-					],
-					['%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
-				);
-				$standalone_user_item_id = intval($wpdb->insert_id);
-			}
+			$wpdb->insert($table, [
+				'user_id'    => $user_id,
+				'item_id'    => $quiz_id,
+				'item_type'  => 'lp_quiz',
+				'parent_id'  => $parent_id,
+				'ref_id'     => $course_id,
+				'ref_type'   => 'lp_course',
+				'status'     => 'completed',
+				'graduation' => $grade,
+				'start_time' => $start_mysql,
+				'end_time'   => $end_mysql,
+			]);
+			$user_item_id = $wpdb->insert_id;
 		}
 
 		if (!$user_item_id) {
-			return new WP_Error('db_error', 'Không thể lưu kết quả quiz vào database', ['status' => 500]);
+			return new WP_REST_Response(['success' => false, 'message' => 'Không tạo/cập nhật được user_item'], 500);
 		}
 
-		// --- Bước 5: Chuẩn bị dữ liệu kết quả theo cấu trúc LearnPress 4.x ---
-		$answers = isset($body['answers']) && is_array($body['answers']) ? $body['answers'] : [];
-		$questions_data = [];
-
-		// Tìm tất cả ID câu hỏi của Quiz này
-		$quiz_question_ids = [];
-		$table_qq = $wpdb->prefix . 'learnpress_quiz_questions';
-		$table_qa = $wpdb->prefix . 'learnpress_question_answers';
-
-		$q_rows = $wpdb->get_col($wpdb->prepare(
-			"SELECT question_id FROM {$table_qq} WHERE quiz_id = %d ORDER BY question_order ASC",
-			$quiz_id
-		));
-		if (!empty($q_rows)) {
-			$quiz_question_ids = array_map('intval', $q_rows);
-		}
-
-		if (empty($quiz_question_ids) && !empty($answers)) {
-			foreach (array_keys($answers) as $q_key) {
-				$qid_int = intval($q_key);
-				if ($qid_int > 0) $quiz_question_ids[] = $qid_int;
-			}
-		}
-
-		$debug_log = [];
-		$mapped_answers = [];
-
-		// Lặp qua từng câu hỏi trong quiz để lập $questions_data và lưu vào user_itemmeta
-		foreach ($quiz_question_ids as $q_id_int) {
-			$q_id_str = strval($q_id_int);
-
-			// 1. Lấy điểm (mark) của câu hỏi này từ postmeta của question
-			$q_mark = get_post_meta($q_id_int, '_lp_mark', true);
-			$q_mark = $q_mark ? floatval($q_mark) : 1.0;
-
-			// 2. Lấy danh sách đáp án (options) của câu hỏi sử dụng cơ chế giống hệt hàm lấy danh sách câu hỏi
-			$db_options = [];
-
-			// Hướng 1: Thử sử dụng LearnPress Native API (đây là cách an toàn và chuẩn xác nhất nếu hàm tồn tại)
-			if (function_exists('learn_press_get_question')) {
-				try {
-					$lp_q_obj = learn_press_get_question($q_id_int);
-					if ($lp_q_obj && method_exists($lp_q_obj, 'get_answers')) {
-						$lp_answers_obj = $lp_q_obj->get_answers();
-						if (!empty($lp_answers_obj)) {
-							$o_idx = 0;
-							foreach ((array)$lp_answers_obj as $ans_item) {
-								$val_val = '';
-								$is_tr_val = null;
-								$ans_title = '';
-
-								if (is_object($ans_item)) {
-									if (method_exists($ans_item, 'get_value')) {
-										$val_val = $ans_item->get_value();
-									}
-									if (method_exists($ans_item, 'is_true')) {
-										$is_tr_val = $ans_item->is_true();
-									} elseif (method_exists($ans_item, 'get_is_true')) {
-										$is_tr_val = $ans_item->get_is_true();
-									}
-									if (method_exists($ans_item, 'get_title')) {
-										$ans_title = $ans_item->get_title();
-									}
-								}
-
-								$a_arr = (array)$ans_item;
-								// Quét tất cả các thuộc tính của mảng nếu getter trả về rỗng (đối phó với protected properties khi cast)
-								if (empty($val_val)) {
-									foreach ($a_arr as $k => $v) {
-										$k_clean = strtolower($k);
-										if (strpos($k_clean, 'value') !== false && !empty($v)) {
-											$val_val = $v;
-										}
-										if ((strpos($k_clean, 'is_true') !== false || strpos($k_clean, 'correct') !== false) && $v !== null) {
-											$is_tr_val = $v;
-										}
-										if ((strpos($k_clean, 'title') !== false || strpos($k_clean, 'text') !== false) && !empty($v)) {
-											$ans_title = $v;
-										}
-									}
-								}
-
-								if (empty($val_val)) {
-									$val_val = isset($a_arr['value']) ? $a_arr['value']
-										: (isset($a_arr['question_answer_id']) ? $a_arr['question_answer_id'] : $o_idx);
-								}
-								if ($is_tr_val === null) {
-									$is_tr_val = isset($a_arr['is_true']) ? $a_arr['is_true']
-										: (isset($a_arr['correct']) ? $a_arr['correct'] : false);
-								}
-
-								$db_options[] = (object)[
-									'question_answer_id' => isset($a_arr['question_answer_id']) ? $a_arr['question_answer_id'] : $o_idx,
-									'value' => $val_val,
-									'is_true' => ($is_tr_val === 'yes' || $is_tr_val === '1' || $is_tr_val === 1 || $is_tr_val === true || $is_tr_val === 'true') ? 'yes' : 'no',
-									'title' => !empty($ans_title) ? $ans_title : (isset($a_arr['title']) ? $a_arr['title'] : '')
-								];
-								$o_idx++;
-							}
-						}
-					}
-				} catch (Exception $e) {}
-			}
-
-			// Hướng 2: Truy vấn trực tiếp từ bảng learnpress_question_answers
-			if (empty($db_options)) {
-				$db_rows = $wpdb->get_results($wpdb->prepare(
-					"SELECT question_answer_id, value, is_true FROM {$table_qa} WHERE question_id = %d ORDER BY answer_order ASC",
-					$q_id_int
-				));
-				if (!empty($db_rows)) {
-					$db_options = $db_rows;
-				}
-			}
-
-			// Hướng 3: Mock cho câu hỏi Đúng/Sai (True/False)
-			$q_type = get_post_meta($q_id_int, '_lp_type', true);
-			if (empty($q_type)) {
-				$q_type = $wpdb->get_var($wpdb->prepare("SELECT post_mime_type FROM {$wpdb->posts} WHERE ID = %d", $q_id_int));
-			}
-			if (($q_type === 'true_or_false' || $q_type === 'true_false' || strpos($q_type, 'true') !== false) && empty($db_options)) {
-				$tf_correct = get_post_meta($q_id_int, '_true_false', true);
-				$db_options = [
-					(object)[
-						'question_answer_id' => 0,
-						'value' => 'yes',
-						'is_true' => ($tf_correct === 'yes' || $tf_correct === 'true' || $tf_correct === '1' || $tf_correct === 1) ? 'yes' : 'no'
-					],
-					(object)[
-						'question_answer_id' => 1,
-						'value' => 'no',
-						'is_true' => ($tf_correct === 'no' || $tf_correct === 'false' || $tf_correct === '0' || $tf_correct === 0) ? 'yes' : 'no'
-					]
-				];
-			}
-
-			// Hướng 4: Đọc từ các trường meta LearnPress v4.x (_lp_question_answer, _lp_question_answers, v.v.)
-			if (empty($db_options)) {
-				$lp4_answers = get_post_meta($q_id_int, '_lp_question_answer', true);
-				if (empty($lp4_answers)) $lp4_answers = get_post_meta($q_id_int, '_lp_question_answers', true);
-				if (empty($lp4_answers)) $lp4_answers = get_post_meta($q_id_int, '_question_answer', true);
-				if (empty($lp4_answers)) $lp4_answers = get_post_meta($q_id_int, '_lp_choices', true);
-
-				if (!empty($lp4_answers)) {
-					if (is_string($lp4_answers)) $lp4_answers = maybe_unserialize($lp4_answers);
-					if (is_string($lp4_answers) && (strpos($lp4_answers, '{') === 0 || strpos($lp4_answers, '[') === 0)) {
-						$lp4_answers = json_decode($lp4_answers, true);
-					}
-					if (is_array($lp4_answers)) {
-						$o_idx = 0;
-						foreach (array_values($lp4_answers) as $opt_item) {
-							if (is_array($opt_item) || is_object($opt_item)) {
-								$opt_item = (array)$opt_item;
-								$val_val = isset($opt_item['value']) ? $opt_item['value']
-									: (isset($opt_item['question_answer_id']) ? $opt_item['question_answer_id'] : $o_idx);
-								$is_tr = isset($opt_item['is_true']) ? $opt_item['is_true']
-									: (isset($opt_item['correct']) ? $opt_item['correct'] : false);
-							} else {
-								$val_val = strval($opt_item);
-								$is_tr = false;
-							}
-							$db_options[] = (object)[
-								'question_answer_id' => isset($opt_item['question_answer_id']) ? $opt_item['question_answer_id'] : $o_idx,
-								'value' => $val_val,
-								'is_true' => ($is_tr === 'yes' || $is_tr === '1' || $is_tr === 1 || $is_tr === true || $is_tr === 'true') ? 'yes' : 'no',
-								'title' => isset($opt_item['title']) ? $opt_item['title'] : ''
-							];
-							$o_idx++;
-						}
-					}
-				}
-			}
-
-			// Hướng 5: Đọc từ các trường meta options cũ (_options, _lp_options, _answers, _lp_answers)
-			if (empty($db_options)) {
-				$post_meta_opts = get_post_meta($q_id_int, '_options', true);
-				if (empty($post_meta_opts)) $post_meta_opts = get_post_meta($q_id_int, '_lp_options', true);
-				if (empty($post_meta_opts)) $post_meta_opts = get_post_meta($q_id_int, '_answers', true);
-				if (empty($post_meta_opts)) $post_meta_opts = get_post_meta($q_id_int, '_lp_answers', true);
-
-				if (!empty($post_meta_opts)) {
-					if (is_string($post_meta_opts)) $post_meta_opts = maybe_unserialize($post_meta_opts);
-					if (is_array($post_meta_opts)) {
-						$o_idx = 0;
-						foreach (array_values($post_meta_opts) as $opt_item) {
-							if (is_array($opt_item) || is_object($opt_item)) {
-								$opt_item = (array)$opt_item;
-								$val_val = isset($opt_item['value']) ? $opt_item['value']
-									: (isset($opt_item['question_answer_id']) ? $opt_item['question_answer_id'] : $o_idx);
-								$is_tr = isset($opt_item['is_true']) ? $opt_item['is_true']
-									: (isset($opt_item['correct']) ? $opt_item['correct'] : false);
-							} else {
-								$val_val = strval($opt_item);
-								$is_tr = false;
-							}
-							$db_options[] = (object)[
-								'question_answer_id' => isset($opt_item['question_answer_id']) ? $opt_item['question_answer_id'] : $o_idx,
-								'value' => $val_val,
-								'is_true' => ($is_tr === 'yes' || $is_tr === '1' || $is_tr === 1 || $is_tr === true || $is_tr === 'true') ? 'yes' : 'no',
-								'title' => isset($opt_item['title']) ? $opt_item['title'] : ''
-							];
-							$o_idx++;
-						}
-					}
-				}
-			}
-
-			// 3. Xác định đáp án đúng từ database
-			$correct_values = [];
-			foreach ($db_options as $opt) {
-				if ($opt->is_true === 'yes' || $opt->is_true === '1' || $opt->is_true === 1) {
-					$correct_values[] = $opt->value;
-				}
-			}
-
-			// 4. Lấy câu trả lời của user gửi từ NextJS (hỗ trợ cả dạng index và dạng option value trực tiếp)
-			$user_ans_indices = isset($answers[$q_id_int]) ? $answers[$q_id_int] : (isset($answers[$q_id_str]) ? $answers[$q_id_str] : null);
-
-			$user_answered_values = [];
-			if ($user_ans_indices !== null) {
-				$indices_array = is_array($user_ans_indices) ? $user_ans_indices : [$user_ans_indices];
-
-				// Trích xuất tất cả values hợp lệ từ DB
-				$all_db_values = [];
-				foreach ($db_options as $opt) {
-					$all_db_values[] = $opt->value;
-				}
-
-				foreach ($indices_array as $val) {
-					$val_str = strval($val);
-					if (in_array($val_str, $all_db_values)) {
-						// Đã khớp trực tiếp với đáp án (NextJS đã map sẵn option value)
-						$user_answered_values[] = $val_str;
-					} else {
-						// Chưa khớp, coi nó là index (0, 1, 2...) và map
-						$idx_int = intval($val_str);
-						if (isset($db_options[$idx_int])) {
-							$user_answered_values[] = $db_options[$idx_int]->value;
-						}
-					}
-				}
-			}
-
-			// 5. So sánh để biết đúng hay sai
-			$is_q_correct = false;
-			if (!empty($user_answered_values)) {
-				$temp_user = $user_answered_values;
-				$temp_corr = $correct_values;
-				sort($temp_user);
-				sort($temp_corr);
-				if ($temp_user === $temp_corr) {
-					$is_q_correct = true;
-				}
-			}
-
-			// 6. Định dạng câu trả lời cho kết quả của LearnPress
-			$answered_field = '';
-			if (count($user_answered_values) === 1) {
-				$answered_field = $user_answered_values[0];
-			} elseif (count($user_answered_values) > 1) {
-				$answered_field = $user_answered_values;
-			}
-
-			$questions_data[$q_id_str] = [
-				'answered'    => $answered_field,
-				'correct'     => $is_q_correct,
-				'mark'        => $q_mark,
-				'user_mark'   => $is_q_correct ? $q_mark : 0,
-				'explanation' => '',
-			];
-
-			// LP4 mong đợi single_choice/true_false lưu dạng chuỗi trực tiếp (unserialized), chỉ multi_choice mới lưu dạng serialized array
-			$meta_val_to_save = '';
-			if ($q_type === 'multi_choice' || $q_type === 'multiple_choice') {
-				$meta_val_to_save = serialize($user_answered_values);
-				$mapped_answers[$q_id_int] = $user_answered_values;
-			} else {
-				$meta_val_to_save = !empty($user_answered_values) ? strval($user_answered_values[0]) : '';
-				$mapped_answers[$q_id_int] = $meta_val_to_save;
-			}
-
-			// Lưu cho cả bản ghi Course-linked lẫn bản ghi Standalone
-			$target_item_ids = [$user_item_id];
-			if (isset($standalone_user_item_id) && $standalone_user_item_id > 0) {
-				$target_item_ids[] = $standalone_user_item_id;
-			}
-
-			foreach ($target_item_ids as $t_id) {
-				$wpdb->query($wpdb->prepare(
-					"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key = %s",
-					$t_id, $q_id_str
-				));
-
-				$wpdb->insert(
-					$table_uim,
-					[
-						'learnpress_user_item_id' => $t_id,
-						'meta_key'                => $q_id_str,
-						'meta_value'              => $meta_val_to_save,
-					],
-					['%d', '%s', '%s']
-				);
-			}
-
-			$debug_log[$q_id_str] = [
-				'q_type' => isset($q_type) ? $q_type : 'unknown',
-				'db_options_count' => count($db_options),
-				'db_options' => $db_options,
-				'db_error' => $wpdb->last_error,
-				'user_ans_indices' => $user_ans_indices,
-				'user_answered_values' => $user_answered_values,
-				'all_meta' => get_post_meta($q_id_int)
-			];
-		}
-
-		// Lấy thông tin cấu hình passing_grade từ post_meta của Quiz
-		$pg_val = get_post_meta($quiz_id, '_lp_passing_grade', true);
-		if (empty($pg_val)) $pg_val = get_post_meta($quiz_id, '_lp_passing_condition', true);
-		if (empty($pg_val)) $pg_val = 80;
-		$passing_grade_str = is_numeric($pg_val) ? "{$pg_val}%" : strval($pg_val);
-
-		$minus_point_meta = get_post_meta($quiz_id, '_lp_minus_point', true);
-		$minus_point_val  = (!empty($minus_point_meta) && is_numeric($minus_point_meta)) ? floatval($minus_point_meta) : 0;
-		$minus_total      = $minus_point_val * $wrong;
-
-		$result_data = [
-			'questions'        => !empty($questions_data) ? $questions_data : new stdClass(),
-			'result'           => $result_percent,
-			'user_mark'        => $user_mark,
-			'mark'             => $total_mark,
-			'question_correct' => $correct,
-			'question_wrong'   => $wrong,
-			'question_empty'   => $skipped,
-			'question_count'   => max(1, count($quiz_question_ids) ?: ($correct + $wrong + $skipped)),
-			'question_answered'=> $correct + $wrong,
-			'time_spend'       => $time_spent_str,
-			'time_spent'       => $time_spent_sec,
-			'graduation'       => $graduation,
-			'status'           => 'completed',
-			'passing_grade'    => $passing_grade_str,
-			'pass'             => ($graduation === 'passed') ? 1 : 0,
-			'finishing_type'   => 'click',
-			'minus_point'      => $minus_total,
-		];
-
-		// Chuẩn bị Lịch sử lượt làm (Retakes History / Last Attempt)
-		$existing_retakes = [];
-		$prev_user_items  = $wpdb->get_results($wpdb->prepare(
-			"SELECT user_item_id FROM {$table_ui}
-		WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND status = 'completed' AND user_item_id != %d
-		ORDER BY user_item_id ASC",
-			$user_id, $quiz_id, $user_item_id
-		));
-
-		if (!empty($prev_user_items)) {
-			foreach ($prev_user_items as $p_item) {
-				$p_meta = $wpdb->get_var($wpdb->prepare(
-					"SELECT meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key = 'results' LIMIT 1",
-					$p_item->user_item_id
-				));
-				if ($p_meta) {
-					$p_unserialized = maybe_unserialize($p_meta);
-					if (is_array($p_unserialized)) {
-						$existing_retakes[] = $p_unserialized;
-					}
-				}
-			}
-		}
-
-		// Dữ liệu JSON & Serialized chuẩn 2 hệ thống (LearnPress 4.x REST API + WP Theme Template)
-		$result_json        = json_encode($result_data, JSON_UNESCAPED_UNICODE);
-		$result_serialized  = serialize($result_data);
-		$answers_json       = json_encode($mapped_answers, JSON_UNESCAPED_UNICODE);
-		$answers_serialized = serialize($mapped_answers);
-
-		// Tất cả meta keys LearnPress 4.x cần để hiển thị đúng kết quả
-		$meta_map = [
-			'status'                   => 'completed',
-			'_lp_user_item_status'     => 'completed',
-			'grade'                    => $graduation,
-			'graduation'               => $graduation,
-			'_lp_user_item_graduation' => $graduation,
-			'_lp_user_item_score'      => $result_percent,
-			'finishing_type'           => 'click',
-			'_lp_questions'            => serialize($quiz_question_ids),
-			'_lp_question_answers'     => $answers_serialized,
-			'question_answers'         => $answers_serialized,
-			'_lp_question_answers_json'=> $answers_json,
-			'results'                  => $result_serialized,  // WP Theme Template đọc "results" dưới dạng serialized array
-			'_lp_user_item_results'    => $result_json,        // LP 4.x REST API đọc JSON
-			'_lp_results'              => $result_json,        // LP 4.x alias JSON
-			'_lp_quiz_results'         => $result_json,        // LP 4.x alias 2 JSON
-		];
-
-		if (!empty($existing_retakes)) {
-			$meta_map['_lp_quiz_retake_items'] = serialize($existing_retakes);
-			$meta_map['_lp_retake_items']      = serialize($existing_retakes);
-			$meta_map['_lp_user_item_retakes'] = serialize($existing_retakes);
-		}
-
-		// --- Bước 6: Cập nhật user_meta & Kích hoạt LearnPress Action Hooks ---
-		update_user_meta($user_id, '_lp_quiz_passed_'    . $quiz_id, $graduation === 'passed' ? '1' : '0');
-		update_user_meta($user_id, '_lp_quiz_completed_' . $quiz_id, '1');
-
-		// 1. Kích hoạt Action Hooks chính của LearnPress 4.x
-		do_action( 'learn-press/user/quiz-finished', $user_item_id, $quiz_id, $course_id, $user_id );
-		do_action( 'learn_press_user_finish_quiz', $quiz_id, $user_id, $course_id, $user_item_id );
-		do_action( 'learn_press_user_item_status_changed', $user_item_id, 'completed', 'in-progress' );
-		do_action( 'learn-press/user-item/completed', $user_item_id, $quiz_id, $user_id );
-
-		// 2. Ghi đè toàn bộ metadata chuẩn vào cơ sở dữ liệu SAU KHI các hooks chạy xong để tránh bị hooks xóa
-		$target_item_ids = [$user_item_id];
-		if (isset($standalone_user_item_id) && $standalone_user_item_id > 0) {
-			$target_item_ids[] = $standalone_user_item_id;
-		}
-
-		foreach ($target_item_ids as $t_id) {
-			foreach ($meta_map as $meta_key => $meta_value) {
-				$wpdb->query($wpdb->prepare(
-					"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key = %s",
-					$t_id, $meta_key
-				));
-
-				$wpdb->insert(
-					$table_uim,
-					[
-						'learnpress_user_item_id' => $t_id,
-						'meta_key'                => $meta_key,
-						'meta_value'              => $meta_value,
-					],
-					['%d', '%s', '%s']
-				);
-			}
-		}
-
-		// 2. Kích hoạt tính toán lại Tiến trình Khóa học & Làm sạch Cache trong LearnPress
-		if ( function_exists( 'learn_press_get_user' ) && $user_id ) {
-			try {
-				$lp_user = learn_press_get_user( $user_id );
-				if ( $lp_user ) {
-					if ( $course_id ) {
-						$user_course = $lp_user->get_course_data( $course_id );
-						if ( $user_course ) {
-							if ( method_exists( $user_course, 'calculate_course_results' ) ) {
-								$user_course->calculate_course_results();
-							}
-							if ( method_exists( $user_course, 'read_items' ) ) {
-								$user_course->read_items();
-							}
-						}
-					}
-					if ( method_exists( $lp_user, 'clean_caches' ) ) {
-						$lp_user->clean_caches();
-					}
-				}
-			} catch ( Exception $e ) {
-				error_log( 'LP Sync Hook Error: ' . $e->getMessage() );
-			}
-		}
-
-		// 3. Xóa cache LearnPress và WordPress
-		delete_user_meta( $user_id, '_lp_course_progress' );
-		delete_user_meta( $user_id, '_lp_quiz_results' );
-		wp_cache_delete( "user_item_{$user_item_id}", 'user-items' );
-		if ( $course_id ) {
-			wp_cache_delete( "user_{$user_id}_course_{$course_id}", 'user-courses' );
-		}
-
-		if (function_exists('learn_press_reset_auto_complete_order')) {
-			learn_press_reset_auto_complete_order();
-		}
-		clean_user_cache($user_id);
-		wp_cache_flush();
-
-		$db_attempts = $wpdb->get_results($wpdb->prepare(
-			"SELECT user_item_id, user_id, item_id, item_type, status, graduation, parent_id, ref_id FROM {$table_ui} WHERE item_id = %d AND item_type = 'lp_quiz' ORDER BY user_item_id DESC LIMIT 20",
-			$quiz_id
-		));
-		$attempt_ids = array_column($db_attempts, 'user_item_id');
-		$db_meta = [];
-		if (!empty($attempt_ids)) {
-			$id_placeholders = implode(',', array_fill(0, count($attempt_ids), '%d'));
-			$db_meta = $wpdb->get_results($wpdb->prepare(
-				"SELECT learnpress_user_item_id, meta_key, meta_value FROM {$table_uim} WHERE learnpress_user_item_id IN ($id_placeholders)",
-				...$attempt_ids
+		// Cập nhật parent_id cho các bản ghi mồ côi cũ của quiz này
+		if ($parent_id > 0) {
+			$wpdb->query($wpdb->prepare(
+				"UPDATE {$table} SET parent_id = %d, ref_id = %d, ref_type = 'lp_course'
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND (parent_id = 0 OR parent_id IS NULL)",
+				$parent_id, $course_id, $user_id, $quiz_id
 			));
-			foreach ($db_meta as &$meta) {
-				if (in_array($meta->meta_key, ['results', '_lp_user_item_results', '_lp_results', '_lp_quiz_results', '_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes'])) {
-					$meta->unserialized = maybe_unserialize($meta->meta_value);
-					if (is_string($meta->unserialized) && (strpos($meta->unserialized, '{') === 0 || strpos($meta->unserialized, '[') === 0)) {
-						$meta->unserialized = json_decode($meta->unserialized, true);
-					}
-				}
-			}
 		}
 
-		return rest_ensure_response([
+		// Build result
+		$result_data = [
+			'questions'          => [],
+			'mark'               => $total_mark > 0 ? $total_mark : 4,
+			'total_mark'         => $total_mark > 0 ? $total_mark : 4,
+			'user_mark'          => $user_mark,
+			'question_count'     => $total_mark > 0 ? $total_mark : 4,
+			'questions_count'    => $total_mark > 0 ? $total_mark : 4,
+			'question_correct'   => $correct,
+			'question_wrong'     => $wrong,
+			'question_empty'     => $skipped,
+			'question_answered'  => $correct + $wrong,
+			'correct'            => $correct,
+			'wrong'              => $wrong,
+			'skipped'            => $skipped,
+			'status'             => 'completed',
+			'grade'              => $grade,
+			'graduation'         => $grade,
+			'result'             => $result_percent,
+			'result_num'         => $result_percent,
+			'pass'               => $pass,
+			'start_time'         => $start_mysql,
+			'end_time'           => $end_mysql,
+			'time_spend'         => $time_spend_formatted,
+			'time_spent'         => $time_spent_seconds,
+			'passing_grade'      => is_numeric(get_post_meta($quiz_id, '_lp_passing_grade', true)) 
+			? get_post_meta($quiz_id, '_lp_passing_grade', true) . '%' 
+			: (get_post_meta($quiz_id, '_lp_passing_grade', true) ?: '80%'),
+		];
+
+		// Gắn answered (hash) + đúng/sai từ Next.js
+		foreach ($lp_answered as $qid => $ans) {
+			$detail = $questions_detail[$qid] ?? $questions_detail[(string)$qid] ?? [];
+			$is_correct = !empty($detail['correct']);
+			$result_data['questions'][$qid] = [
+				'answered'  => $ans,
+				'correct'   => $is_correct,
+				'mark'      => isset($detail['mark']) ? floatval($detail['mark']) : 1,
+				'user_mark' => isset($detail['user_mark']) ? floatval($detail['user_mark']) : ($is_correct ? 1 : 0),
+			];
+		}
+
+		// Lưu results
+		if (class_exists('LP_User_Items_Result_DB')) {
+			try {
+				LP_User_Items_Result_DB::instance()->update($user_item_id, wp_json_encode($result_data));
+			} catch (Throwable $e) {}
+		} else {
+			learn_press_update_user_item_meta($user_item_id, 'results', $result_data);
+		}
+
+		learn_press_update_user_item_meta($user_item_id, '_lp_user_item_results', wp_json_encode($result_data));
+		learn_press_update_user_item_meta($user_item_id, 'question_answers', $lp_answered);
+		learn_press_update_user_item_meta($user_item_id, '_question_answers', $lp_answered);
+		learn_press_update_user_item_meta($user_item_id, 'grade', $grade);
+		learn_press_update_user_item_meta($user_item_id, 'time_spend', $time_spend_formatted);
+		learn_press_update_user_item_meta($user_item_id, 'start_time', $start_mysql);
+		learn_press_update_user_item_meta($user_item_id, 'end_time', $end_mysql);
+
+		// Lấy history TẤT CẢ (không exclude) rồi ghi lại
+		$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0);
+		custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
+
+		return new WP_REST_Response([
 			'success'      => true,
 			'user_item_id' => $user_item_id,
-			'parent_id'    => $parent_id,
-			'graduation'   => $graduation,
-			'result'       => $result_data,
-			'debug_log'    => $debug_log,
-			'db_attempts'  => $db_attempts,
-			'db_meta'      => $db_meta,
-			'message'      => 'Kết quả quiz đã được lưu vào WordPress thành công',
-		]);
-	} catch (Throwable $t) {
-		return new WP_Error('php_error', $t->getMessage(), [
-			'status' => 500,
-			'trace' => $t->getTraceAsString(),
-			'file' => $t->getFile(),
-			'line' => $t->getLine()
-		]);
+			'graduation'   => $grade,
+			'result'       => $result_percent,
+			'answered'     => $lp_answered,
+			'message'      => 'Nộp bài thành công',
+		], 200);
+	} catch (Throwable $e) {
+		return new WP_REST_Response([
+			'success' => false,
+			'message' => 'Lỗi xử lý nộp bài: ' . $e->getMessage(),
+		], 500);
 	}
 }
 
@@ -5701,207 +4233,843 @@ add_filter('get_avatar_url', function($url, $id_or_email, $args) {
 	return $url;
 }, 99, 3);
 
-function handle_custom_retake_quiz($request) {
-	global $wpdb;
-	$body       = $request->get_json_params();
-	$user_id    = isset($body['user_id']) ? intval($body['user_id']) : 0;
-	$raw_quiz   = isset($body['quiz_id']) ? $body['quiz_id'] : 0;
-	$raw_course = isset($body['course_id']) ? $body['course_id'] : 0;
+if (!function_exists('handle_custom_retake_quiz')) {
+	function handle_custom_retake_quiz($request) {
+		global $wpdb;
+		$body       = $request->get_json_params();
+		$user_id    = isset($body['user_id']) ? intval($body['user_id']) : 0;
+		$raw_quiz   = isset($body['quiz_id']) ? $body['quiz_id'] : 0;
+		$raw_course = isset($body['course_id']) ? $body['course_id'] : 0;
 
-	$quiz_id   = is_numeric($raw_quiz) ? intval($raw_quiz) : 0;
-	$course_id = is_numeric($raw_course) ? intval($raw_course) : 0;
+		$quiz_id   = is_numeric($raw_quiz) ? intval($raw_quiz) : 0;
+		$course_id = is_numeric($raw_course) ? intval($raw_course) : 0;
 
-	// Trường hợp quiz_id hoặc course_id được truyền dạng slug
-	if (!$quiz_id && !empty($raw_quiz)) {
-		$slug_clean = sanitize_title($raw_quiz);
-		$found_q    = $wpdb->get_var($wpdb->prepare(
-			"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type IN ('lp_quiz', 'lp_lesson') ORDER BY ID DESC LIMIT 1",
-			$slug_clean
-		));
-		if ($found_q) $quiz_id = intval($found_q);
-	}
-
-	if (!$course_id && !empty($raw_course)) {
-		$slug_clean = sanitize_title($raw_course);
-		$found_c    = $wpdb->get_var($wpdb->prepare(
-			"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'lp_course' ORDER BY ID DESC LIMIT 1",
-			$slug_clean
-		));
-		if ($found_c) $course_id = intval($found_c);
-	}
-
-	if (!$user_id || !$quiz_id) {
-		return new WP_Error('missing_params', 'Thiếu user_id hoặc quiz_id', ['status' => 400]);
-	}
-
-	$table_ui  = $wpdb->prefix . 'learnpress_user_items';
-	$table_uim = $wpdb->prefix . 'learnpress_user_itemmeta';
-
-	// Tự động truy vấn course_id từ DB LearnPress nếu course_id bị thiếu hoặc bằng 0
-	if (!$course_id && $quiz_id) {
-		$table_sections  = $wpdb->prefix . 'learnpress_sections';
-		$table_sec_items = $wpdb->prefix . 'learnpress_section_items';
-		if ($wpdb->get_var("SHOW TABLES LIKE '{$table_sec_items}'") === $table_sec_items) {
-			$found_cid = $wpdb->get_var($wpdb->prepare(
-				"SELECT s.section_course_id FROM {$table_sections} s 
-				JOIN {$table_sec_items} i ON s.section_id = i.section_id 
-				WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
-				$quiz_id
+		// Trường hợp quiz_id hoặc course_id được truyền dạng slug
+		if (!$quiz_id && !empty($raw_quiz)) {
+			$slug_clean = sanitize_title($raw_quiz);
+			$found_q    = $wpdb->get_var($wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type IN ('lp_quiz', 'lp_lesson') ORDER BY ID DESC LIMIT 1",
+				$slug_clean
 			));
-			if ($found_cid) {
-				$course_id = intval($found_cid);
+			if ($found_q) $quiz_id = intval($found_q);
+		}
+
+		if (!$course_id && !empty($raw_course)) {
+			$slug_clean = sanitize_title($raw_course);
+			$found_c    = $wpdb->get_var($wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'lp_course' ORDER BY ID DESC LIMIT 1",
+				$slug_clean
+			));
+			if ($found_c) $course_id = intval($found_c);
+		}
+
+		if (!$user_id || !$quiz_id) {
+			return new WP_Error('missing_params', 'Thiếu user_id hoặc quiz_id', ['status' => 400]);
+		}
+
+		$table_ui  = $wpdb->prefix . 'learnpress_user_items';
+		$table_uim = $wpdb->prefix . 'learnpress_user_itemmeta';
+
+		// Tự động truy vấn course_id từ DB LearnPress nếu course_id bị thiếu hoặc bằng 0
+		if (!$course_id && $quiz_id) {
+			$table_sections  = $wpdb->prefix . 'learnpress_sections';
+			$table_sec_items = $wpdb->prefix . 'learnpress_section_items';
+			if ($wpdb->get_var("SHOW TABLES LIKE '{$table_sec_items}'") === $table_sec_items) {
+				$found_cid = $wpdb->get_var($wpdb->prepare(
+					"SELECT s.section_course_id FROM {$table_sections} s 
+					JOIN {$table_sec_items} i ON s.section_id = i.section_id 
+					WHERE i.item_id = %d ORDER BY i.section_item_id DESC LIMIT 1",
+					$quiz_id
+				));
+				if ($found_cid) {
+					$course_id = intval($found_cid);
+				}
 			}
 		}
-	}
 
-	$parent_id = 0;
-	if ($course_id) {
-		$course_item = $wpdb->get_row($wpdb->prepare(
-			"SELECT user_item_id FROM {$table_ui}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
-			ORDER BY user_item_id DESC LIMIT 1",
-			$user_id,
-			$course_id
-		));
-		if ($course_item) {
-			$parent_id = intval($course_item->user_item_id);
+		$parent_id = 0;
+		if ($course_id) {
+			$course_item = $wpdb->get_row($wpdb->prepare(
+				"SELECT user_item_id FROM {$table_ui}
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+				ORDER BY user_item_id DESC LIMIT 1",
+				$user_id,
+				$course_id
+			));
+			if ($course_item) {
+				$parent_id = intval($course_item->user_item_id);
+			}
 		}
-	}
 
-	$now = current_time('mysql');
+		$now = current_time('mysql');
 
-	// 1. Tìm lượt làm bài cũ (status = completed)
-	$existing = $wpdb->get_row($wpdb->prepare(
-		"SELECT * FROM {$table_ui}
-		WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
-		ORDER BY user_item_id DESC LIMIT 1",
-		$user_id, $quiz_id, $parent_id
-	));
-
-	if (!$existing) {
+		// 1. Tìm lượt làm bài cũ (status = completed)
 		$existing = $wpdb->get_row($wpdb->prepare(
 			"SELECT * FROM {$table_ui}
-			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+			WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz' AND parent_id = %d
 			ORDER BY user_item_id DESC LIMIT 1",
-			$user_id, $quiz_id
+			$user_id, $quiz_id, $parent_id
 		));
-	}
 
-	// 2. Chèn bản ghi mới với status = 'started'
-	$wpdb->insert(
-		$table_ui,
-		[
-			'user_id'    => $user_id,
-			'item_id'    => $quiz_id,
-			'item_type'  => 'lp_quiz',
-			'parent_id'  => $parent_id ?: 0,
-			'ref_id'     => $course_id  ?: 0,
-			'ref_type'   => $course_id ? 'lp_course' : '',
-			'start_time' => $now,
-			'status'     => 'started',
-			'graduation' => 'in-progress',
-		],
-		['%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s']
-	);
+		if (!$existing) {
+			$existing = $wpdb->get_row($wpdb->prepare(
+				"SELECT * FROM {$table_ui}
+				WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+				ORDER BY user_item_id DESC LIMIT 1",
+				$user_id, $quiz_id
+			));
+		}
 
-	$new_user_item_id = intval($wpdb->insert_id);
-
-	// 3. Nếu có lượt làm cũ, sao lưu kết quả vào meta để lưu lịch sử retake
-	if ($existing) {
-		$old_user_item_id = intval($existing->user_item_id);
-
-		// Cập nhật trạng thái lượt cũ thành hoàn thành (nếu chưa)
-		$wpdb->update(
+		// 2. Chèn bản ghi mới với status = 'started'
+		$wpdb->insert(
 			$table_ui,
-			['status' => 'completed'],
-			['user_item_id' => $old_user_item_id]
+			[
+				'user_id'    => $user_id,
+				'item_id'    => $quiz_id,
+				'item_type'  => 'lp_quiz',
+				'parent_id'  => $parent_id ?: 0,
+				'ref_id'     => $course_id  ?: 0,
+				'ref_type'   => $course_id ? 'lp_course' : '',
+				'start_time' => $now,
+				'status'     => 'started',
+				'graduation' => 'in-progress',
+			],
+			['%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s']
 		);
 
-		// Đọc các thông tin đã lưu của lượt cũ trong user_itemmeta
-		$old_metas = $wpdb->get_results($wpdb->prepare(
-			"SELECT meta_key, meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d",
-			$old_user_item_id
-		));
+		$new_user_item_id = intval($wpdb->insert_id);
 
-		$old_meta_map = [];
-		foreach ($old_metas as $m) {
-			$old_meta_map[$m->meta_key] = maybe_unserialize($m->meta_value);
-		}
+		// 3. Nếu có lượt làm cũ, sao lưu kết quả vào meta để lưu lịch sử retake
+		if ($existing) {
+			$old_user_item_id = intval($existing->user_item_id);
 
-		// Lấy lịch sử retake hiện tại trên course/quiz (nếu có)
-		$existing_retakes = [];
-		$raw_retakes = [];
+			// Cập nhật trạng thái lượt cũ thành hoàn thành (nếu chưa)
+			$wpdb->update(
+				$table_ui,
+				['status' => 'completed'],
+				['user_item_id' => $old_user_item_id]
+			);
 
-		if ($parent_id) {
-			$raw_retakes_ser = $wpdb->get_var($wpdb->prepare(
-				"SELECT meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key = '_lp_quiz_retake_items' LIMIT 1",
-				$parent_id
+			// Đọc các thông tin đã lưu của lượt cũ trong user_itemmeta
+			$old_metas = $wpdb->get_results($wpdb->prepare(
+				"SELECT meta_key, meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d",
+				$old_user_item_id
 			));
-			if ($raw_retakes_ser) {
-				$raw_retakes = maybe_unserialize($raw_retakes_ser);
+
+			$old_meta_map = [];
+			foreach ($old_metas as $m) {
+				$old_meta_map[$m->meta_key] = maybe_unserialize($m->meta_value);
 			}
-		}
-		if (is_array($raw_retakes)) {
-			$existing_retakes = $raw_retakes;
-		}
 
-		// Lấy câu hỏi và điểm số cũ
-		$questions_count = isset($old_meta_map['question_count']) ? intval($old_meta_map['question_count']) : 0;
-		$correct = isset($old_meta_map['question_correct']) ? intval($old_meta_map['question_correct']) : 0;
+			// Lấy lịch sử retake hiện tại trên course/quiz (nếu có)
+			$existing_retakes = [];
+			$raw_retakes = [];
 
-		if ($questions_count === 0 && isset($old_meta_map['questions'])) {
-			$questions_count = is_array($old_meta_map['questions']) ? count($old_meta_map['questions']) : 0;
-			foreach ($old_meta_map['questions'] as $q) {
-				if (isset($q['correct']) && $q['correct']) $correct++;
+			if ($parent_id) {
+				$raw_retakes_ser = $wpdb->get_var($wpdb->prepare(
+					"SELECT meta_value FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key = '_lp_quiz_retake_items' LIMIT 1",
+					$parent_id
+				));
+				if ($raw_retakes_ser) {
+					$raw_retakes = maybe_unserialize($raw_retakes_ser);
+				}
 			}
+			if (is_array($raw_retakes)) {
+				$existing_retakes = $raw_retakes;
+			}
+
+			// Lấy câu hỏi và điểm số cũ
+			$questions_count = isset($old_meta_map['question_count']) ? intval($old_meta_map['question_count']) : 0;
+			$correct = isset($old_meta_map['question_correct']) ? intval($old_meta_map['question_correct']) : 0;
+
+			if ($questions_count === 0 && isset($old_meta_map['questions'])) {
+				$questions_count = is_array($old_meta_map['questions']) ? count($old_meta_map['questions']) : 0;
+				foreach ($old_meta_map['questions'] as $q) {
+					if (isset($q['correct']) && $q['correct']) $correct++;
+				}
+			}
+
+			$result_percent = isset($old_meta_map['result']) ? floatval($old_meta_map['result']) : 0;
+			$user_mark = isset($old_meta_map['user_mark']) ? floatval($old_meta_map['user_mark']) : $correct;
+			$mark = isset($old_meta_map['mark']) ? floatval($old_meta_map['mark']) : $questions_count;
+
+			$new_retake_record = [
+				'user_item_id' => $old_user_item_id,
+				'status'       => 'completed',
+				'graduation'   => $existing->graduation,
+				'start_time'   => $existing->start_time,
+				'end_time'     => $existing->end_time,
+				'time_spend'   => isset($old_meta_map['time_spend']) ? $old_meta_map['time_spend'] : '00:00:00',
+				'time_spent'   => isset($old_meta_map['time_spent']) ? intval($old_meta_map['time_spent']) : 0,
+				'result'       => $result_percent,
+				'user_mark'    => $user_mark,
+				'mark'         => $mark,
+				'question_correct' => $correct,
+				'question_count'   => $questions_count,
+			];
+
+			$existing_retakes[] = $new_retake_record;
+
+			// Lưu vào meta của bản ghi COURSE (parent_id) và QUIZ mới
+			if ($parent_id) {
+				$wpdb->query($wpdb->prepare(
+					"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key IN ('_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes')",
+					$parent_id
+				));
+				$wpdb->insert($table_uim, ['learnpress_user_item_id' => $parent_id, 'meta_key' => '_lp_quiz_retake_items', 'meta_value' => serialize($existing_retakes)]);
+				$wpdb->insert($table_uim, ['learnpress_user_item_id' => $parent_id, 'meta_key' => '_lp_retake_items', 'meta_value' => serialize($existing_retakes)]);
+				$wpdb->insert($table_uim, ['learnpress_user_item_id' => $parent_id, 'meta_key' => '_lp_user_item_retakes', 'meta_value' => serialize($existing_retakes)]);
+			}
+
+			$wpdb->insert($table_uim, ['learnpress_user_item_id' => $new_user_item_id, 'meta_key' => '_lp_quiz_retake_items', 'meta_value' => serialize($existing_retakes)]);
+			$wpdb->insert($table_uim, ['learnpress_user_item_id' => $new_user_item_id, 'meta_key' => '_lp_retake_items', 'meta_value' => serialize($existing_retakes)]);
+			$wpdb->insert($table_uim, ['learnpress_user_item_id' => $new_user_item_id, 'meta_key' => '_lp_user_item_retakes', 'meta_value' => serialize($existing_retakes)]);
 		}
 
-		$result_percent = isset($old_meta_map['result']) ? floatval($old_meta_map['result']) : 0;
-		$user_mark = isset($old_meta_map['user_mark']) ? floatval($old_meta_map['user_mark']) : $correct;
-		$mark = isset($old_meta_map['mark']) ? floatval($old_meta_map['mark']) : $questions_count;
-
-		$new_retake_record = [
-			'user_item_id' => $old_user_item_id,
-			'status'       => 'completed',
-			'graduation'   => $existing->graduation,
-			'start_time'   => $existing->start_time,
-			'end_time'     => $existing->end_time,
-			'time_spend'   => isset($old_meta_map['time_spend']) ? $old_meta_map['time_spend'] : '00:00:00',
-			'time_spent'   => isset($old_meta_map['time_spent']) ? intval($old_meta_map['time_spent']) : 0,
-			'result'       => $result_percent,
-			'user_mark'    => $user_mark,
-			'mark'         => $mark,
-			'question_correct' => $correct,
-			'question_count'   => $questions_count,
-		];
-
-		$existing_retakes[] = $new_retake_record;
-
-		// Lưu vào meta của bản ghi COURSE (parent_id) và QUIZ mới
-		if ($parent_id) {
-			$wpdb->query($wpdb->prepare(
-				"DELETE FROM {$table_uim} WHERE learnpress_user_item_id = %d AND meta_key IN ('_lp_quiz_retake_items', '_lp_retake_items', '_lp_user_item_retakes')",
-				$parent_id
-			));
-			$wpdb->insert($table_uim, ['learnpress_user_item_id' => $parent_id, 'meta_key' => '_lp_quiz_retake_items', 'meta_value' => serialize($existing_retakes)]);
-			$wpdb->insert($table_uim, ['learnpress_user_item_id' => $parent_id, 'meta_key' => '_lp_retake_items', 'meta_value' => serialize($existing_retakes)]);
-			$wpdb->insert($table_uim, ['learnpress_user_item_id' => $parent_id, 'meta_key' => '_lp_user_item_retakes', 'meta_value' => serialize($existing_retakes)]);
-		}
-
-		$wpdb->insert($table_uim, ['learnpress_user_item_id' => $new_user_item_id, 'meta_key' => '_lp_quiz_retake_items', 'meta_value' => serialize($existing_retakes)]);
-		$wpdb->insert($table_uim, ['learnpress_user_item_id' => $new_user_item_id, 'meta_key' => '_lp_retake_items', 'meta_value' => serialize($existing_retakes)]);
-		$wpdb->insert($table_uim, ['learnpress_user_item_id' => $new_user_item_id, 'meta_key' => '_lp_user_item_retakes', 'meta_value' => serialize($existing_retakes)]);
+		return rest_ensure_response([
+			'success' => true,
+			'user_item_id' => $new_user_item_id,
+			'message' => 'Đã khởi tạo lượt làm lại quiz thành công trên WordPress.',
+		]);
 	}
-
-	return rest_ensure_response([
-		'success' => true,
-		'user_item_id' => $new_user_item_id,
-		'message' => 'Đã khởi tạo lượt làm lại quiz thành công trên WordPress.',
-	]);
 }
 
 
+/**
+ * REST API: Course Reviews (Đánh giá khóa học cho học viên đã hoàn thành - Chỉ 1 lần duy nhất)
+ * GET  /wp-json/custom/v1/course-reviews?course_id=123&user_id=456
+ * POST /wp-json/custom/v1/course-reviews
+ */
+add_action('rest_api_init', function () {
+	register_rest_route('custom/v1', '/course-reviews', [
+		[
+			'methods'             => 'GET',
+			'callback'            => 'custom_get_course_reviews',
+			'permission_callback' => '__return_true',
+		],
+		[
+			'methods'             => 'POST',
+			'callback'            => 'custom_submit_course_review',
+			'permission_callback' => '__return_true',
+		],
+	]);
+});
 
+function custom_get_course_reviews(WP_REST_Request $request) {
+	global $wpdb;
 
+	$course_id = absint($request->get_param('course_id'));
+	$user_id   = absint($request->get_param('user_id'));
 
+	if (!$course_id) {
+		return new WP_Error('missing_course_id', 'Thiếu course_id hợp lệ.', ['status' => 400]);
+	}
 
+	$current_user_obj = ($user_id > 0) ? get_userdata($user_id) : null;
+	$current_user_email = $current_user_obj ? strtolower(trim($current_user_obj->user_email)) : '';
+	$current_user_login = $current_user_obj ? strtolower(trim($current_user_obj->user_login)) : '';
+
+	// 1. Lấy danh sách reviews từ comments của course này
+	$comments = get_comments([
+		'post_id' => $course_id,
+		'status'  => 'approve',
+		'orderby' => 'comment_date_gmt',
+		'order'   => 'DESC',
+	]);
+
+	$reviews = [];
+	$stars_breakdown = ['5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0];
+	$total_rating_sum = 0;
+	$user_reviewed = false;
+	$user_review_data = null;
+
+	foreach ((array)$comments as $c) {
+		$cid = intval($c->comment_ID);
+		$c_user_id = intval($c->user_id);
+		$c_email = strtolower(trim($c->comment_author_email));
+		$c_author = strtolower(trim($c->comment_author));
+
+		// Rating: lấy từ _lpr_rating hoặc rating
+		$rating_val = get_comment_meta($cid, '_lpr_rating', true);
+		if (empty($rating_val)) {
+			$rating_val = get_comment_meta($cid, 'rating', true);
+		}
+		$rating = ($rating_val !== '' && is_numeric($rating_val)) ? max(1, min(5, intval($rating_val))) : 5;
+
+		$title_val = get_comment_meta($cid, '_lpr_review_title', true);
+		if (empty($title_val)) {
+			$title_val = get_comment_meta($cid, 'title', true);
+		}
+		$title = !empty($title_val) ? $title_val : '';
+
+		$stars_breakdown[strval($rating)]++;
+		$total_rating_sum += $rating;
+
+		$author_avatar = get_avatar_url($c->comment_author_email ?: $c_user_id, ['size' => 96]);
+
+		$review_item = [
+			'id'            => $cid,
+			'user_id'       => $c_user_id,
+			'author_name'   => $c->comment_author ?: 'Học viên',
+			'author_avatar' => $author_avatar,
+			'title'         => $title,
+			'content'       => $c->comment_content,
+			'rating'        => $rating,
+			'date'          => $c->comment_date,
+		];
+
+		$reviews[] = $review_item;
+
+		// Kiểm tra user đã đánh giá chưa
+		if ($user_id > 0) {
+			if ($c_user_id === $user_id) {
+				$user_reviewed = true;
+				$user_review_data = $review_item;
+			} else if (!empty($current_user_email) && $c_email === $current_user_email) {
+				$user_reviewed = true;
+				$user_review_data = $review_item;
+			} else if (!empty($current_user_login) && $c_author === $current_user_login) {
+				$user_reviewed = true;
+				$user_review_data = $review_item;
+			}
+		}
+	}
+
+	// Kiểm tra thêm user_meta đã đánh giá khóa học chưa
+	if ($user_id > 0 && !$user_reviewed) {
+		$reviewed_meta = get_user_meta($user_id, "_lp_reviewed_course_{$course_id}", true);
+		if (!empty($reviewed_meta)) {
+			$user_reviewed = true;
+		}
+	}
+
+	$total_reviews = count($reviews);
+	$average_rating = $total_reviews > 0 ? round($total_rating_sum / $total_reviews, 1) : 0.0;
+
+	$percents_breakdown = ['5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0];
+	if ($total_reviews > 0) {
+		foreach ($stars_breakdown as $star => $count) {
+			$percents_breakdown[$star] = round(($count / $total_reviews) * 100, 1);
+		}
+	}
+
+	// 2. Kiểm tra trạng thái hoàn thành khóa học của user
+	$user_course_status = 'not_enrolled';
+	$is_course_finished = false;
+
+	if ($user_id > 0) {
+		$table_ui = $wpdb->prefix . 'learnpress_user_items';
+		$course_item = $wpdb->get_row($wpdb->prepare(
+			"SELECT status, graduation FROM {$table_ui}
+			 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+			 ORDER BY user_item_id DESC LIMIT 1",
+			$user_id, $course_id
+		));
+
+		if ($course_item) {
+			$user_course_status = $course_item->status;
+			if ($course_item->status === 'completed' || $course_item->status === 'finished' || $course_item->graduation === 'passed') {
+				$is_course_finished = true;
+				$user_course_status = 'finished';
+			}
+		}
+	}
+
+	// Học viên chỉ được đánh giá khi ĐÃ HOÀN THÀNH và CHƯA ĐÁNH GIÁ LẦN NÀO
+	$can_review = $is_course_finished && !$user_reviewed;
+
+	return rest_ensure_response([
+		'success'            => true,
+		'course_id'          => $course_id,
+		'reviews'            => $reviews,
+		'rating_details'     => [
+			'average'  => $average_rating,
+			'total'    => $total_reviews,
+			'stars'    => $stars_breakdown,
+			'percents' => $percents_breakdown,
+		],
+		'user_course_status' => $user_course_status,
+		'is_course_finished' => $is_course_finished,
+		'user_reviewed'      => $user_reviewed,
+		'user_review'        => $user_review_data,
+		'can_review'         => $can_review,
+	]);
+}
+
+function custom_submit_course_review(WP_REST_Request $request) {
+	global $wpdb;
+
+	$body      = $request->get_json_params();
+	$course_id = absint($body['course_id'] ?? $body['courseId'] ?? 0);
+	$user_id   = absint($body['user_id'] ?? $body['userId'] ?? 0);
+	$title     = sanitize_text_field($body['title'] ?? '');
+	$content   = sanitize_textarea_field($body['content'] ?? '');
+	$rating    = absint($body['rating'] ?? 5);
+
+	if (!$course_id || !$user_id) {
+		return new WP_Error('missing_params', 'Thiếu course_id hoặc user_id.', ['status' => 400]);
+	}
+
+	if (empty($content)) {
+		return new WP_Error('missing_content', 'Vui lòng nhập nội dung đánh giá.', ['status' => 400]);
+	}
+
+	$rating = max(1, min(5, $rating));
+
+	// 1. Kiểm tra điều kiện: Học viên ĐÃ HOÀN TẤT khóa học
+	$table_ui = $wpdb->prefix . 'learnpress_user_items';
+	$course_item = $wpdb->get_row($wpdb->prepare(
+		"SELECT status, graduation FROM {$table_ui}
+		 WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course'
+		 ORDER BY user_item_id DESC LIMIT 1",
+		$user_id, $course_id
+	));
+
+	$is_finished = ($course_item && ($course_item->status === 'completed' || $course_item->status === 'finished' || $course_item->graduation === 'passed'));
+
+	if (!$is_finished) {
+		return new WP_Error('not_finished', 'Bạn cần hoàn thành khóa học trước khi có thể đánh giá.', ['status' => 403]);
+	}
+
+	$user_data = get_userdata($user_id);
+	$author_name  = $user_data ? $user_data->display_name : 'Học viên';
+	$author_email = $user_data ? strtolower(trim($user_data->user_email)) : '';
+	$author_login = $user_data ? strtolower(trim($user_data->user_login)) : '';
+
+	// 2. Kiểm tra điều kiện: Học viên CHỈ ĐƯỢC ĐÁNH GIÁ 1 LẦN DUY NHẤT
+	$has_reviewed_meta = get_user_meta($user_id, "_lp_reviewed_course_{$course_id}", true);
+	if (!empty($has_reviewed_meta)) {
+		return new WP_Error('already_reviewed', 'Bạn đã đánh giá khóa học này rồi. Mỗi học viên chỉ được đánh giá 1 lần.', ['status' => 409]);
+	}
+
+	$existing_comment = $wpdb->get_var($wpdb->prepare(
+		"SELECT comment_ID FROM {$wpdb->comments}
+		 WHERE comment_post_ID = %d AND (user_id = %d OR (comment_author_email = %s AND comment_author_email != ''))
+		 LIMIT 1",
+		$course_id, $user_id, $author_email
+	));
+
+	if ($existing_comment) {
+		update_user_meta($user_id, "_lp_reviewed_course_{$course_id}", $existing_comment);
+		return new WP_Error('already_reviewed', 'Bạn đã đánh giá khóa học này rồi. Mỗi học viên chỉ được đánh giá 1 lần.', ['status' => 409]);
+	}
+
+	$now_mysql = current_time('mysql');
+
+	$comment_id = wp_insert_comment([
+		'comment_post_ID'      => $course_id,
+		'comment_author'       => $author_name,
+		'comment_author_email' => $author_email,
+		'comment_content'      => $content,
+		'comment_type'         => 'review',
+		'comment_parent'       => 0,
+		'user_id'              => $user_id,
+		'comment_approved'     => 1,
+		'comment_date'         => $now_mysql,
+		'comment_date_gmt'     => current_time('mysql', 1),
+	]);
+
+	if (!$comment_id || is_wp_error($comment_id)) {
+		return new WP_Error('insert_failed', 'Không thể lưu đánh giá.', ['status' => 500]);
+	}
+
+	// Đánh dấu user_meta là đã đánh giá khóa học
+	update_user_meta($user_id, "_lp_reviewed_course_{$course_id}", $comment_id);
+
+	update_comment_meta($comment_id, '_lpr_rating', $rating);
+	update_comment_meta($comment_id, 'rating', $rating);
+	update_comment_meta($comment_id, '_lpr_review_title', $title);
+	update_comment_meta($comment_id, 'title', $title);
+
+	// Cập nhật lại post_meta cache rating
+	$all_ratings = $wpdb->get_col($wpdb->prepare(
+		"SELECT cm.meta_value FROM {$wpdb->commentmeta} cm
+		 JOIN {$wpdb->comments} c ON c.comment_ID = cm.comment_id
+		 WHERE c.comment_post_ID = %d AND cm.meta_key = '_lpr_rating' AND c.comment_approved = '1'",
+		$course_id
+	));
+
+	if (!empty($all_ratings)) {
+		$avg = round(array_sum($all_ratings) / count($all_ratings), 1);
+		update_post_meta($course_id, '_lp_course_rate', $avg);
+		update_post_meta($course_id, '_lp_course_rate_res', [
+			'rated' => $avg,
+			'total' => count($all_ratings),
+		]);
+	}
+
+	$author_avatar = get_avatar_url($author_email ?: $user_id, ['size' => 96]);
+
+	return rest_ensure_response([
+		'success' => true,
+		'message' => 'Cảm ơn bạn! Đánh giá khóa học đã được gửi thành công.',
+		'review'  => [
+			'id'            => $comment_id,
+			'user_id'       => $user_id,
+			'author_name'   => $author_name,
+			'author_avatar' => $author_avatar,
+			'title'         => $title,
+			'content'       => $content,
+			'rating'        => $rating,
+			'date'          => $now_mysql,
+		],
+	]);
+}
+
+/**
+ * REST API: User Enrolled Courses & Learning Progress (Đồng bộ danh sách khóa học và 5 chỉ số thống kê theo đúng User cho Next.js)
+ * GET  /wp-json/custom/v1/user-courses?user_id=123
+ * POST /wp-json/custom/v1/finish-course
+ */
+add_action('rest_api_init', function () {
+	// GET /wp-json/custom/v1/user-courses
+	register_rest_route('custom/v1', '/user-courses', [
+		'methods'             => 'GET',
+		'callback'            => 'handle_get_custom_user_courses',
+		'permission_callback' => '__return_true',
+	]);
+
+	// POST /wp-json/custom/v1/finish-course
+	register_rest_route('custom/v1', '/finish-course', [
+		'methods'             => 'POST',
+		'callback'            => 'handle_custom_finish_course',
+		'permission_callback' => '__return_true',
+	]);
+});
+
+function handle_get_custom_user_courses(WP_REST_Request $request) {
+	global $wpdb;
+
+	$user_id = absint($request->get_param('user_id'));
+	if (!$user_id && is_user_logged_in()) {
+		$user_id = get_current_user_id();
+	}
+
+	if (!$user_id) {
+		return rest_ensure_response([
+			'success' => true,
+			'user_id' => 0,
+			'courses' => [],
+			'counts'  => [
+				'enrolled'   => 0,
+				'inprogress' => 0,
+				'finished'   => 0,
+				'passed'     => 0,
+				'failed'     => 0,
+			],
+		]);
+	}
+
+	$table_items = $wpdb->prefix . 'learnpress_user_items';
+	$has_lp_table = ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items);
+
+	$course_records = []; // Map: course_id => ['item_id' => ..., 'user_item_id' => ..., 'start_time' => ..., 'end_time' => ..., 'status' => ..., 'graduation' => ...]
+
+	// 1. Lấy tất cả khóa học của user từ wp_learnpress_user_items
+	if ($has_lp_table) {
+		$ui_rows = $wpdb->get_results($wpdb->prepare(
+			"SELECT user_item_id, item_id as course_id, start_time, end_time, status, graduation
+			 FROM {$table_items}
+			 WHERE user_id = %d AND item_type = 'lp_course'
+			 ORDER BY user_item_id DESC",
+			$user_id
+		));
+
+		if (!empty($ui_rows)) {
+			foreach ($ui_rows as $row) {
+				$cid = intval($row->course_id);
+				if ($cid > 0 && !isset($course_records[$cid])) {
+					$course_records[$cid] = [
+						'user_item_id' => intval($row->user_item_id),
+						'start_time'   => $row->start_time,
+						'end_time'     => $row->end_time,
+						'status'       => $row->status,
+						'graduation'   => $row->graduation,
+					];
+				}
+			}
+		}
+	}
+
+	// 2. Tìm thêm các khóa học từ đơn hàng WooCommerce đã hoàn tất của user
+	$wc_orders = $wpdb->get_results($wpdb->prepare(
+		"SELECT pm.meta_value as course_id, p.post_date as order_date
+		 FROM {$wpdb->prefix}woocommerce_order_items oi
+		 INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta oim ON oim.order_item_id = oi.order_item_id AND oim.meta_key = '_product_id'
+		 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = oim.meta_value AND pm.meta_key = '_linked_course_id'
+		 INNER JOIN {$wpdb->posts} p ON p.ID = oi.order_id
+		 INNER JOIN {$wpdb->postmeta} pm_user ON pm_user.post_id = p.ID AND pm_user.meta_key = '_customer_user'
+		 WHERE pm_user.meta_value = %d AND p.post_status IN ('wc-completed', 'wc-processing')
+		 ORDER BY p.ID DESC",
+		$user_id
+	));
+
+	if (!empty($wc_orders)) {
+		foreach ($wc_orders as $o) {
+			$cid = intval($o->course_id);
+			if ($cid > 0 && !isset($course_records[$cid])) {
+				$course_records[$cid] = [
+					'user_item_id' => 0,
+					'start_time'   => $o->order_date,
+					'end_time'     => null,
+					'status'       => 'enrolled',
+					'graduation'   => 'in-progress',
+				];
+			}
+		}
+	}
+
+	// 3. User meta completed lessons (nếu có lưu)
+	$meta_completed = get_user_meta($user_id, '_completed_lessons', true);
+	$completed_lesson_ids = is_array($meta_completed) ? array_map('intval', array_filter($meta_completed)) : [];
+
+	$courses_list = [];
+	$counts = [
+		'enrolled'   => 0,
+		'inprogress' => 0,
+		'finished'   => 0,
+		'passed'     => 0,
+		'failed'     => 0,
+	];
+
+	$table_sections  = $wpdb->prefix . 'learnpress_sections';
+	$table_sec_items = $wpdb->prefix . 'learnpress_section_items';
+	$has_sec_tables  = ($wpdb->get_var("SHOW TABLES LIKE '{$table_sec_items}'") === $table_sec_items);
+
+	foreach ($course_records as $course_id => $rec) {
+		$post = get_post($course_id);
+		if (!$post || $post->post_status === 'trash' || $post->post_status === 'auto-draft') {
+			continue;
+		}
+
+		$user_item_id = $rec['user_item_id'];
+		$start_time   = $rec['start_time'];
+		$end_time     = $rec['end_time'];
+		$db_status    = strtolower($rec['status'] ?: 'enrolled');
+		$graduation   = strtolower($rec['graduation'] ?: '');
+
+		// Lấy danh sách toàn bộ bài học / quiz thuộc khóa học này
+		$all_items_in_course = [];
+		if ($has_sec_tables) {
+			$sec_items = $wpdb->get_col($wpdb->prepare(
+				"SELECT si.item_id
+				 FROM {$table_sec_items} si
+				 INNER JOIN {$table_sections} s ON s.section_id = si.section_id
+				 INNER JOIN {$wpdb->posts} p ON p.ID = si.item_id AND p.post_status = 'publish'
+				 WHERE s.section_course_id = %d AND p.post_type IN ('lp_lesson', 'lp_quiz')",
+				$course_id
+			));
+			if (!empty($sec_items)) {
+				$all_items_in_course = array_map('intval', $sec_items);
+			}
+		}
+
+		$total_items = count($all_items_in_course);
+
+		// Lấy danh sách các bài học / quiz đã hoàn thành của user trong khóa học này
+		$completed_in_course = [];
+		if ($has_lp_table && !empty($all_items_in_course)) {
+			$placeholders = implode(',', array_fill(0, count($all_items_in_course), '%d'));
+			$lp_done = $wpdb->get_col($wpdb->prepare(
+				"SELECT DISTINCT item_id FROM {$table_items}
+				 WHERE user_id = %d AND item_id IN ($placeholders) AND status = 'completed' AND item_type IN ('lp_lesson', 'lp_quiz')",
+				array_merge([$user_id], $all_items_in_course)
+			));
+			if (!empty($lp_done)) {
+				$completed_in_course = array_map('intval', $lp_done);
+			}
+		}
+
+		// Gộp thêm từ _completed_lessons meta
+		if (!empty($completed_lesson_ids) && !empty($all_items_in_course)) {
+			$meta_matched = array_intersect($completed_lesson_ids, $all_items_in_course);
+			$completed_in_course = array_unique(array_merge($completed_in_course, $meta_matched));
+		}
+
+		$completed_count = count($completed_in_course);
+
+		// Tính toán % tiến độ bài học (Progress)
+		$progress_num = 0;
+		if ($total_items > 0) {
+			$progress_num = round(($completed_count / $total_items) * 100, 2);
+			if ($completed_count >= $total_items) {
+				$progress_num = 100;
+			}
+		}
+		$progress_num = min(100, max(0, $progress_num));
+
+		// Passing grade của khóa học (mặc định 80%)
+		$pg_meta = get_post_meta($course_id, '_lp_passing_condition', true);
+		if (empty($pg_meta)) $pg_meta = get_post_meta($course_id, '_lp_passing_grade', true);
+		$passing_grade = (!empty($pg_meta) && is_numeric($pg_meta)) ? floatval($pg_meta) : 80;
+
+		// Xác định Course Status theo chuẩn LearnPress:
+		// 'passed' | 'failed' | 'finished' | 'in-progress' | 'enrolled'
+		$is_all_finished = ($total_items > 0 && $completed_count >= $total_items) || $db_status === 'completed' || $db_status === 'finished';
+
+		if ($graduation === 'passed') {
+			$status = 'passed';
+		} elseif ($graduation === 'failed') {
+			$status = 'failed';
+		} elseif ($is_all_finished) {
+			if ($progress_num >= $passing_grade) {
+				$status = 'passed';
+			} else {
+				$status = 'failed';
+			}
+		} elseif ($progress_num > 0 || $db_status === 'in-progress' || $db_status === 'started' || $graduation === 'in-progress') {
+			$status = 'in-progress';
+		} else {
+			$status = 'enrolled';
+		}
+
+		// Thời gian hết hạn (Expiration time)
+		$duration_str = get_post_meta($course_id, '_lp_duration', true);
+		$duration_sec = function_exists('parse_lp_duration_seconds') ? parse_lp_duration_seconds($duration_str) : 0;
+		$expiration_time = '-';
+
+		if (!empty($start_time) && $duration_sec > 0) {
+			$start_ts = strtotime($start_time);
+			if ($start_ts > 0) {
+				$exp_ts = $start_ts + $duration_sec;
+				$expiration_time = date('F j, Y g:i a', $exp_ts);
+			}
+		}
+
+		// Thời gian hoàn thành (End time)
+		$end_time_formatted = '-';
+		if (!empty($end_time) && ($status === 'passed' || $status === 'failed' || $status === 'finished' || $db_status === 'completed' || $db_status === 'finished')) {
+			$end_ts = strtotime($end_time);
+			if ($end_ts > 0) {
+				$end_time_formatted = date('F j, Y g:i a', $end_ts);
+			}
+		}
+
+		// Image thumbnail
+		$thumb_url = get_the_post_thumbnail_url($course_id, 'large');
+		if (!$thumb_url) $thumb_url = get_the_post_thumbnail_url($course_id, 'medium');
+		if (!$thumb_url) $thumb_url = "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?q=80&w=600&auto=format&fit=crop";
+
+		// Result & formatted text
+		$result_text = $progress_num . '%';
+		$passing_grade_text = $passing_grade . '%';
+
+		// Đếm các chỉ số
+		$counts['enrolled']++;
+		if ($status === 'in-progress' || $status === 'enrolled') {
+			$counts['inprogress']++;
+		}
+		if ($status === 'passed') {
+			$counts['passed']++;
+		}
+		if ($status === 'failed') {
+			$counts['failed']++;
+		}
+
+		$courses_list[] = [
+			'id'                   => $course_id,
+			'user_item_id'         => $user_item_id,
+			'title'                => $post->post_title,
+			'slug'                 => $post->post_name,
+			'description'          => wp_strip_all_tags($post->post_excerpt ?: wp_trim_words($post->post_content, 20)),
+			'image'                => $thumb_url,
+			'progress'             => $progress_num,
+			'courseProgress'       => $result_text,
+			'passingGrade'         => $passing_grade,
+			'passingGradeProgress' => $passing_grade_text,
+			'status'               => $status,
+			'graduation'           => $graduation,
+			'result'               => $result_text,
+			'expirationTime'       => $expiration_time,
+			'endTime'              => $end_time_formatted,
+			'startTime'            => $start_time ? date('F j, Y g:i a', strtotime($start_time)) : '-',
+			'completedItems'       => $completed_count,
+			'totalItems'           => $total_items,
+		];
+	}
+
+	// Finished Course = Passed Course + Failed Course
+	$counts['finished'] = $counts['passed'] + $counts['failed'];
+
+	return rest_ensure_response([
+		'success' => true,
+		'user_id' => $user_id,
+		'courses' => $courses_list,
+		'counts'  => $counts,
+	]);
+}
+
+function handle_custom_finish_course(WP_REST_Request $request) {
+	global $wpdb;
+
+	$body      = $request->get_json_params();
+	$user_id   = absint($body['user_id'] ?? $request->get_param('user_id'));
+	$course_id = absint($body['course_id'] ?? $body['courseId'] ?? $request->get_param('course_id'));
+
+	if (!$user_id || !$course_id) {
+		return new WP_Error('missing_params', 'Thiếu user_id hoặc course_id.', ['status' => 400]);
+	}
+
+	$table_items = $wpdb->prefix . 'learnpress_user_items';
+	$now_mysql   = current_time('mysql');
+
+	if ($wpdb->get_var("SHOW TABLES LIKE '{$table_items}'") === $table_items) {
+		$existing_id = $wpdb->get_var($wpdb->prepare(
+			"SELECT user_item_id FROM {$table_items} WHERE user_id = %d AND item_id = %d AND item_type = 'lp_course' ORDER BY user_item_id DESC LIMIT 1",
+			$user_id, $course_id
+		));
+
+		$pg_meta = get_post_meta($course_id, '_lp_passing_condition', true);
+		$passing_grade = (!empty($pg_meta) && is_numeric($pg_meta)) ? floatval($pg_meta) : 80;
+
+		$graduation = 'passed';
+
+		if ($existing_id) {
+			$wpdb->update(
+				$table_items,
+				[
+					'status'     => 'completed',
+					'graduation' => $graduation,
+					'end_time'   => $now_mysql,
+				],
+				['user_item_id' => intval($existing_id)]
+			);
+			$user_item_id = intval($existing_id);
+		} else {
+			$wpdb->insert(
+				$table_items,
+				[
+					'user_id'    => $user_id,
+					'item_id'    => $course_id,
+					'item_type'  => 'lp_course',
+					'start_time' => $now_mysql,
+					'end_time'   => $now_mysql,
+					'status'     => 'completed',
+					'graduation' => $graduation,
+				]
+			);
+			$user_item_id = intval($wpdb->insert_id);
+		}
+
+		// Trigger hooks
+		do_action('learn-press/user-course-finished', $course_id, $user_id, $user_item_id);
+		do_action('learn_press_user_finish_course', $course_id, $user_id);
+	}
+
+	// Xóa cache
+	if (function_exists('learn_press_get_user') && $user_id > 0) {
+		try {
+			$lp_user = learn_press_get_user($user_id);
+			if ($lp_user && method_exists($lp_user, 'clean_caches')) {
+				$lp_user->clean_caches();
+			}
+		} catch (Throwable $e) {}
+	}
+	delete_user_meta($user_id, '_lp_course_progress');
+	clean_user_cache($user_id);
+
+	return rest_ensure_response([
+		'success' => true,
+		'message' => 'Chúc mừng bạn đã hoàn thành khóa học!',
+	]);
+}

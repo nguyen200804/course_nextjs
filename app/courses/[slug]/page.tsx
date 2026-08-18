@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -79,6 +79,106 @@ export default function CourseDetailsPage() {
   const [courseProgress, setCourseProgress] = useState<any>(null);
   const [showRepurchaseModal, setShowRepurchaseModal] = useState<boolean>(false);
   const [isRepurchasing, setIsRepurchasing] = useState<boolean>(false);
+
+  // Reviews state
+  const [reviewsData, setReviewsData] = useState<{
+    reviews: any[];
+    rating_details: any;
+    can_review: boolean;
+    user_reviewed: boolean;
+  }>({
+    reviews: [],
+    rating_details: null,
+    can_review: false,
+    user_reviewed: false,
+  });
+  const [showWriteReviewModal, setShowWriteReviewModal] = useState<boolean>(false);
+  const [reviewTitle, setReviewTitle] = useState<string>('');
+  const [reviewContent, setReviewContent] = useState<string>('');
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewError, setReviewError] = useState<string>('');
+
+  const loadReviews = useCallback(async () => {
+    if (!course?.id) return;
+    try {
+      const uId = user?.id || 0;
+      const res = await fetch(`/api/course-reviews?course_id=${course.id}&user_id=${uId}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success) {
+          setReviewsData({
+            reviews: data.reviews || [],
+            rating_details: data.rating_details || null,
+            can_review: data.can_review || false,
+            user_reviewed: data.user_reviewed || false,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error loading course reviews:", e);
+    }
+  }, [course?.id, user?.id]);
+
+  useEffect(() => {
+    if (course?.id) {
+      loadReviews();
+    }
+  }, [course?.id, user?.id, loadReviews]);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!course?.id || !user?.id) {
+      alert("Bạn cần đăng nhập để đánh giá khóa học.");
+      return;
+    }
+    if (!reviewContent.trim()) {
+      setReviewError("Vui lòng nhập nội dung đánh giá (Content).");
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    setReviewError('');
+    try {
+      const res = await fetch('/api/course-reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          course_id: course.id,
+          user_id: user.id,
+          title: reviewTitle.trim(),
+          content: reviewContent.trim(),
+          rating: reviewRating,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (typeof window !== 'undefined' && course?.id) {
+          localStorage.setItem(`reviewed_course_${course.id}`, 'true');
+        }
+        setShowWriteReviewModal(false);
+        setReviewTitle('');
+        setReviewContent('');
+        setReviewRating(5);
+        setReviewsData((prev) => ({
+          ...prev,
+          user_reviewed: true,
+          can_review: false,
+          reviews: data.review ? [data.review, ...prev.reviews.filter((r: any) => r.id !== data.review.id)] : prev.reviews,
+        }));
+        await loadReviews();
+        alert(data.message || "Đánh giá khóa học thành công!");
+      } else {
+        setReviewError(data.message || "Không thể gửi đánh giá.");
+      }
+    } catch (err: any) {
+      setReviewError(err.message || "Lỗi kết nối khi gửi đánh giá.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
 
   const handleRepurchase = async (actionChoice: string) => {
     if (!course?.id) return;
@@ -323,7 +423,7 @@ export default function CourseDetailsPage() {
                   <li className={`${styles.hn_course_header_meta_item} ${styles.hn_course_header_meta_item_rating}`}>
                     <div className={styles.hn_course_header_review_wrapper}>
                       {(() => {
-                        const headerRatingDetails = (course as any)?.rating_details;
+                        const headerRatingDetails = reviewsData.rating_details || (course as any)?.rating_details;
                         const headerAverage = headerRatingDetails?.average ?? 5;
                         const headerTotalReviews = headerRatingDetails?.total ?? 0;
 
@@ -685,17 +785,34 @@ export default function CourseDetailsPage() {
                           <div className={styles.hn_course_details_rating_reviews}>
                             <div className={styles.hn_course_details_course_rate}>
                               {(() => {
-                                const ratingDetails = (course as any)?.rating_details;
-                                const averageRating = ratingDetails?.average ?? 5;
+                                const ratingDetails = reviewsData.rating_details || (course as any)?.rating_details;
+                                const averageRating = ratingDetails?.average ?? 0.0;
                                 const totalRatings = ratingDetails?.total ?? 0;
                                 const starsBreakdown = ratingDetails?.stars || { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 };
                                 const percentsBreakdown = ratingDetails?.percents || { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 };
-                                const reviewsList = ratingDetails?.reviews || [];
+
+                                const isCourseFinishedUser =
+                                  reviewsData.can_review ||
+                                  courseProgress?.user_course_status === 'finished' ||
+                                  (course as any)?.user_course_status === 'finished' ||
+                                  (courseProgress?.progress_percent !== undefined && Number(courseProgress?.progress_percent) >= Number(courseProgress?.passing_grade || 80));
+
+                                const reviewsList = reviewsData.reviews.length > 0 ? reviewsData.reviews : ((course as any)?.rating_details?.reviews || []);
+
+                                const currentUserName = ((user as any)?.name || (user as any)?.display_name || user?.username || '').trim().toLowerCase();
+                                const currentUserId = Number(user?.id || 0);
+
+                                const hasUserReviewed = Boolean(
+                                  reviewsData.user_reviewed ||
+                                  (currentUserId > 0 && reviewsList.some((r: any) => Number(r.user_id) === currentUserId)) ||
+                                  (currentUserName && reviewsList.some((r: any) => r.author_name && r.author_name.trim().toLowerCase() === currentUserName)) ||
+                                  (typeof window !== 'undefined' && course?.id && localStorage.getItem(`reviewed_course_${course.id}`) === 'true')
+                                );
 
                                 return (
                                   <>
                                     <div className={styles.hn_course_details_rate_summary}>
-                                      <div className={styles.hn_course_details_rate_value}>{averageRating}</div>
+                                      <div className={styles.hn_course_details_rate_value}>{averageRating.toFixed(1)}</div>
                                       <div className={styles.hn_course_details_rate_summary_stars}>
                                         {[1, 2, 3, 4, 5].map((starIdx) => (
                                           <i
@@ -708,6 +825,20 @@ export default function CourseDetailsPage() {
                                       <div className={styles.hn_course_details_rate_summary_text}>
                                         <span>{totalRatings}</span> ratings
                                       </div>
+
+                                      {/* Write A Review button: ONLY when course is finished AND user has NOT reviewed yet */}
+                                      {isCourseFinishedUser && !hasUserReviewed && (
+                                        <button
+                                          type="button"
+                                          className={styles.hn_btn_write_review}
+                                          onClick={() => {
+                                            setReviewError('');
+                                            setShowWriteReviewModal(true);
+                                          }}
+                                        >
+                                          Write A Review
+                                        </button>
+                                      )}
                                     </div>
                                     <div className={styles.hn_course_details_rate_details}>
                                       {/* Rating Rows 5, 4, 3, 2, 1 */}
@@ -737,7 +868,7 @@ export default function CourseDetailsPage() {
                             <div className={styles.hn_course_details_reviews_list_wrapper} id="course-reviews">
                               <h3 className={styles.hn_course_details_reviews_head}>Reviews</h3>
                               {(() => {
-                                const reviewsList = (course as any)?.rating_details?.reviews || [];
+                                const reviewsList = reviewsData.reviews.length > 0 ? reviewsData.reviews : ((course as any)?.rating_details?.reviews || []);
                                 if (reviewsList.length === 0) {
                                   return (
                                     <p style={{ color: '#64748b', fontStyle: 'italic', padding: '16px 0' }}>
@@ -793,6 +924,95 @@ export default function CourseDetailsPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Modal Write A Review */}
+                      {showWriteReviewModal && (
+                        <div className={styles.hn_review_modal_backdrop} onClick={() => setShowWriteReviewModal(false)}>
+                          <div className={styles.hn_review_modal_card} onClick={(e) => e.stopPropagation()}>
+                            <div className={styles.hn_review_modal_header}>
+                              <h3 className={styles.hn_review_modal_title}>Write a review</h3>
+                              <button
+                                type="button"
+                                className={styles.hn_review_modal_close}
+                                onClick={() => setShowWriteReviewModal(false)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            <form onSubmit={handleSubmitReview}>
+                              <div className={styles.hn_review_modal_body}>
+                                {reviewError && (
+                                  <div style={{ color: '#ef4444', fontSize: '13px', background: '#fef2f2', padding: '8px 12px', borderRadius: '4px', border: '1px solid #fee2e2' }}>
+                                    {reviewError}
+                                  </div>
+                                )}
+
+                                <div className={styles.hn_review_field_group}>
+                                  <label className={styles.hn_review_label}>Title *</label>
+                                  <input
+                                    type="text"
+                                    className={styles.hn_review_input}
+                                    value={reviewTitle}
+                                    onChange={(e) => setReviewTitle(e.target.value)}
+                                    placeholder=""
+                                  />
+                                </div>
+
+                                <div className={styles.hn_review_field_group}>
+                                  <label className={styles.hn_review_label}>Content *</label>
+                                  <textarea
+                                    className={styles.hn_review_textarea}
+                                    value={reviewContent}
+                                    onChange={(e) => setReviewContent(e.target.value)}
+                                    placeholder=""
+                                    rows={4}
+                                    required
+                                  />
+                                </div>
+
+                                <div className={styles.hn_review_field_group}>
+                                  <label className={styles.hn_review_label}>Rating (click to choice) *</label>
+                                  <div className={styles.hn_review_stars_picker} onMouseLeave={() => setHoverRating(0)}>
+                                    {[1, 2, 3, 4, 5].map((star) => {
+                                      const active = star <= (hoverRating || reviewRating);
+                                      return (
+                                        <button
+                                          key={star}
+                                          type="button"
+                                          className={styles.hn_review_star_btn}
+                                          onClick={() => setReviewRating(star)}
+                                          onMouseEnter={() => setHoverRating(star)}
+                                          style={{ color: active ? '#ffb60a' : '#d1d5db' }}
+                                        >
+                                          ★
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className={styles.hn_review_modal_footer}>
+                                <button
+                                  type="submit"
+                                  disabled={isSubmittingReview}
+                                  className={styles.hn_btn_review_submit}
+                                >
+                                  {isSubmittingReview ? "Submitting..." : "Add Review"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowWriteReviewModal(false)}
+                                  className={styles.hn_btn_review_cancel}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

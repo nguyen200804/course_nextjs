@@ -66,15 +66,40 @@ export async function GET() {
       });
     }
 
-    // ─── Step 2: Lấy danh sách quiz từ tab "all" (tất cả lần làm) ───
-    // Mỗi entry có dạng: { id (quiz_id), result, graduation, start_time, end_time, data: { ... } }
+    // ─── Step 2: Lấy danh sách quiz từ tab "all" và chỉ giữ lại kết quả mới nhất cho mỗi Quiz ───
     const allAttempts: any[] = Array.isArray(quizzesContent.all)
       ? quizzesContent.all
       : [];
 
+    // Nhóm theo Quiz ID và chỉ giữ lại lượt làm mới nhất cho mỗi Quiz
+    const latestAttemptsByQuizId = new Map<string, any>();
+    const attemptCountByQuizId: Record<string, number> = {};
+
+    allAttempts.forEach((attempt: any) => {
+      const qid = attempt.id;
+      if (!qid) return;
+
+      const qidKey = String(qid);
+      attemptCountByQuizId[qidKey] = (attemptCountByQuizId[qidKey] || 0) + 1;
+
+      const existing = latestAttemptsByQuizId.get(qidKey);
+      if (!existing) {
+        latestAttemptsByQuizId.set(qidKey, attempt);
+      } else {
+        // So sánh thời gian làm bài (end_time, start_time) hoặc ID để lấy lần làm mới nhất
+        const timeExisting = new Date(existing.end_time || existing.start_time || 0).getTime();
+        const timeCurrent  = new Date(attempt.end_time || attempt.start_time || 0).getTime();
+
+        if (timeCurrent >= timeExisting) {
+          latestAttemptsByQuizId.set(qidKey, attempt);
+        }
+      }
+    });
+
+    const uniqueLatestAttempts = Array.from(latestAttemptsByQuizId.values());
     const counts = { total: 0, passed: 0, failed: 0, inprogress: 0 };
 
-    const quizIdSet = [...new Set(allAttempts.map((a: any) => a.id))];
+    const quizIdSet = [...new Set(uniqueLatestAttempts.map((a: any) => a.id))];
     const quizMeta: Record<string, { title: string; slug: string; courseId?: number; courseTitle?: string; courseSlug?: string }> = {};
 
     await Promise.all(
@@ -117,8 +142,8 @@ export async function GET() {
       })
     );
 
-    // ─── Step 4: Normalize data ───
-    const formattedQuizzes = allAttempts.map((attempt: any, idx: number) => {
+    // ─── Step 4: Normalize data (kết quả mới nhất của mỗi quiz) ───
+    const formattedQuizzes = uniqueLatestAttempts.map((attempt: any, idx: number) => {
       const quizId = attempt.id;
       const meta = quizMeta[String(quizId)];
 
@@ -195,7 +220,7 @@ export async function GET() {
       const questionCorrect = data.question_correct ?? null;
 
       return {
-        id: `${quizId}-${idx}`,
+        id: `${quizId}`,
         quizId,
         title: meta?.title || `Quiz #${quizId}`,
         slug: meta?.slug || `quiz-${quizId}`,
@@ -215,8 +240,8 @@ export async function GET() {
         duration: timeSpend,
         startedAt: attempt.start_time || null,
         completedAt: attempt.end_time || null,
-        // Attempts
-        attempts: 1, // mỗi entry là 1 lần làm
+        // Tổng số lần làm bài của quiz này
+        attempts: attemptCountByQuizId[String(quizId)] || 1,
         // Passing grade
         passingGrade: data.passing_grade || null,
         // Detailed questions map
@@ -224,6 +249,13 @@ export async function GET() {
         // Previous retake attempts list
         attempt: attempt.attempt || [],
       };
+    });
+
+    // Sắp xếp quiz mới hoàn thành / làm gần nhất lên đầu
+    formattedQuizzes.sort((a, b) => {
+      const timeA = new Date(a.completedAt || a.startedAt || 0).getTime();
+      const timeB = new Date(b.completedAt || b.startedAt || 0).getTime();
+      return timeB - timeA;
     });
 
     return NextResponse.json({ quizzes: formattedQuizzes, counts });

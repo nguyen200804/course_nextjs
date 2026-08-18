@@ -41,13 +41,19 @@ export default function MyCourses() {
         const fetchUserCourses = async () => {
             setLoading(true);
             try {
-                const res = await fetch('/api/user/my-courses');
+                const res = await fetch('/api/user/my-courses', { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     const list: Course[] = data.courses || [];
                     setCourses(list);
                     if (data.counts) {
-                        setCounts(data.counts);
+                        const passedCount = Number(data.counts.passed || 0);
+                        const failedCount = Number(data.counts.failed || 0);
+                        const finishedSum = passedCount + failedCount;
+                        setCounts({
+                            ...data.counts,
+                            finished: finishedSum > 0 ? finishedSum : Number(data.counts.finished || 0),
+                        });
                     }
 
                     // Xuất console.log Course progress: và Passing grade progress: của các khóa học liên quan đến User
@@ -70,8 +76,8 @@ export default function MyCourses() {
     // 2. Lọc danh sách theo Tab active
     const filteredCourses = courses.filter((course) => {
         if (activeTab === 'all') return true;
-        if (activeTab === 'in-progress') return course.status === 'in-progress';
-        if (activeTab === 'finished') return course.status === 'finished';
+        if (activeTab === 'in-progress') return course.status === 'in-progress' || (course.status as string) === 'enrolled';
+        if (activeTab === 'finished') return course.status === 'finished' || course.status === 'passed' || course.status === 'failed';
         if (activeTab === 'passed') return course.status === 'passed';
         if (activeTab === 'failed') return course.status === 'failed';
         return true;

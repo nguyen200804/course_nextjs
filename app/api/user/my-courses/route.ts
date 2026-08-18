@@ -41,6 +41,7 @@ export async function GET() {
     }
 
     let rawCourses: any[] = [];
+    let customCounts: { enrolled?: number; inprogress?: number; finished?: number; passed?: number; failed?: number } | null = null;
 
     // 1. Thử gọi Custom REST API endpoint `/custom/v1/user-courses?user_id={id}`
     try {
@@ -50,7 +51,12 @@ export async function GET() {
       });
       if (customRes.ok) {
         const data = await customRes.json();
-        if (Array.isArray(data)) {
+        if (data && Array.isArray(data.courses)) {
+          rawCourses = data.courses;
+          if (data.counts) {
+            customCounts = data.counts;
+          }
+        } else if (Array.isArray(data)) {
           rawCourses = data;
         }
       }
@@ -58,7 +64,30 @@ export async function GET() {
       // Fallback
     }
 
-    // 2. Thử gọi LearnPress REST API `/learnpress/v1/users/{id}/courses`
+    // 2. Thử gọi LearnPress REST API `/learnpress/v1/users/{id}` (hoặc `/courses`)
+    if (rawCourses.length === 0) {
+      try {
+        const lpUserRes = await fetch(`${wpUrl}/wp-json/learnpress/v1/users/${sessionUser.id}`, {
+          headers,
+          cache: "no-store",
+        });
+        if (lpUserRes.ok) {
+          const userData = await lpUserRes.json();
+          const coursesTab = userData?.tabs?.courses?.content;
+          if (coursesTab) {
+            const allTabCourses = Array.isArray(coursesTab.all)
+              ? coursesTab.all
+              : (Array.isArray(coursesTab.enrolled) ? coursesTab.enrolled : (Array.isArray(coursesTab) ? coursesTab : []));
+            if (allTabCourses.length > 0) {
+              rawCourses = allTabCourses;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Lỗi fetch LearnPress user profile courses:", err);
+      }
+    }
+
     if (rawCourses.length === 0) {
       try {
         const lpRes = await fetch(`${wpUrl}/wp-json/learnpress/v1/users/${sessionUser.id}/courses`, {
@@ -119,13 +148,13 @@ export async function GET() {
       const resultGrade = (c.grade || c.results?.grade || '').toLowerCase();
       const progressNum = Math.min(100, Math.max(0, Number(c.progress ?? c.results?.result ?? 0)));
 
-      if (resultGrade === 'passed' || rawStatus === 'passed' || graduation === 'passed') {
+      if (c.status === 'passed' || resultGrade === 'passed' || rawStatus === 'passed' || graduation === 'passed') {
         status = 'passed';
-      } else if (resultGrade === 'failed' || rawStatus === 'failed' || graduation === 'failed') {
+      } else if (c.status === 'failed' || resultGrade === 'failed' || rawStatus === 'failed' || graduation === 'failed') {
         status = 'failed';
-      } else if (rawStatus === 'completed' || rawStatus === 'finished' || graduation === 'completed' || progressNum === 100) {
+      } else if (c.status === 'finished' || rawStatus === 'completed' || rawStatus === 'finished' || graduation === 'completed' || progressNum === 100) {
         status = 'finished';
-      } else if (rawStatus === 'in-progress' || graduation === 'in-progress' || progressNum > 0) {
+      } else if (c.status === 'in-progress' || rawStatus === 'in-progress' || graduation === 'in-progress' || progressNum > 0) {
         status = 'in-progress';
       } else {
         status = 'enrolled';
@@ -133,20 +162,26 @@ export async function GET() {
 
       // Tăng chỉ số tương ứng
       counts.enrolled += 1;
-      if (status === 'in-progress') counts.inprogress += 1;
-      if (status === 'finished') counts.finished += 1;
+      if (status === 'in-progress' || status === 'enrolled') counts.inprogress += 1;
       if (status === 'passed') counts.passed += 1;
       if (status === 'failed') counts.failed += 1;
 
+      const courseTitle = c.title?.rendered || c.name || c.title || `Khóa học #${c.id}`;
+      const courseSlug = c.slug || `course-${c.id}`;
+      const courseDesc = c.excerpt?.rendered?.replace(/<[^>]+>/g, '') || c.description || "";
+      const courseImg = c.featured_media_src_url || c.image || "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?q=80&w=600&auto=format&fit=crop";
+      const passingGradeVal = c.passingGradeProgress || (c.passingGrade ? `${c.passingGrade}%` : '80%');
+
       return {
         id: c.id || c.course_id,
-        title: c.title?.rendered || c.name || c.title || `Khóa học #${c.id}`,
-        slug: c.slug || `course-${c.id}`,
-        description: c.excerpt?.rendered?.replace(/<[^>]+>/g, '') || "",
-        image: c.featured_media_src_url || c.image || "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?q=80&w=600&auto=format&fit=crop",
+        title: courseTitle,
+        slug: courseSlug,
+        description: courseDesc,
+        image: courseImg,
         progress: progressNum,
         courseProgress: c.courseProgress || `${progressNum}%`,
-        passingGradeProgress: c.passingGradeProgress || (c.passingGrade ? `${c.passingGrade}%` : 'N/A'),
+        passingGradeProgress: passingGradeVal,
+        passingGrade: c.passingGrade || 80,
         status: status,
         result: c.result || `${progressNum}%`,
         expirationTime: c.expirationTime || c.expiration_time || c.expiry_date || "-",
@@ -154,12 +189,25 @@ export async function GET() {
       };
     });
 
+    // Finished Course là tổng cộng giữa Passed Course và Failed Course
+    counts.finished = counts.passed + counts.failed;
+
+    // Nếu customCounts đã có đầy đủ từ WordPress, ưu tiên tính nhất quán
+    const finalCounts = customCounts ? {
+      enrolled: Number(customCounts.enrolled ?? counts.enrolled),
+      inprogress: Number(customCounts.inprogress ?? counts.inprogress),
+      passed: Number(customCounts.passed ?? counts.passed),
+      failed: Number(customCounts.failed ?? counts.failed),
+      finished: Number((customCounts.passed ?? counts.passed) + (customCounts.failed ?? counts.failed)),
+    } : counts;
+
     return NextResponse.json({
       courses: formattedCourses,
-      counts: counts,
+      counts: finalCounts,
     });
   } catch (error) {
     console.error("Lỗi API my-courses:", error);
     return NextResponse.json({ error: "Lỗi hệ thống khi tải danh sách khóa học." }, { status: 500 });
   }
 }
+
