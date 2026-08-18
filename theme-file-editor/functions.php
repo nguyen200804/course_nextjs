@@ -3771,17 +3771,12 @@ if (!function_exists('custom_build_quiz_previous_attempts_history')) {
 		$quiz_id = absint($quiz_id);
 		if (!$user_id || !$quiz_id) return [];
 
+		// Lấy TẤT CẢ bản ghi (không exclude ở SQL để tránh mất data)
 		$sql = "SELECT user_item_id, start_time, end_time, status, graduation
 		        FROM {$table_ui}
-		        WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'";
-		$params = [$user_id, $quiz_id];
-		if ($exclude_user_item_id > 0) {
-			$sql .= " AND user_item_id < %d";
-			$params[] = $exclude_user_item_id;
-		}
-		$sql .= " ORDER BY user_item_id ASC";
-
-		$rows = $wpdb->get_results($wpdb->prepare($sql, $params));
+		        WHERE user_id = %d AND item_id = %d AND item_type = 'lp_quiz'
+		        ORDER BY user_item_id ASC";
+		$rows = $wpdb->get_results($wpdb->prepare($sql, $user_id, $quiz_id));
 		if (empty($rows)) return [];
 
 		$pg_val = get_post_meta($quiz_id, '_lp_passing_grade', true);
@@ -3790,7 +3785,7 @@ if (!function_exists('custom_build_quiz_previous_attempts_history')) {
 		}
 		$passing_grade_str = ($pg_val !== '' && $pg_val !== null)
 			? (is_numeric($pg_val) ? "{$pg_val}%" : strval($pg_val))
-			: '';
+			: '80%';
 
 		$history = [];
 		$seen = [];
@@ -3798,6 +3793,11 @@ if (!function_exists('custom_build_quiz_previous_attempts_history')) {
 		foreach ($rows as $row) {
 			$oid = absint($row->user_item_id);
 			if (!$oid || isset($seen[$oid])) continue;
+
+			// Bỏ qua bản ghi đang exclude (lần vừa finish) nếu cần
+			if ($exclude_user_item_id > 0 && $oid === $exclude_user_item_id) {
+				continue;
+			}
 
 			$old_result = null;
 			if (class_exists('LP_User_Items_Result_DB')) {
@@ -3808,54 +3808,119 @@ if (!function_exists('custom_build_quiz_previous_attempts_history')) {
 			}
 			if (!$old_result || !is_array($old_result)) {
 				$old_result = learn_press_get_user_item_meta($oid, 'results', true);
+				if (is_string($old_result)) {
+					$old_result = maybe_unserialize($old_result);
+					if (is_string($old_result) && (strpos($old_result, '{') === 0 || strpos($old_result, '[') === 0)) {
+						$old_result = json_decode($old_result, true);
+					}
+				}
 			}
+			// Thử thêm các key meta khác
 			if (!$old_result || !is_array($old_result)) {
+				foreach (['_lp_user_item_results', '_lp_results', '_lp_quiz_results'] as $mk) {
+					$tmp = learn_press_get_user_item_meta($oid, $mk, true);
+					if (is_string($tmp)) {
+						$tmp = maybe_unserialize($tmp);
+						if (is_string($tmp) && (strpos($tmp, '{') === 0 || strpos($tmp, '[') === 0)) {
+							$tmp = json_decode($tmp, true);
+						}
+					}
+					if (is_array($tmp) && !empty($tmp)) {
+						$old_result = $tmp;
+						break;
+					}
+				}
+			}
+
+			// Nếu vẫn không có result chi tiết → vẫn giữ bản ghi completed
+			if (!$old_result || !is_array($old_result)) {
+				if ($row->status === 'completed') {
+					$history[] = [
+						'user_item_id'     => $oid,
+						'status'           => 'completed',
+						'graduation'       => $row->graduation ?: 'failed',
+						'start_time'       => $row->start_time,
+						'end_time'         => $row->end_time,
+						'time_spent'       => '00:00:00',
+						'time_spend'       => '00:00:00',
+						'questions'        => '',
+						'questions_count'  => 0,
+						'correct'          => 0,
+						'wrong'            => 0,
+						'skipped'          => 0,
+						'points'           => '',
+						'user_mark'        => 0,
+						'mark'             => 0,
+						'passing_grade'    => $passing_grade_str,
+						'result'           => '0.00%',
+						'result_num'       => 0,
+					];
+					$seen[$oid] = true;
+				}
 				continue;
 			}
 
-			$r         = floatval($old_result['result'] ?? 0);
-			$user_mark = floatval($old_result['user_mark'] ?? 0);
+			$r         = floatval($old_result['result'] ?? $old_result['result_num'] ?? 0);
+			$user_mark = floatval($old_result['user_mark'] ?? $old_result['correct'] ?? 0);
 			$mark      = floatval($old_result['mark'] ?? $old_result['question_count'] ?? 0);
-			$q_correct = intval($old_result['question_correct'] ?? $user_mark);
-			$q_count   = intval($old_result['question_count'] ?? $mark);
+			$q_correct = intval($old_result['question_correct'] ?? $old_result['correct'] ?? $user_mark);
+			$q_count   = intval($old_result['question_count'] ?? $old_result['questions_count'] ?? $mark);
 			$ts        = trim((string)($old_result['time_spend'] ?? $old_result['time_spent'] ?? ''));
-
-			// Bỏ attempt rác (0 điểm + 0 thời gian)
-			$is_zero_score = ($r <= 0 && $user_mark <= 0);
-			$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0', '--:--'], true);
-			if ($is_zero_score && $is_zero_time) {
-				continue;
-			}
 
 			if (is_numeric($ts)) {
 				$sec = intval($ts);
 				$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
 			}
-			if ($ts === '') $ts = '00:00:00';
+			if ($ts === '') {
+				// Fallback tính từ start/end
+				if ($row->start_time && $row->end_time && $row->end_time !== '0000-00-00 00:00:00') {
+					$t1 = is_numeric($row->start_time) ? intval($row->start_time) : strtotime($row->start_time);
+					$t2 = is_numeric($row->end_time)   ? intval($row->end_time)   : strtotime($row->end_time);
+					if ($t1 && $t2 && $t2 >= $t1) {
+						$sec = $t2 - $t1;
+						$ts  = sprintf('%02d:%02d:%02d', floor($sec / 3600), floor(($sec % 3600) / 60), $sec % 60);
+					} else {
+						$ts = '00:00:00';
+					}
+				} else {
+					$ts = '00:00:00';
+				}
+			}
+
+			// Chỉ bỏ attempt rác thật sự (0 điểm + 0 thời gian + không phải completed)
+			$is_zero_score = ($r <= 0 && $user_mark <= 0);
+			$is_zero_time  = empty($ts) || in_array($ts, ['00:00:00', '00:00', '0', '--:--'], true);
+			if ($is_zero_score && $is_zero_time && $row->status !== 'completed') {
+				continue;
+			}
 
 			$pg = $old_result['passing_grade'] ?? $passing_grade_str;
+			if (is_numeric($pg)) $pg = $pg . '%';
+
 			$graduation = $row->graduation
 				?: (($r >= floatval($pg_val ?: 80) || !empty($old_result['pass'])) ? 'passed' : 'failed');
 
-			$item = array_merge($old_result, [
-				'user_item_id'       => $oid,
-				'status'             => 'completed',
-				'graduation'         => $graduation,
-				'start_time'         => $row->start_time,
-				'end_time'           => $row->end_time,
-				'result'             => $r,
-				'user_mark'          => $user_mark,
-				'mark'               => $mark,
-				'time_spend'         => $ts,
-				'time_spent'         => $ts,
-				'question_count'     => $q_count,
-				'question_correct'   => $q_correct,
-				'passing_grade'      => $pg,
-				'pass'               => ($graduation === 'passed') ? 1 : 0,
-				// Field theme WP hay dùng cho cột bảng
-				'questions'          => "{$q_correct} / " . ($q_count > 0 ? $q_count : $mark),
-				'points'             => "{$user_mark} / " . ($mark > 0 ? $mark : $q_count),
-			]);
+			$item = [
+				'user_item_id'     => $oid,
+				'status'           => $row->status ?: 'completed',
+				'graduation'       => $graduation,
+				'start_time'       => $row->start_time,
+				'end_time'         => $row->end_time,
+				'time_spent'       => $ts,
+				'time_spend'       => $ts,
+				'questions'        => "{$q_correct} / " . ($q_count > 0 ? $q_count : ($mark > 0 ? $mark : 0)),
+				'questions_count'  => $q_count > 0 ? $q_count : $mark,
+				'correct'          => $q_correct,
+				'wrong'            => intval($old_result['question_wrong'] ?? $old_result['wrong'] ?? max(0, ($mark ?: $q_count) - $q_correct)),
+				'skipped'          => intval($old_result['question_empty'] ?? $old_result['skipped'] ?? 0),
+				'points'           => "{$user_mark} / " . ($mark > 0 ? $mark : $q_count),
+				'user_mark'        => $user_mark,
+				'mark'             => $mark > 0 ? $mark : $q_count,
+				'passing_grade'    => $pg,
+				'result'           => sprintf('%.2f%%', $r),
+				'result_num'       => $r,
+				'results'          => $old_result,
+			];
 
 			$history[] = $item;
 			$seen[$oid] = true;
@@ -4017,9 +4082,9 @@ function custom_sync_lp_native_quiz_finished($item_id_or_user_item_id, $quiz_id 
 		}
 	} catch (Throwable $e) {}
 	
-	$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, $user_item_id);
-	error_log('[custom_sync] quiz finished user_item_id=' . $user_item_id . ' quiz_id=' . $quiz_id . ' history_count=' . count($attempts_history));
-	custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
+	$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0); // lấy hết
+error_log('[custom_sync] quiz finished user_item_id=' . $user_item_id . ' quiz_id=' . $quiz_id . ' history_count=' . count($attempts_history));
+custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
 
 
 	
@@ -4619,8 +4684,9 @@ function custom_lp_submit_quiz(WP_REST_Request $request) {
 	}
 
 
-	$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, $user_item_id);
-	custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
+// Lấy history TẤT CẢ (không exclude) rồi ghi lại
+$attempts_history = custom_build_quiz_previous_attempts_history($user_id, $quiz_id, 0); // 0 = lấy hết
+custom_write_quiz_attempts_history($user_id, $quiz_id, $course_id, $user_item_id, $attempts_history);
 
 	// Meta answers để review tick radio
 
